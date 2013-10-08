@@ -1,0 +1,100 @@
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/Documentation/dontdiff linux-3.2.0/Documentation/dontdiff
+--- linux-3.2.0.orig/Documentation/dontdiff	2013-10-06 14:45:28.490231054 +0800
++++ linux-3.2.0/Documentation/dontdiff	2013-10-06 14:49:00.726261078 +0800
+@@ -154,7 +154,6 @@ kxgettext
+ lkc_defs.h
+ lex.c
+ lex.*.c
+-linux
+ logo_*.c
+ logo_*_clut224.c
+ logo_*_mono.c
+@@ -260,3 +259,9 @@ wakeup.lds
+ zImage*
+ zconf.hash.c
+ zoffset.h
++security
++ubuntu
++scripts
++arch
++drivers
++kernel
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/fs/direct-io.c linux-3.2.0/fs/direct-io.c
+--- linux-3.2.0.orig/fs/direct-io.c	2013-10-05 20:15:15.449004056 +0800
++++ linux-3.2.0/fs/direct-io.c	2013-10-06 14:37:46.110165952 +0800
+@@ -414,7 +414,9 @@ static inline void dio_bio_submit(struct
+ 	unsigned long flags;
+ 
+ 	bio->bi_private = dio;
+-
++#ifdef CONFIG_FS_TSSD
++	bio->bi_session_key = dio->iocb->ki_filp->f_session_key;
++#endif
+ 	spin_lock_irqsave(&dio->bio_lock, flags);
+ 	dio->refcount++;
+ 	spin_unlock_irqrestore(&dio->bio_lock, flags);
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/fs/ext4/ext4.h linux-3.2.0/fs/ext4/ext4.h
+--- linux-3.2.0.orig/fs/ext4/ext4.h	2013-10-05 20:15:15.433004051 +0800
++++ linux-3.2.0/fs/ext4/ext4.h	2013-10-05 20:38:27.337213223 +0800
+@@ -577,6 +577,7 @@ struct ext4_new_group_data {
+  /* note ioctl 11 reserved for filesystem-independent FIEMAP ioctl */
+ #define EXT4_IOC_ALLOC_DA_BLKS		_IO('f', 12)
+ #define EXT4_IOC_MOVE_EXT		_IOWR('f', 15, struct move_extent)
++#define EXT4_IOC_SETSKEY		_IOW('f', 20, unsigned long)
+ 
+ #if defined(__KERNEL__) && defined(CONFIG_COMPAT)
+ /*
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/fs/ext4/ioctl.c linux-3.2.0/fs/ext4/ioctl.c
+--- linux-3.2.0.orig/fs/ext4/ioctl.c	2013-10-05 20:15:15.441004053 +0800
++++ linux-3.2.0/fs/ext4/ioctl.c	2013-10-05 20:38:27.337213223 +0800
+@@ -28,6 +28,9 @@ long ext4_ioctl(struct file *filp, unsig
+ 	ext4_debug("cmd = %u, arg = %lu\n", cmd, arg);
+ 
+ 	switch (cmd) {
++	case EXT4_IOC_SETSKEY:
++		filp->f_session_key = arg;
++		return 0;
+ 	case EXT4_IOC_GETFLAGS:
+ 		ext4_get_inode_flags(ei);
+ 		flags = ei->i_flags & EXT4_FL_USER_VISIBLE;
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/fs/Kconfig linux-3.2.0/fs/Kconfig
+--- linux-3.2.0.orig/fs/Kconfig	2013-10-05 20:15:15.329004018 +0800
++++ linux-3.2.0/fs/Kconfig	2013-10-05 20:38:27.337213223 +0800
+@@ -10,6 +10,10 @@ source "fs/ext2/Kconfig"
+ source "fs/ext3/Kconfig"
+ source "fs/ext4/Kconfig"
+ 
++config FS_TSSD
++    bool "Enable TrustedSSD"
++    default y
++
+ config FS_XIP
+ # execute in place
+ 	bool
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/include/linux/blk_types.h linux-3.2.0/include/linux/blk_types.h
+--- linux-3.2.0.orig/include/linux/blk_types.h	2013-10-05 20:15:09.677002253 +0800
++++ linux-3.2.0/include/linux/blk_types.h	2013-10-06 14:40:04.750185426 +0800
+@@ -66,6 +66,9 @@ struct bio {
+ 	bio_end_io_t		*bi_end_io;
+ 
+ 	void			*bi_private;
++#if defined(CONFIG_FS_TSSD)
++	unsigned long		bi_session_key;
++#endif
+ #if defined(CONFIG_BLK_DEV_INTEGRITY)
+ 	struct bio_integrity_payload *bi_integrity;  /* data integrity */
+ #endif
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/include/linux/fs.h linux-3.2.0/include/linux/fs.h
+--- linux-3.2.0.orig/include/linux/fs.h	2013-10-05 20:15:09.709002263 +0800
++++ linux-3.2.0/include/linux/fs.h	2013-10-06 14:38:26.402171609 +0800
+@@ -984,7 +984,9 @@ struct file {
+ #define f_dentry	f_path.dentry
+ #define f_vfsmnt	f_path.mnt
+ 	const struct file_operations	*f_op;
+-
++#ifdef CONFIG_FS_TSSD
++	unsigned long		f_session_key;
++#endif
+ 	/*
+ 	 * Protects f_ep_links, f_flags, f_pos vs i_size in lseek SEEK_CUR.
+ 	 * Must not be taken from IRQ context.

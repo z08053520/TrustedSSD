@@ -1,0 +1,4 @@
+#!/bin/bash
+MYSRC="linux-3.2.0"
+ORGSRC="linux-3.2.0.orig"
+diff -uprN -X $MYSRC/Documentation/dontdiff $ORGSRC $MYSRC
