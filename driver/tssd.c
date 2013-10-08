@@ -48,8 +48,6 @@ static int ndevices = 1;
 
 #define DEFAULT_SESSION_KEY 	1234
 
-struct dio;
-
 /*
  * The internal representation of our device.
  */
