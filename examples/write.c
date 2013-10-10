@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
 		return -1;
     	}
 	
-	int fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 
+	int fd = tssd_open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 
 				    S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | 
 				    S_IROTH | S_IWOTH );
 	if(fd < 0) {
