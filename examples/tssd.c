@@ -6,7 +6,6 @@
 #include <sys/stat.h>
 #include "tssd.h"
 
-#define TSSD_MEM_ALIGNMENT		512
 #define TSSD_CMD_SET_SESSION_KEY	_IOW('f', 20, unsigned long)
 
 int tssd_open(const char* pathname, int flags, ...) {

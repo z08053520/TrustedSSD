@@ -9,7 +9,7 @@
 
 #include "tssd.h"
 
-#define BUFF_SIZE 512
+#define BUFF_SIZE TSSD_MEM_ALIGNMENT 
 
 int main(int argc, char** argv) {
 	if(argc < 4) {
@@ -17,8 +17,9 @@ int main(int argc, char** argv) {
 		return -1;
     	}
 	
-	int fd = tssd_open(argv[1], O_RDWR | O_CREAT, 
-				    S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+	int fd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 
+				    S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | 
+				    S_IROTH | S_IWOTH );
 	if(fd < 0) {
 		printf("Error: failed to open file\n");
 		return -1;
@@ -34,7 +35,9 @@ int main(int argc, char** argv) {
 	}
 	memset(buff, 0, BUFF_SIZE);
 	strcpy(buff, argv[2]);
-	int cnt = write(fd, buff, strlen(argv[2]));
+	/* As the file is opened in O_DIRECT mode, we must write in units of 
+	 * 512-bytes sector or the write would fail */
+	int cnt = write(fd, buff, BUFF_SIZE);
 	if(cnt < 0) {
 		printf("Error: failed to write!\n");
 		free(buff);
