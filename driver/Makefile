@@ -1,6 +1,5 @@
 # Comment/uncomment the following line to disable/enable debugging
-#DEBUG = y
-
+DEBUG = y
 
 # Add your debugging flag (or not) to ccflags-y
 ifeq ($(DEBUG),y)
@@ -27,18 +26,18 @@ default:
 
 endif
 
-module=tssd
+module="tssd"
 device=tssd
 mode=666
 group=staff
-major=$(shell cat /proc/devices | awk '$$2=="ramdisk" {print $$1}')
+major=251	# fix this!
 
+#major="$(shell cat /proc/devices | awk '$$2==\"tssd\" {print $$1}')"; 
 load:
 	# Group: since distributions do it differently, look for wheel or use staff
 	# invoke insmod with all arguments we got
 	# and use a pathname, as newer modutils don't look in . by default
 	sudo insmod ${module}.ko || exit 1
-	major=`cat /proc/devices | awk '$$2==${module} {print $$1}'`
 	# Remove stale nodes and replace them, then give gid and perms
 	sudo rm -f /dev/${device}a /dev/${device}
 	sudo mknod /dev/${device}a b ${major} 0
