@@ -30,7 +30,6 @@ module="tssd"
 device=tssd
 mode=666
 group=staff
-major=251	# fix this!
 
 #major="$(shell cat /proc/devices | awk '$$2==\"tssd\" {print $$1}')"; 
 load:
@@ -40,7 +39,7 @@ load:
 	sudo insmod ${module}.ko || exit 1
 	# Remove stale nodes and replace them, then give gid and perms
 	sudo rm -f /dev/${device}a /dev/${device}
-	sudo mknod /dev/${device}a b ${major} 0
+	sudo mknod /dev/${device}a b `cat /proc/devices | awk '$$2=="tssd" {print $$1}'` 0 
 	sudo chgrp ${group} /dev/${device}a*
 	sudo chmod ${mode} /dev/${device}a*
 
