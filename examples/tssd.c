@@ -1,7 +1,11 @@
+/* define _GNU_SOURCE macro before including fcntl.h to enable O_DIRECT */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include "tssd.h"
