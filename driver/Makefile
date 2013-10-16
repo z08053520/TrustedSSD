@@ -31,7 +31,6 @@ device=tssd
 mode=666
 group=staff
 
-#major="$(shell cat /proc/devices | awk '$$2==\"tssd\" {print $$1}')"; 
 load:
 	# Group: since distributions do it differently, look for wheel or use staff
 	# invoke insmod with all arguments we got

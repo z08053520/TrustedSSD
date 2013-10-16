@@ -12,11 +12,11 @@
 #include <linux/fcntl.h>	/* O_ACCMODE */
 #include <linux/hdreg.h>	/* HDIO_GETGEO */
 #include <linux/kdev_t.h>
-#include <linux/vmalloc.h>
 #include <linux/genhd.h>
 #include <linux/blkdev.h>
 #include <linux/buffer_head.h>	/* invalidate_bdev */
 #include <linux/bio.h>
+#include <linux/spinlock.h>
 #include "tssd.h"
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -25,7 +25,7 @@ static int tssd_major = 0;
 module_param(tssd_major, int, 0);
 static int hardsect_size = 512;
 module_param(hardsect_size, int, 0);
-static int nsectors = 1024 * 8;	/* How big the drive is */
+static int nsectors = 1024 * 4;	/* How big the drive is */
 module_param(nsectors, int, 0);
 static int ndevices = 1;
 
@@ -87,7 +87,6 @@ static int tssd_transfer(struct tssd_dev *dev, unsigned long offset,
 	int invalid_access = 0;
 
 	if ((offset + nbytes) > dev->size) {
-		PDEBUG (KERN_NOTICE "Beyond-end write (%ld %ld)\n", offset, nbytes);
 		return 1;
 	}
 	
@@ -95,26 +94,19 @@ static int tssd_transfer(struct tssd_dev *dev, unsigned long offset,
 	start = offset; end = start + nbytes;
 	if (write) {
 		// assign new uids
-		printk("write: for each sector: ");
 		tssd_for_each_sector(sector, pos, start, end) {
 			dev->sector_uids[sector] = session_uid;
-			printk("%d, ", sector);
 		}
-		printk("\n");
 		memcpy(dev->data + offset, buffer, nbytes);
 	}
 	else {
 		// check uids
-		printk("read: for each sector: ");
 		tssd_for_each_sector(sector, pos, start, end) {
-			printk("%d, ", sector);
 			if(dev->sector_uids[sector] != session_uid) {
 				invalid_access = 1;
-				printk(" <-- uids don't match: %d expected but given %d", dev->sector_uids[sector], session_uid);
 				break;
 			}
 		}
-		printk("\n");
 		if(invalid_access)
 			memset(buffer, 0, nbytes);
 		else
@@ -133,10 +125,11 @@ static int tssd_xfer_bio(struct tssd_dev *dev, struct bio *bio)
 {
 	int i;
 	struct bio_vec *bvec;
-  	unsigned long offset = bio->bi_sector * hardsect_size; /* not sure */ 
+  	unsigned long offset = bio->bi_sector * hardsect_size;
   	char *buffer;
-	int res;
+	int res = 0;
 
+	spin_lock(&dev->lock);
 	/* Do each segment independently. */
 	bio_for_each_segment(bvec, bio, i) {
     		bio->bi_idx = i;
@@ -144,11 +137,13 @@ static int tssd_xfer_bio(struct tssd_dev *dev, struct bio *bio)
 		res = tssd_transfer(dev, offset, bio_cur_bytes(bio),
 				buffer, bio_data_dir(bio) == WRITE,
 				bio->bi_session_key);
-		if (res) return 1;
+		__bio_kunmap_atomic(buffer, KM_USER0);
+		if (res) goto out;
 		offset += bio_cur_bytes(bio);
-		__bio_kunmap_atomic(bio, KM_USER0);
 	}
-	return 0; /* Always "succeed" */
+out:
+	spin_unlock(&dev->lock);
+	return res;
 }
 
 /*
@@ -233,7 +228,7 @@ void tssd_invalidate(unsigned long ldev)
 
 	spin_lock(&dev->lock);
 	if (dev->users || !dev->data) 
-		printk (KERN_WARNING "tssd: timer sanity check failed\n");
+		PDEBUG ("tssd: timer sanity check failed");
 	else
 		dev->media_change = 1;
 	spin_unlock(&dev->lock);
@@ -296,21 +291,21 @@ static void setup_device(struct tssd_dev *dev, int which)
 	 */
 	memset (dev, 0, sizeof (struct tssd_dev));
 	dev->size = nsectors*hardsect_size;
-	dev->data = vmalloc(dev->size);
+	dev->data = kmalloc(dev->size, GFP_KERNEL);
 	if (!dev->data) {
-		printk (KERN_NOTICE "vmalloc failure.\n");
+		printk (KERN_NOTICE "kmalloc for dev->data failed.\n");
 		return;
 	}
 	memset(dev->data, 0, dev->size);
 	dev->sector_uids = kmalloc(sizeof(unsigned short) * nsectors, GFP_KERNEL);
 	if (!dev->sector_uids) {
-		printk (KERN_NOTICE "vmalloc failure.\n");
+		printk (KERN_NOTICE "kmalloc for dev->sector_uids failed.\n");
 		return;
 	}
 	memset(dev->sector_uids, 0, sizeof(unsigned short) * nsectors);
 	dev->sessions = kmalloc(sizeof(unsigned short) * 2, GFP_KERNEL);
 	if (!dev->sessions){
-		printk (KERN_NOTICE "vmalloc failure.\n");
+		printk (KERN_NOTICE "kmalloc for dev->sessions failed.\n");
 		return;
 	}
 	dev->sessions[0] = 0;
@@ -325,13 +320,13 @@ static void setup_device(struct tssd_dev *dev, int which)
 	dev->timer.data = (unsigned long) dev;
 	dev->timer.function = tssd_invalidate;
 	
-  dev->queue = blk_alloc_queue(GFP_KERNEL);
-  if (dev->queue == NULL)
-    goto out_vfree;
-  blk_queue_make_request(dev->queue, tssd_make_request);
-  /* This function is no longer available in Linux 2.6.32.
-   * A possible replacement is blk_queue_physical_block_size()
-   * blk_queue_hardsect_size(dev->queue, hardsect_size); */
+ 	dev->queue = blk_alloc_queue(GFP_KERNEL);
+	if (dev->queue == NULL)
+		goto out_vfree;
+	blk_queue_make_request(dev->queue, tssd_make_request);
+	/* This function is no longer available in Linux 2.6.32.
+	 * A possible replacement is blk_queue_physical_block_size()
+   	 * blk_queue_hardsect_size(dev->queue, hardsect_size); */
 	dev->queue->queuedata = dev;
 	/*
 	 * And the gendisk structure.
@@ -404,7 +399,7 @@ static void tssd_exit(void)
 			put_disk(dev->gd);
 		}
 		if (dev->queue) {
-      blk_put_queue(dev->queue);
+			blk_put_queue(dev->queue);
 		}
 		if (dev->data)
 			vfree(dev->data);
