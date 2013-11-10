@@ -1,3 +1,35 @@
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/block/blk-core.c linux-3.2.0/block/blk-core.c
+--- linux-3.2.0.orig/block/blk-core.c	2013-10-05 20:15:10.285002443 +0800
++++ linux-3.2.0/block/blk-core.c	2013-11-10 10:55:50.346080991 +0800
+@@ -2516,6 +2516,10 @@ void blk_rq_bio_prep(struct request_queu
+ 	rq->__data_len = bio->bi_size;
+ 	rq->bio = rq->biotail = bio;
+ 
++#if defined(CONFIG_FS_TSSD)
++	rq->session_key = bio->bi_session_key;
++#endif
++
+ 	if (bio->bi_bdev)
+ 		rq->rq_disk = bio->bi_bdev->bd_disk;
+ }
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/block/elevator.c linux-3.2.0/block/elevator.c
+--- linux-3.2.0.orig/block/elevator.c	2013-10-05 20:15:10.285002443 +0800
++++ linux-3.2.0/block/elevator.c	2013-11-10 11:02:09.394047502 +0800
+@@ -75,6 +75,14 @@ int elv_rq_merge_ok(struct request *rq,
+ 	if (!rq_mergeable(rq))
+ 		return 0;
+ 
++#if defined(CONFIG_FS_TSSD)
++	/* 
++	 * Don't merge two requests with different session keys
++	 */
++	if (rq->session_key != bio->bi_session_key)
++		return 0;
++#endif
++
+ 	/*
+ 	 * Don't merge file system requests and discard requests
+ 	 */
 diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/Documentation/dontdiff linux-3.2.0/Documentation/dontdiff
 --- linux-3.2.0.orig/Documentation/dontdiff	2013-10-06 14:45:28.490231054 +0800
 +++ linux-3.2.0/Documentation/dontdiff	2013-10-06 14:49:00.726261078 +0800
@@ -71,6 +103,38 @@ diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/fs/Kconfig lin
  config FS_XIP
  # execute in place
  	bool
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/include/linux/ata.h linux-3.2.0/include/linux/ata.h
+--- linux-3.2.0.orig/include/linux/ata.h	2013-10-05 20:15:09.653002246 +0800
++++ linux-3.2.0/include/linux/ata.h	2013-11-10 11:14:35.557906114 +0800
+@@ -495,6 +495,14 @@ struct ata_taskfile {
+ 
+ 	u8			device;
+ 
++#if defined(CONFIG_FS_TSSD)
++	/* session key = sk3 << 24 | sk2 << 16 | sk1 << 8 | sk0 */
++	u8			sk0;	
++	u8			sk1;
++	u8			sk2;
++	u8			sk3;
++#endif
++
+ 	u8			command;	/* IO operation */
+ };
+ 
+diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/include/linux/blkdev.h linux-3.2.0/include/linux/blkdev.h
+--- linux-3.2.0.orig/include/linux/blkdev.h	2013-10-05 20:15:09.737002272 +0800
++++ linux-3.2.0/include/linux/blkdev.h	2013-11-10 10:44:34.294048755 +0800
+@@ -164,6 +164,10 @@ struct request {
+ 	unsigned int timeout;
+ 	int retries;
+ 
++#if defined(CONFIG_FS_TSSD)
++	unsigned long		session_key;
++#endif
++
+ 	/*
+ 	 * completion callback.
+ 	 */
 diff -uprN -X linux-3.2.0/Documentation/dontdiff linux-3.2.0.orig/include/linux/blk_types.h linux-3.2.0/include/linux/blk_types.h
 --- linux-3.2.0.orig/include/linux/blk_types.h	2013-10-05 20:15:09.677002253 +0800
 +++ linux-3.2.0/include/linux/blk_types.h	2013-10-06 14:40:04.750185426 +0800
