@@ -1,4 +1,5 @@
 #!/bin/bash
-MYSRC="linux-3.2.0"
-ORGSRC="linux-3.2.0.orig"
-diff -uprN -X $MYSRC/Documentation/dontdiff $ORGSRC $MYSRC
+VERSION=3.2.52
+MYSRC="linux-${VERSION}"
+ORGSRC="linux-${VERSION}.orig"
+diff -uprN --exclude-from=$MYSRC/Documentation/dontdiff $ORGSRC $MYSRC
