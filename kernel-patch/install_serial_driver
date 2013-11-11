@@ -1,0 +1,17 @@
+#!/bin/bash
+# usb-serial and cp210x drivers are need to use serial port for debugging
+# In case the running kernel doesn't load the module by default, this script
+# loads the two drivers.
+
+VERSION=3.2.52
+LINUX_PATH=linux-$VERSION
+USB_SERIAL_DRIVERS_PATH=drivers/usb/serial
+USBSRL_PATH=$USB_SERIAL_DRIVERS_PATH/usb-serial.ko
+CP210X_PATH=$USB_SERIAL_DRIVERS_PATH/cp210x.ko
+MODULES_PATH=/lib/modules
+
+sudo cp $LINUX_PATH/$USBSRL_PATH $MODULES_PATH/$USBSRL_PATH
+sudo cp $LINUX_PATH/$CP210X_PATH $MODULES_PATH/$CP210X_PATH
+cd $MODULES_PATH
+sudo insmod $USBSRL_PATH
+sudo insmod $CP210X_PATH
