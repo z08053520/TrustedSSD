@@ -1,7 +1,29 @@
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/block/blk-core.c linux-3.2.52/block/blk-core.c
---- linux-3.2.52.orig/block/blk-core.c	2013-10-05 20:15:10.285002443 +0800
-+++ linux-3.2.52/block/blk-core.c	2013-11-10 10:55:50.346080991 +0800
-@@ -2516,6 +2516,10 @@ void blk_rq_bio_prep(struct request_queu
+--- linux-3.2.52.orig/block/blk-core.c	2013-11-10 14:16:22.458367013 +0800
++++ linux-3.2.52/block/blk-core.c	2013-11-11 15:43:19.850933321 +0800
+@@ -33,6 +33,10 @@
+ #define CREATE_TRACE_POINTS
+ #include <trace/events/block.h>
+ 
++#if defined(CONFIG_FS_TSSD)
++#include <misc/tssd_debug.h>
++#endif
++
+ #include "blk.h"
+ 
+ EXPORT_TRACEPOINT_SYMBOL_GPL(block_bio_remap);
+@@ -1696,6 +1700,10 @@ void submit_bio(int rw, struct bio *bio)
+ 		}
+ 	}
+ 
++#if defined(CONFIG_FS_TSSD)
++	TSSD_DEBUG_SKEY("bio in submit_bio", bio->bi_session_key);
++#endif
++
+ 	generic_make_request(bio);
+ }
+ EXPORT_SYMBOL(submit_bio);
+@@ -2516,6 +2524,10 @@ void blk_rq_bio_prep(struct request_queu
  	rq->__data_len = bio->bi_size;
  	rq->bio = rq->biotail = bio;
  
@@ -13,8 +35,8 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  		rq->rq_disk = bio->bi_bdev->bd_disk;
  }
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/block/elevator.c linux-3.2.52/block/elevator.c
---- linux-3.2.52.orig/block/elevator.c	2013-10-05 20:15:10.285002443 +0800
-+++ linux-3.2.52/block/elevator.c	2013-11-10 11:02:09.394047502 +0800
+--- linux-3.2.52.orig/block/elevator.c	2013-11-10 14:16:22.442367156 +0800
++++ linux-3.2.52/block/elevator.c	2013-11-11 14:28:33.965195711 +0800
 @@ -75,6 +75,14 @@ int elv_rq_merge_ok(struct request *rq,
  	if (!rq_mergeable(rq))
  		return 0;
@@ -31,8 +53,8 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  	 * Don't merge file system requests and discard requests
  	 */
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/Documentation/dontdiff linux-3.2.52/Documentation/dontdiff
---- linux-3.2.52.orig/Documentation/dontdiff	2013-10-06 14:45:28.490231054 +0800
-+++ linux-3.2.52/Documentation/dontdiff	2013-11-11 14:09:20.152580175 +0800
+--- linux-3.2.52.orig/Documentation/dontdiff	2013-11-10 14:16:06.906507930 +0800
++++ linux-3.2.52/Documentation/dontdiff	2013-11-11 14:28:33.969195684 +0800
 @@ -154,7 +154,6 @@ kxgettext
  lkc_defs.h
  lex.c
@@ -52,9 +74,37 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
 +kernel
 +cayman_reg_safe.h
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/drivers/ata/libata-core.c linux-3.2.52/drivers/ata/libata-core.c
---- linux-3.2.52.orig/drivers/ata/libata-core.c	2013-10-05 20:15:11.789002913 +0800
-+++ linux-3.2.52/drivers/ata/libata-core.c	2013-11-10 11:53:57.664864350 +0800
-@@ -565,10 +565,10 @@ void ata_tf_to_fis(const struct ata_task
+--- linux-3.2.52.orig/drivers/ata/libata-core.c	2013-11-10 14:15:52.766636072 +0800
++++ linux-3.2.52/drivers/ata/libata-core.c	2013-11-11 20:54:51.595142660 +0800
+@@ -67,6 +67,10 @@
+ #include <linux/cdrom.h>
+ #include <linux/ratelimit.h>
+ 
++#if defined(CONFIG_FS_TSSD)
++#include <misc/tssd_debug.h>
++#endif
++
+ #include "libata.h"
+ #include "libata-transport.h"
+ 
+@@ -542,6 +546,16 @@ int atapi_cmd_type(u8 opcode)
+  */
+ void ata_tf_to_fis(const struct ata_taskfile *tf, u8 pmp, int is_cmd, u8 *fis)
+ {
++#if defined(CONFIG_FS_TSSD)
++	unsigned long session_key = 
++		tf->sk0 << 0  |
++		tf->sk1 << 8  |
++		tf->sk2 << 16 |
++		tf->sk3 << 24 ;
++	TSSD_DEBUG_SKEY("fis in function ata_tf_to_fis", session_key);
++#endif
++	printk("ata_tf_to_fis: %u, %u, %u, %u!!!!!!\n", tf->sk0, tf->sk1, tf->sk2, tf->sk3);
++	
+ 	fis[0] = 0x27;			/* Register - Host to Device FIS */
+ 	fis[1] = pmp & 0xf;		/* Port multiplier number*/
+ 	if (is_cmd)
+@@ -565,10 +579,10 @@ void ata_tf_to_fis(const struct ata_task
  	fis[14] = 0;
  	fis[15] = tf->ctl;
  
@@ -62,14 +112,14 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
 -	fis[17] = 0;
 -	fis[18] = 0;
 -	fis[19] = 0;
-+	fis[16] = tf->sk0;
-+	fis[17] = tf->sk1;
-+	fis[18] = tf->sk2;
-+	fis[19] = tf->sk3;
++	fis[16] = tf->sk2;
++	fis[17] = tf->sk3;
++	fis[18] = tf->sk0;
++	fis[19] = tf->sk1;
  }
  
  /**
-@@ -843,6 +843,26 @@ int ata_build_rw_tf(struct ata_taskfile
+@@ -843,6 +857,29 @@ int ata_build_rw_tf(struct ata_taskfile
  	return 0;
  }
  
@@ -89,6 +139,9 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
 +	tf->sk1 = (session_key >> 8) & 0xFF;
 +	tf->sk2 = (session_key >> 16) & 0xFF;
 +	tf->sk3 = (session_key >> 24) & 0xFF;
++
++	TSSD_DEBUG_SKEY("ata task file in function ata_build_rw_tf_with_session_key", session_key);
++
 +	return 0;
 +}
 +#endif
@@ -96,9 +149,30 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  /**
   *	ata_pack_xfermask - Pack pio, mwdma and udma masks into xfer_mask
   *	@pio_mask: pio_mask
+@@ -4984,6 +5021,10 @@ void ata_qc_issue(struct ata_queued_cmd
+ 	struct ata_link *link = qc->dev->link;
+ 	u8 prot = qc->tf.protocol;
+ 
++#if defined(CONFIG_FS_TSSD)
++//	printk("ata_qc_issue: %u, %u, %u, %u!!!!!!\n", qc->tf.sk0, qc->tf.sk1, qc->tf.sk2, qc->tf.sk3);
++#endif
++
+ 	/* Make sure only one non-NCQ command is outstanding.  The
+ 	 * check is skipped for old EH because it reuses active qc to
+ 	 * request ATAPI sense.
+@@ -5027,6 +5068,9 @@ void ata_qc_issue(struct ata_queued_cmd
+ 		return;
+ 	}
+ 
++#if defined(CONFIG_FS_TSSD)
++	//printk("ata_qc_issue: before ap->ops->qc_prep\n");
++#endif
+ 	ap->ops->qc_prep(qc);
+ 
+ 	qc->err_mask |= ap->ops->qc_issue(qc);
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/drivers/ata/libata.h linux-3.2.52/drivers/ata/libata.h
---- linux-3.2.52.orig/drivers/ata/libata.h	2013-10-05 20:15:11.785002911 +0800
-+++ linux-3.2.52/drivers/ata/libata.h	2013-11-10 12:04:26.188643718 +0800
+--- linux-3.2.52.orig/drivers/ata/libata.h	2013-11-10 14:15:52.758636144 +0800
++++ linux-3.2.52/drivers/ata/libata.h	2013-11-11 14:28:33.969195684 +0800
 @@ -66,6 +66,12 @@ extern struct ata_queued_cmd *ata_qc_new
  extern int ata_build_rw_tf(struct ata_taskfile *tf, struct ata_device *dev,
  			   u64 block, u32 n_block, unsigned int tf_flags,
@@ -113,8 +187,8 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  extern unsigned ata_exec_internal(struct ata_device *dev,
  				  struct ata_taskfile *tf, const u8 *cdb,
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/drivers/ata/libata-scsi.c linux-3.2.52/drivers/ata/libata-scsi.c
---- linux-3.2.52.orig/drivers/ata/libata-scsi.c	2013-10-05 20:15:11.785002911 +0800
-+++ linux-3.2.52/drivers/ata/libata-scsi.c	2013-11-10 11:58:24.568760472 +0800
+--- linux-3.2.52.orig/drivers/ata/libata-scsi.c	2013-11-10 14:15:52.730636398 +0800
++++ linux-3.2.52/drivers/ata/libata-scsi.c	2013-11-11 14:28:33.973195658 +0800
 @@ -1699,8 +1699,14 @@ static unsigned int ata_scsi_rw_xlat(str
  	qc->flags |= ATA_QCFLAG_IO;
  	qc->nbytes = n_block * scmd->device->sector_size;
@@ -130,9 +204,31 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  	if (likely(rc == 0))
  		return 0;
  
+diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/drivers/ata/libata-sff.c linux-3.2.52/drivers/ata/libata-sff.c
+--- linux-3.2.52.orig/drivers/ata/libata-sff.c	2013-11-10 14:15:52.570637846 +0800
++++ linux-3.2.52/drivers/ata/libata-sff.c	2013-11-11 20:56:09.402569696 +0800
+@@ -2790,7 +2790,6 @@ unsigned int ata_bmdma_qc_issue(struct a
+ {
+ 	struct ata_port *ap = qc->ap;
+ 	struct ata_link *link = qc->dev->link;
+-
+ 	/* defer PIO handling to sff_qc_issue */
+ 	if (!ata_is_dma(qc->tf.protocol))
+ 		return ata_sff_qc_issue(qc);
+@@ -2798,6 +2797,10 @@ unsigned int ata_bmdma_qc_issue(struct a
+ 	/* select the device */
+ 	ata_dev_select(ap, qc->dev->devno, 1, 0);
+ 
++#if defined(CONFIG_FS_TSSD)
++	printk("ata_bmdma_qc_issue: %u, %u, %u, %u!!!!!!\n", qc->tf.sk0, qc->tf.sk1, qc->tf.sk2, qc->tf.sk3);
++#endif
++	
+ 	/* start the command */
+ 	switch (qc->tf.protocol) {
+ 	case ATA_PROT_DMA:
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/fs/direct-io.c linux-3.2.52/fs/direct-io.c
---- linux-3.2.52.orig/fs/direct-io.c	2013-10-05 20:15:15.449004056 +0800
-+++ linux-3.2.52/fs/direct-io.c	2013-10-06 14:37:46.110165952 +0800
+--- linux-3.2.52.orig/fs/direct-io.c	2013-11-10 14:16:03.410539610 +0800
++++ linux-3.2.52/fs/direct-io.c	2013-11-11 14:28:33.973195658 +0800
 @@ -414,7 +414,9 @@ static inline void dio_bio_submit(struct
  	unsigned long flags;
  
@@ -145,8 +241,8 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  	dio->refcount++;
  	spin_unlock_irqrestore(&dio->bio_lock, flags);
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/fs/ext4/ext4.h linux-3.2.52/fs/ext4/ext4.h
---- linux-3.2.52.orig/fs/ext4/ext4.h	2013-10-05 20:15:15.433004051 +0800
-+++ linux-3.2.52/fs/ext4/ext4.h	2013-10-05 20:38:27.337213223 +0800
+--- linux-3.2.52.orig/fs/ext4/ext4.h	2013-11-10 14:16:04.226532217 +0800
++++ linux-3.2.52/fs/ext4/ext4.h	2013-11-11 14:28:33.973195658 +0800
 @@ -577,6 +577,7 @@ struct ext4_new_group_data {
   /* note ioctl 11 reserved for filesystem-independent FIEMAP ioctl */
  #define EXT4_IOC_ALLOC_DA_BLKS		_IO('f', 12)
@@ -156,8 +252,8 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  #if defined(__KERNEL__) && defined(CONFIG_COMPAT)
  /*
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/fs/ext4/ioctl.c linux-3.2.52/fs/ext4/ioctl.c
---- linux-3.2.52.orig/fs/ext4/ioctl.c	2013-10-05 20:15:15.441004053 +0800
-+++ linux-3.2.52/fs/ext4/ioctl.c	2013-10-05 20:38:27.337213223 +0800
+--- linux-3.2.52.orig/fs/ext4/ioctl.c	2013-11-10 14:16:04.246532034 +0800
++++ linux-3.2.52/fs/ext4/ioctl.c	2013-11-11 14:28:33.977195634 +0800
 @@ -28,6 +28,9 @@ long ext4_ioctl(struct file *filp, unsig
  	ext4_debug("cmd = %u, arg = %lu\n", cmd, arg);
  
@@ -169,8 +265,8 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  		ext4_get_inode_flags(ei);
  		flags = ei->i_flags & EXT4_FL_USER_VISIBLE;
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/fs/Kconfig linux-3.2.52/fs/Kconfig
---- linux-3.2.52.orig/fs/Kconfig	2013-10-05 20:15:15.329004018 +0800
-+++ linux-3.2.52/fs/Kconfig	2013-10-05 20:38:27.337213223 +0800
+--- linux-3.2.52.orig/fs/Kconfig	2013-11-10 14:16:03.082542582 +0800
++++ linux-3.2.52/fs/Kconfig	2013-11-11 14:28:33.977195634 +0800
 @@ -10,6 +10,10 @@ source "fs/ext2/Kconfig"
  source "fs/ext3/Kconfig"
  source "fs/ext4/Kconfig"
@@ -183,8 +279,8 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  # execute in place
  	bool
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/include/linux/ata.h linux-3.2.52/include/linux/ata.h
---- linux-3.2.52.orig/include/linux/ata.h	2013-10-05 20:15:09.653002246 +0800
-+++ linux-3.2.52/include/linux/ata.h	2013-11-10 11:14:35.557906114 +0800
+--- linux-3.2.52.orig/include/linux/ata.h	2013-11-10 14:16:08.894489915 +0800
++++ linux-3.2.52/include/linux/ata.h	2013-11-11 14:28:33.977195634 +0800
 @@ -495,6 +495,14 @@ struct ata_taskfile {
  
  	u8			device;
@@ -201,8 +297,8 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  };
  
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/include/linux/blkdev.h linux-3.2.52/include/linux/blkdev.h
---- linux-3.2.52.orig/include/linux/blkdev.h	2013-10-05 20:15:09.737002272 +0800
-+++ linux-3.2.52/include/linux/blkdev.h	2013-11-10 10:44:34.294048755 +0800
+--- linux-3.2.52.orig/include/linux/blkdev.h	2013-11-10 14:16:10.898471757 +0800
++++ linux-3.2.52/include/linux/blkdev.h	2013-11-11 14:28:33.977195634 +0800
 @@ -164,6 +164,10 @@ struct request {
  	unsigned int timeout;
  	int retries;
@@ -215,8 +311,8 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  	 * completion callback.
  	 */
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/include/linux/blk_types.h linux-3.2.52/include/linux/blk_types.h
---- linux-3.2.52.orig/include/linux/blk_types.h	2013-10-05 20:15:09.677002253 +0800
-+++ linux-3.2.52/include/linux/blk_types.h	2013-10-06 14:40:04.750185426 +0800
+--- linux-3.2.52.orig/include/linux/blk_types.h	2013-11-10 14:16:10.166478388 +0800
++++ linux-3.2.52/include/linux/blk_types.h	2013-11-11 14:28:33.977195634 +0800
 @@ -66,6 +66,9 @@ struct bio {
  	bio_end_io_t		*bi_end_io;
  
@@ -228,9 +324,9 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  	struct bio_integrity_payload *bi_integrity;  /* data integrity */
  #endif
 diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/include/linux/fs.h linux-3.2.52/include/linux/fs.h
---- linux-3.2.52.orig/include/linux/fs.h	2013-10-05 20:15:09.709002263 +0800
-+++ linux-3.2.52/include/linux/fs.h	2013-10-06 14:38:26.402171609 +0800
-@@ -984,7 +984,9 @@ struct file {
+--- linux-3.2.52.orig/include/linux/fs.h	2013-11-10 14:16:08.022497818 +0800
++++ linux-3.2.52/include/linux/fs.h	2013-11-11 14:28:33.981195611 +0800
+@@ -978,7 +978,9 @@ struct file {
  #define f_dentry	f_path.dentry
  #define f_vfsmnt	f_path.mnt
  	const struct file_operations	*f_op;
@@ -241,3 +337,30 @@ diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.ori
  	/*
  	 * Protects f_ep_links, f_flags, f_pos vs i_size in lseek SEEK_CUR.
  	 * Must not be taken from IRQ context.
+diff -uprN '--exclude-from=linux-3.2.52/Documentation/dontdiff' linux-3.2.52.orig/include/misc/tssd_debug.h linux-3.2.52/include/misc/tssd_debug.h
+--- linux-3.2.52.orig/include/misc/tssd_debug.h	1970-01-01 08:00:00.000000000 +0800
++++ linux-3.2.52/include/misc/tssd_debug.h	2013-11-11 18:59:18.469197452 +0800
+@@ -0,0 +1,23 @@
++#ifndef __LINUX_TSSD_DEBUG_H__
++#define __LINUX_TSSD_DEBUG_H__
++
++#undef 	TSSD_ENABLE_DEBUG
++#define TSSD_ENABLE_DEBUG
++
++#if defined(TSSD_ENABLE_DEBUG)
++
++#include <linux/printk.h>
++
++#define TSSD_DEBUG_SKEY(label, sk) \
++	if (sk) \
++		printk(KERN_DEBUG "%s: session_key = %lu\n", \
++			(label), (sk));
++
++#else
++
++#define TSSD_DEBUG_SKEY(label, sk)
++
++#endif
++#endif
++
++
