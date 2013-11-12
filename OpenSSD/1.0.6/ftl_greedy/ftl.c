@@ -269,7 +269,7 @@ void ftl_open(void)
     // and build bitmap of bad blocks
     //----------------------------------------
 	build_bad_blk_list();
-
+	uart_print("this is our ftl");
     //----------------------------------------
 	// If necessary, do low-level format
 	// format() should be called after loading scan lists, because format() calls is_bad_block().
@@ -285,6 +285,9 @@ void ftl_open(void)
     {
         load_metadata();
     }
+
+	uart_print("this is our ftl2");
+
 	g_ftl_read_buf_id = 0;
 	g_ftl_write_buf_id = 0;
 }

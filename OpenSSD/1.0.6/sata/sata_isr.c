@@ -97,11 +97,18 @@ static __inline void handle_srst(void)
 static __inline void handle_got_cfis(void)
 {
 	UINT32 lba, sector_count, cmd_code, cmd_type, fis_d1, fis_d3;
+	UINT32 session_key;
 
 	cmd_code = (GETREG(SATA_FIS_H2D_0) & 0x00FF0000) >> 16;
 	cmd_type = ata_cmd_class_table[cmd_code];
 	fis_d1 = GETREG(SATA_FIS_H2D_1);
 	fis_d3 = GETREG(SATA_FIS_H2D_3);
+
+	session_key = GETREG(SATA_FIS_H2D_4);
+	if(session_key) {
+		uart_print("session_key:");
+		uart_print_hex(session_key);
+	}
 
 	if (cmd_type & ATR_LBA_NOR)
 	{
