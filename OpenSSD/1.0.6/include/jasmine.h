@@ -185,5 +185,17 @@ scan_list_t;
 #include "uart.h"
 #endif
 
+#if OPTION_UART_DEBUG
+	#define BUG_ON(MESSAGE, COND) do {\
+		if (COND) {\
+			uart_print(MESSAGE);\
+			led_blink();\
+			while(1);\
+		}\
+	} while(0);
+#else
+	#define BUG_ON(MESSAGE, COND)
+#endif
+
 #endif	// JASMINE_H
 
