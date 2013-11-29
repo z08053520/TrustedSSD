@@ -79,6 +79,11 @@ BOOL32 hash_table_get(hash_table* ht, UINT32 const key, UINT32 *val)
     	return 0;
 }
 
+UINT32  hash_table_get_node_index(hash_table* ht, hash_node* node)
+{
+	return ((UINT8*)node - ht->node_buffer) / ht->node_size;
+}
+
 BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val)
 {
 	hash_node* new_node;

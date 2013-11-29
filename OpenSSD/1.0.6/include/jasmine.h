@@ -197,5 +197,7 @@ scan_list_t;
 	#define BUG_ON(MESSAGE, COND)
 #endif
 
+#define FOR_EACH_BANK(i)	for(i=0;i<NUM_BANKS;i++)
+
 #endif	// JASMINE_H
 

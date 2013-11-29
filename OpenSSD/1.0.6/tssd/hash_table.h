@@ -34,6 +34,7 @@ void	hash_table_init(hash_table*  ht,    UINT32 const capacity,
 		       hash_node** buckets,   UINT32 const num_buckets);
 BOOL32 	hash_table_get(hash_table* ht, UINT32 const key, UINT32 *val);
 hash_node* hash_table_get_node(hash_table* ht, UINT32 const key);
+UINT32  hash_table_get_node_index(hash_table* ht, hash_node* node);
 BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val);
 BOOL32 	hash_table_update(hash_table* ht, UINT32 const key, UINT32 const newval);
 BOOL32 	hash_table_remove(hash_table* ht, UINT32 const key);

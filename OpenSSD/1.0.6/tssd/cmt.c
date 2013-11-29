@@ -5,18 +5,18 @@
  * CMT is based on hash table 
  * ========================================================================*/
 
-/* CMT is implemented as a hash_table */
-#define CMT_HT_CAPACITY		CMT_ENTRIES
-#define CMT_HT_BUFFER_SIZE	CMT_ENTRIES * sizeof(cmt_node)
-#define CMT_HT_LOAD_FACTOR	4 / 3		// 0.75	
-#define CMT_HT_NUM_BUCKETS 	(CMT_HT_CAPACITY * CMT_HT_LOAD_FACTOR)
-
 typedef struct _cmt_node {
 	hash_node hn;
 	struct _cmt_node *next;
 	struct _cmt_node *pre;
 	UINT32	flag;
 } cmt_node;
+
+/* CMT is implemented as a hash_table */
+#define CMT_HT_CAPACITY		CMT_ENTRIES
+#define CMT_HT_BUFFER_SIZE	CMT_ENTRIES * sizeof(cmt_node)
+#define CMT_HT_LOAD_FACTOR	4 / 3		// 0.75	
+#define CMT_HT_NUM_BUCKETS 	(CMT_HT_CAPACITY * CMT_HT_LOAD_FACTOR)
 
 static UINT8  		_cmt_ht_buffer[CMT_HT_BUFFER_SIZE];
 static hash_node* 	_cmt_ht_buckets[CMT_HT_NUM_BUCKETS];
@@ -52,13 +52,13 @@ static void segment_init(cmt_segment* seg)
 	seg->capacity = CMT_ENTRIES / 2;
 }
 
-void segment_remove(cmt_node* node)
+static void segment_remove(cmt_node* node)
 {
 	node->pre->next = node->next;
 	node->next->pre = node->pre;
 }
 
-void segment_insert(cmt_node *head, cmt_node* node)
+static void segment_insert(cmt_node *head, cmt_node* node)
 {
 	node->next = head->next;
 	node->next->pre = node;
@@ -77,7 +77,7 @@ void segment_insert(cmt_node *head, cmt_node* node)
 #define segment_is_full(seg) 		(seg.size == seg.capacity)
 
 /* move a node to the head in protected segment */
-void segment_forward(cmt_node *node)
+static void segment_forward(cmt_node *node)
 {
 	BUG_ON("node not in protected segment", !is_protected(node));
 
@@ -86,7 +86,7 @@ void segment_forward(cmt_node *node)
 }
 
 /* move up a node from probationary segment to protected segment */
-void segment_up(cmt_node *node)
+static void segment_up(cmt_node *node)
 {
 	BUG_ON("node not in probationary segment", is_protected(node));
 
@@ -99,7 +99,7 @@ void segment_up(cmt_node *node)
 }
 
 /* move down the LRU node from protected segment to probationary segment  */
-cmt_node* segment_down()
+static cmt_node* segment_down()
 {
 	cmt_node* node = _cmt_protected_seg.tail.pre;
 
@@ -117,7 +117,7 @@ cmt_node* segment_down()
 }
 
 /* accept a node in segmented LRU cache */
-void segment_accept(cmt_node *node)
+static void segment_accept(cmt_node *node)
 {
 	BUG_ON("probationary segment is full", 
 			segment_is_full(_cmt_probationary_seg));
@@ -129,7 +129,7 @@ void segment_accept(cmt_node *node)
 }
 
 /* remove a node from segmented LRU cache */
-cmt_node* segment_drop()
+static cmt_node* segment_drop()
 {
 	cmt_node *node = _cmt_probationary_seg.tail.pre;
 
