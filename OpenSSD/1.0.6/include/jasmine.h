@@ -199,5 +199,8 @@ scan_list_t;
 
 #define FOR_EACH_BANK(i)	for(i=0;i<NUM_BANKS;i++)
 
+// page-level striping technique (I/O parallelism)
+#define lpn2bank(lpn)             ((lpn) % NUM_BANKS)
+
 #endif	// JASMINE_H
 

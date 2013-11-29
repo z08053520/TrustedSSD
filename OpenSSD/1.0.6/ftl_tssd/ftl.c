@@ -1,5 +1,6 @@
 #include "ftl.h"
 #include "cmt.h"
+#include "cache.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
@@ -29,9 +30,6 @@
 #define GTD_PAGES		COUNT_BUCKETS(GTD_ENTRIES, GTD_ENTRIES_PER_PAGE)
 
 UINT32 GTD[GTD_ENTRIES];	
-
-// page-level striping technique (I/O parallelism)
-#define lpn2bank(lpn)             ((lpn) % NUM_BANKS)
 
 UINT32 g_ftl_read_buf_id;
 UINT32 g_ftl_write_buf_id;
@@ -215,7 +213,27 @@ static UINT32 pmt_update(UINT32 const lpn, UINT32 const vpn)
 	return 0;	
 }
 
-static UINT32 get_vpn(UINT32 const lpn)
+
+/* ========================================================================= *
+ * Public API 
+ * ========================================================================= */
+
+void ftl_open(void) {
+	led(0);
+    	sanity_check();
+	build_bad_blk_list();
+	
+	/* if this is the first time after reloading firmware */
+	if (check_format_mark() == FALSE)
+		format();
+
+        load_metadata();
+	cmt_init();
+
+	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
+}
+
+UINT32 ftl_lpn2vpn(UINT32 const lpn)
 {
 	UINT32 vpn;
 	UINT32 victim_lpn, victim_vpn; BOOL32 victim_dirty;
@@ -238,26 +256,6 @@ static UINT32 get_vpn(UINT32 const lpn)
 	return vpn;
 }
 
-
-/* ========================================================================= *
- * Public API 
- * ========================================================================= */
-
-void ftl_open(void) {
-	led(0);
-    	sanity_check();
-	build_bad_blk_list();
-	
-	/* if this is the first time after reloading firmware */
-	if (check_format_mark() == FALSE)
-		format();
-
-        load_metadata();
-	cmt_init();
-
-	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
-}
-
 void ftl_read(UINT32 const lba, UINT32 const num_sectors) 
 {
 	UINT32 remain_sects, num_sectors_to_read;
@@ -276,7 +274,7 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
             		num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
 		
 		bank = lpn2bank(lpn); // page striping
-		vpn  = get_vpn(lpn);
+		vpn  = ftl_lpn2vpn(lpn);
 
         	if (vpn != NULL)
         	{

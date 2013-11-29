@@ -19,5 +19,5 @@ void cache_put(UINT32 const lpn, UINT32 *addr);
 void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors);
 /* inform the cache that some sectors of the page have been overwritten in
  * DRAM so that cache can write back to flash when evicting the page*/
-void cache_overwrite_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors)
+void cache_overwrite_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors);
 #endif
