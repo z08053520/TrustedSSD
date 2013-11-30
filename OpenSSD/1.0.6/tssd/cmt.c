@@ -56,6 +56,7 @@ static void segment_remove(cmt_node* node)
 {
 	node->pre->next = node->next;
 	node->next->pre = node->pre;
+	node->pre = node->next = NULL;
 }
 
 static void segment_insert(cmt_node *head, cmt_node* node)

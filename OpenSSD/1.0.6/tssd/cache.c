@@ -2,22 +2,25 @@
 #include "hash_table.h"
 #include "ftl.h"
 
-#define CACHE_BUF(i)	(CACHE_ADDR + BYTES_PER_PAGE * i)
-
 /* ========================================================================== 
  * Cache maintains a hash table for fast look-up 
  *
  * 	key -- the lpn of a page
- * 	val -- the buffer address for the page
+ * 	val -- the vpn of a page and  the buffer address for the page
  * ========================================================================*/
 
 typedef struct _cache_node {
 	hash_node hn;
 	struct _cache_node *next;
 	struct _cache_node *pre;
-	UINT32	flag;
+	UINT16  buff_id;
+	UINT16	flag;
 	UINT32  mask;	/* valid sectors, at most 32 sectors */
 } cache_node;
+
+#define node_lpn(node)		((node)->hn.key)
+#define node_vpn(node)		((node)->hn.val)
+#define node_addr(node)		(CACHE_BUF((node)->buff_id))
 
 #define CACHE_HT_CAPACITY	NUM_CACHE_BUFFERS		
 #define CACHE_HT_BUFFER_SIZE	(CACHE_HT_CAPACITY * sizeof(cache_node))
@@ -33,6 +36,8 @@ static hash_table 	_cache_ht;
 /* the second lowest bit is segment bit. Bit 1 is for protected seg. Bit 0 is 
  * for probationary seg. */
 #define PROTECTED_FLAG		(1 << 1)		
+/* the third lowest bit is merge bit, which indicates whether the buffer of 
+ * a node need to be merge with data in FTL_BUF */
 #define MERGE_FLAG		(1 << 2)
 
 #define is_dirty(node)			(node->flag & DIRTY_FLAG)
@@ -80,6 +85,7 @@ static void segment_remove(cache_node* node)
 {
 	node->pre->next = node->next;
 	node->next->pre = node->pre;
+	node->pre = node->next = NULL;
 }
 
 static void segment_insert(cache_node *head, cache_node* node)
@@ -106,7 +112,7 @@ static void segment_forward(cache_node *node)
 /* move up a node from probationary segment to protected segment */
 static void segment_up(cache_node *node)
 {
-	UINT8 prob_seg_index = lpn2bank(node->hn.key);
+	UINT8 prob_seg_index = lpn2bank(node_lpn(node));
 
 	BUG_ON("node not in probationary segment", is_protected(node));
 
@@ -122,7 +128,7 @@ static void segment_up(cache_node *node)
 static cache_node* segment_down()
 {
 	cache_node* node = _cache_protected_seg.tail.pre;
-	UINT8 prob_seg_index = lpn2bank(node->hn.key);
+	UINT8 prob_seg_index = lpn2bank(node_lpn(node));
 	cache_segment *prob_seg = &_cache_probationary_seg[prob_seg_index];
 
 	BUG_ON("protected segment is not full", 
@@ -139,8 +145,9 @@ static cache_node* segment_down()
 }
 
 /* accept a node in segmented LRU cache */
-static void segment_accept(cache_node *node, UINT8 const prob_seg_index)
+static void segment_accept(cache_node *node)
 {
+	UINT8 prob_seg_index = lpn2bank(node_lpn(node));
 	cache_segment *prob_seg = &_cache_probationary_seg[prob_seg_index];
 
 	BUG_ON("probationary segment is full", 
@@ -172,32 +179,31 @@ static cache_node* segment_drop(UINT8 const prob_seg_index)
 
 static void read_page(cache_node *node) 
 {
-	UINT32 lpn  = node->hn.key;
-	UINT32 addr = node->hn.val;
+	UINT32 lpn  = node_lpn(node);
+	UINT32 addr = node_addr(node);
+	UINT32 vpn  = node_vpn(lpn);
 
-	UINT32 vpn  = ftl_lpn2vpn(lpn);
 	UINT32 bank = lpn2bank(lpn);
 
 	UINT8 valid_sectors = __builtin_popcount(node->mask);
-	UINT8 left_holes    = __builtin_clz(node->mask);
-	UINT8 right_holes   = __builtin_ctz(node->mask);
-	/* this is unproved performance optimization */
-	if (valid_sectors > 16 && 
-		(left_holes + valid_sectors + right_holes == SECTORS_PER_PAGE)) {
-		if (left_holes) {
+	UINT8 low_holes     = __builtin_ctz(node->mask);
+	UINT8 high_holes    = __builtin_clz(node->mask);
+	/* this is an unproved performance optimization */
+	if (valid_sectors > 16 && (high_holes + valid_sectors + low_holes == SECTORS_PER_PAGE)) {
+		if (high_holes) {
 			nand_page_ptread(bank, 
 				 	 vpn / PAGES_PER_VBLK, 
 				 	 vpn % PAGES_PER_VBLK, 
-			 	 	 right_holes + valid_sectors, 
-					 left_holes, 
+			 	 	 low_holes + valid_sectors, 
+					 high_holes, 
 				 	 addr, RETURN_ON_ISSUE);
 		}
-		if (right_holes) {
+		if (low_holes) {
 			nand_page_ptread(bank, 
 				 	 vpn / PAGES_PER_VBLK, 
 				 	 vpn % PAGES_PER_VBLK, 
 			 	 	 0, 
-					 right_holes, 
+					 low_holes, 
 				 	 addr, RETURN_ON_ISSUE);
 		}
 	}
@@ -213,13 +219,16 @@ static void read_page(cache_node *node)
 
 static void write_page(cache_node *node)
 {
-	UINT32 lpn  = node->hn.key;
-	UINT32 addr = node->hn.val;
+	UINT32 lpn  = node_lpn(node);
+	UINT32 addr = node_addr(node);
 
-	UINT32 vpn  = ftl_lpn2vpn(lpn);
+	UINT32 new_vpn = ftl_get_new_vpn(lpn);
 	UINT32 bank = lpn2bank(lpn);
 
-	nand_page_program(bank, vpn / PAGES_PER_VBLK, vpn % PAGES_PER_VBLK, addr); 	
+	nand_page_program(bank, 
+			  new_vpn / PAGES_PER_VBLK, 
+			  new_vpn % PAGES_PER_VBLK, 
+			  addr); 	
 }
 
 static void merge_page(cache_node *node)
@@ -227,11 +236,10 @@ static void merge_page(cache_node *node)
 	UINT8 begin = 0, end = 0; 
 	UINT32 addr = node->hn.val;
 	UINT32 mask = node->mask;
-	UINT32 bank = lpn2bank(node->hn.key);
+	UINT32 bank = lpn2bank(node_lpn(node));
 
 	if (!need_merge(node)) return;
 	
-
 	while (begin < SECTORS_PER_PAGE) {
 		while (begin < SECTORS_PER_PAGE && (((mask >> begin) & 1) == 1))
 			begin++;
@@ -256,7 +264,7 @@ static void cache_evict(void)
 	cache_node* victim_node;
 	cache_node* write_back_node[NUM_BANKS];
 
-	/* to leverage the innner parallelism between banks in flash, we do 
+	/* to leverage the inner parallelism between banks in flash, we do 
 	 * eviction in batch fashion and in two rounds*/
 
 	/* first round: get victims and fill partial pages */
@@ -267,7 +275,7 @@ static void cache_evict(void)
 			continue;
 
 		victim_node = segment_drop(bank);
-		hash_table_remove(&_cache_ht, victim_node->hn.key);
+		hash_table_remove(&_cache_ht, node_lpn(victim_node));
 		if (!is_dirty(victim_node))
 			continue;
 
@@ -329,7 +337,7 @@ void cache_get(UINT32 const lpn, UINT32 *addr)
 }
 	
 /* put a page into cache, then allocate and return the buffer */
-void cache_put(UINT32 const lpn, UINT32 *addr)
+void cache_put(UINT32 const lpn, UINT32 const vpn, UINT32 *addr)
 {
 	UINT8 prob_seg_index = lpn2bank(lpn);
 	cache_node* node;
@@ -339,20 +347,20 @@ void cache_put(UINT32 const lpn, UINT32 *addr)
 		cache_evict();	
 	}
 
-	/* Let's specify the buffer address later in this function */
-	res = hash_table_insert(&_cache_ht, lpn, 0);
+	res = hash_table_insert(&_cache_ht, lpn, vpn);
 	BUG_ON("insertion to hash table failed", res);
 
 	node = (cache_node*)(_cache_ht.last_used_node);
 	node->pre = node->next = NULL;
+	node->mask = 0;
 	node->flag = 0;
 
 	/* The index of hash node is guarrantted to be unique.
 	 * As a result, each cache node has a unique buffer. */
-	*addr = node->hn.val = CACHE_BUF(hash_table_get_node_index(
-						&_cache_ht, (hash_node*)node));
+	node->buff_id = hash_table_get_node_index(&_cache_ht, (hash_node*)node);
+	*addr = node_addr(node);
 
-	segment_accept(node, prob_seg_index);
+	segment_accept(node);
 }
 
 /* inform the cache that some sectors of the page have been loaded from flash */

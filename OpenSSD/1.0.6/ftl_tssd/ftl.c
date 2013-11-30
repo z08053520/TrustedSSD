@@ -233,7 +233,7 @@ void ftl_open(void) {
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
 }
 
-UINT32 ftl_lpn2vpn(UINT32 const lpn)
+UINT32 ftl_get_vpn(UINT32 const lpn)
 {
 	UINT32 vpn;
 	UINT32 victim_lpn, victim_vpn; BOOL32 victim_dirty;
@@ -274,7 +274,7 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
             		num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
 		
 		bank = lpn2bank(lpn); // page striping
-		vpn  = ftl_lpn2vpn(lpn);
+		vpn  = ftl_get_vpn(lpn);
 
         	if (vpn != NULL)
         	{
