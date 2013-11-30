@@ -68,5 +68,6 @@ void ftl_flush(void);
 void ftl_isr(void);
 
 UINT32 ftl_get_vpn(UINT32 const lpn);
+UINT32 ftl_get_new_vpn(UINT32 const lpn);
 
 #endif

@@ -1,12 +1,13 @@
 #include "cache.h"
 #include "hash_table.h"
 #include "ftl.h"
+#include "cmt.h"
 
 /* ========================================================================== 
  * Cache maintains a hash table for fast look-up 
  *
  * 	key -- the lpn of a page
- * 	val -- the vpn of a page and  the buffer address for the page
+ * 	val -- mask that indicates valid sectors, at most 32 sectors 
  * ========================================================================*/
 
 typedef struct _cache_node {
@@ -15,12 +16,11 @@ typedef struct _cache_node {
 	struct _cache_node *pre;
 	UINT16  buff_id;
 	UINT16	flag;
-	UINT32  mask;	/* valid sectors, at most 32 sectors */
 } cache_node;
 
 #define node_lpn(node)		((node)->hn.key)
-#define node_vpn(node)		((node)->hn.val)
 #define node_addr(node)		(CACHE_BUF((node)->buff_id))
+#define node_mask(node)		((node)->hn.val)
 
 #define CACHE_HT_CAPACITY	NUM_CACHE_BUFFERS		
 #define CACHE_HT_BUFFER_SIZE	(CACHE_HT_CAPACITY * sizeof(cache_node))
@@ -51,7 +51,7 @@ static hash_table 	_cache_ht;
 #define need_merge(node) 		(node->flag & MERGE_FLAG)
 #define set_merge_flag(node)		node->flag |= MERGE_FLAG
 
-#define is_whole_page_valid(node)	(node->mask == 0xFFFFFFFF)
+#define is_whole_page_valid(node)	(node_mask(node)== 0xFFFFFFFF)
 
 
 /* ========================================================================== 
@@ -181,13 +181,18 @@ static void read_page(cache_node *node)
 {
 	UINT32 lpn  = node_lpn(node);
 	UINT32 addr = node_addr(node);
-	UINT32 vpn  = node_vpn(lpn);
+	UINT32 vpn; 
 
 	UINT32 bank = lpn2bank(lpn);
 
-	UINT8 valid_sectors = __builtin_popcount(node->mask);
-	UINT8 low_holes     = __builtin_ctz(node->mask);
-	UINT8 high_holes    = __builtin_clz(node->mask);
+	UINT32 mask = node_mask(node);
+	UINT8 valid_sectors = __builtin_popcount(mask);
+	UINT8 low_holes     = __builtin_ctz(mask);
+	UINT8 high_holes    = __builtin_clz(mask);
+
+	BOOL32 res = cmt_get(lpn, &vpn);
+	BUG_ON("lpn is not fixed in CMT", res);
+
 	/* this is an unproved performance optimization */
 	if (valid_sectors > 16 && (high_holes + valid_sectors + low_holes == SECTORS_PER_PAGE)) {
 		if (high_holes) {
@@ -224,6 +229,9 @@ static void write_page(cache_node *node)
 
 	UINT32 new_vpn = ftl_get_new_vpn(lpn);
 	UINT32 bank = lpn2bank(lpn);
+	
+	BOOL32 res = cmt_update(lpn, new_vpn);
+	BUG_ON("lpn is not fixed in CMT", res);
 
 	nand_page_program(bank, 
 			  new_vpn / PAGES_PER_VBLK, 
@@ -234,8 +242,8 @@ static void write_page(cache_node *node)
 static void merge_page(cache_node *node)
 {
 	UINT8 begin = 0, end = 0; 
-	UINT32 addr = node->hn.val;
-	UINT32 mask = node->mask;
+	UINT32 addr = node_addr(node);
+	UINT32 mask = node_mask(node);
 	UINT32 bank = lpn2bank(node_lpn(node));
 
 	if (!need_merge(node)) return;
@@ -261,37 +269,49 @@ static void merge_page(cache_node *node)
 static void cache_evict(void)
 {
 	int bank;
+	cache_node* victim_nodes[NUM_BANKS];
 	cache_node* victim_node;
-	cache_node* write_back_node[NUM_BANKS];
+	UINT32 write_back_flag = 0;
 
 	/* to leverage the inner parallelism between banks in flash, we do 
 	 * eviction in batch fashion and in two rounds*/
 
 	/* first round: get victims and fill partial pages */
 	FOR_EACH_BANK(bank) {
-		write_back_node[bank] = NULL; 
+		victim_nodes[bank] = NULL; 
 
 		if (_cache_probationary_seg[bank].size < PROB_SEGMENT_HIGH_WATER_MARK)
 			continue;
 
-		victim_node = segment_drop(bank);
+		victim_node = victim_nodes[bank] = segment_drop(bank);
 		hash_table_remove(&_cache_ht, node_lpn(victim_node));
 		if (!is_dirty(victim_node))
 			continue;
 
-		write_back_node[bank] = victim_node; 
-		if (!is_whole_page_valid(victim_node)) {
+		write_back_flag |= (1 << bank);
+		if (!is_whole_page_valid(victim_node)) 
 			read_page(victim_node);	
-		}
 	}
 	flash_finish();
 
 	/* second round: write back all victim pages */
 	FOR_EACH_BANK(bank) {
-		merge_page(write_back_node[bank]);
-		write_page(write_back_node[bank]);
+		if ((write_back_flag & (1 << bank)) == 0)
+			continue;
+
+		victim_node = victim_nodes[bank];
+		merge_page(victim_node);
+		write_page(victim_node);
 	}
 	flash_finish();
+
+	/* third round: unfix lpn->vpn mapping entry in cmt  */
+	FOR_EACH_BANK(bank) {
+		victim_node = victim_nodes[bank];
+		if (victim_node == NULL) continue;
+
+		cmt_unfix(node_lpn(victim_node));
+	}	
 } 
 
 /* ========================================================================== 
@@ -333,11 +353,11 @@ void cache_get(UINT32 const lpn, UINT32 *addr)
 		segment_up(node);	
 	}
 	
-	*addr = node->hn.val;
+	*addr = node_addr(node);
 }
 	
 /* put a page into cache, then allocate and return the buffer */
-void cache_put(UINT32 const lpn, UINT32 const vpn, UINT32 *addr)
+void cache_put(UINT32 const lpn, UINT32 *addr)
 {
 	UINT8 prob_seg_index = lpn2bank(lpn);
 	cache_node* node;
@@ -347,13 +367,14 @@ void cache_put(UINT32 const lpn, UINT32 const vpn, UINT32 *addr)
 		cache_evict();	
 	}
 
-	res = hash_table_insert(&_cache_ht, lpn, vpn);
+	res = hash_table_insert(&_cache_ht, lpn, 0);
 	BUG_ON("insertion to hash table failed", res);
 
 	node = (cache_node*)(_cache_ht.last_used_node);
 	node->pre = node->next = NULL;
-	node->mask = 0;
 	node->flag = 0;
+	res = cmt_fix(lpn);
+	BUG_ON("cmt fix failure", res);
 
 	/* The index of hash node is guarrantted to be unique.
 	 * As a result, each cache node has a unique buffer. */
@@ -368,14 +389,17 @@ void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors)
 {
 	cache_node *node = (cache_node*) hash_table_get_node(&_cache_ht, lpn);
 	UINT8 end_sector = MIN(offset + num_sectors, SECTORS_PER_PAGE);
+	UINT32 mask;
 
 	BUG_ON("wrong lpn", node == NULL);
 	BUG_ON("out of bounds", offset + num_sectors >= SECTORS_PER_PAGE);
 
+	mask = node_mask(node);
 	while (offset < end_sector) {
-		node->mask |= (1 << offset);
+		mask |= (1 << offset);
 		offset ++;
 	}
+	node_mask(node) = mask;
 }
 
 /* inform the cache that some sectors of the page have been overwritten in

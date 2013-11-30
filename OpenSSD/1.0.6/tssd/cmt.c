@@ -26,7 +26,24 @@ static hash_table 	_cmt_ht;
 #define DIRTY_FLAG		(1 << 0)
 /* the second lowest bit is segment bit. Bit 1 is for protected seg. Bit 0 is 
  * for probationary seg. */
-#define PROTECTED_FLAG		(1 << 1)		
+#define PROTECTED_FLAG		(1 << 1)
+#define FIXED_FLAG		(1 << 2)
+
+#define _is_xxx_flag(node, xxx)		(node->flag & xxx)
+#define _set_xxx_flag(node, xxx)	node->flag |= xxx
+#define _clear_xxx_flag(node, xxx)	node->flag &= (~xxx)
+
+#define is_dirty(node)			_is_xxx_flag(node,  DIRTY_FLAG)
+#define set_dirty_flag(node)		_set_xxx_flag(node, DIRTY_FLAG)	
+#define clear_dirty_flag(node)		_clear_xxx_flag(node, DIRTY_FLAG)	
+
+#define is_protected(node)		_is_xxx_flag(node,  PROTECTED_FLAG)	
+#define set_protected_flag(node) 	_set_xxx_flag(node, PROTECTED_FLAG)	
+#define clear_protected_flag(node) 	_clear_xxx_flag(node, PROTECTED_FLAG)	
+
+#define is_fixed(node)			_is_xxx_flag(node,  FIXED_FLAG)	
+#define set_fixed_flag(node)		_set_xxx_flag(node, FIXED_FLAG)
+#define clear_fixed_flag(node)		_clear_xxx_flag(node, FIXED_FLAG)	
 
 /* ========================================================================== 
  * Segmented LRU Cache Policy
@@ -41,15 +58,18 @@ typedef struct _cmt_segment {
 static cmt_segment _cmt_protected_seg;
 static cmt_segment _cmt_probationary_seg;
 
+static UINT32 _cmt_fixed_entries;
+
 static void segment_init(cmt_segment* seg)
 {
+	BUG_ON("CMT_ENTRIES not even", CMT_ENTRIES % 2 != 0);
+
 	seg->head.pre = seg->tail.next = NULL;
 	seg->head.next = &seg->tail;
 	seg->tail.pre = &seg->head; 
 
 	seg->size = 0;
-	BUG_ON("not even", CMT_ENTRIES % 2 != 0);
-	seg->capacity = CMT_ENTRIES / 2;
+	seg->capacity = CMT_ENTRIES / 2 ;
 }
 
 static void segment_remove(cmt_node* node)
@@ -66,14 +86,6 @@ static void segment_insert(cmt_node *head, cmt_node* node)
 	node->pre  = head;
 	head->next = node;
 }
-
-#define is_dirty(node)			(node->flag & DIRTY_FLAG)
-#define set_dirty_flag(node)		node->flag |= DIRTY_FLAG
-#define clear_dirty_flag(node)		node->flag &= (~DIRTY_FLAG)
-
-#define is_protected(node)		(node->flag & PROTECTED_FLAG)
-#define set_protected_flag(node) 	node->flag |= PROTECTED_FLAG
-#define clear_protected_flag(node) 	node->flag &= (~PROTECTED_FLAG)
 
 #define segment_is_full(seg) 		(seg.size == seg.capacity)
 
@@ -134,6 +146,9 @@ static cmt_node* segment_drop()
 {
 	cmt_node *node = _cmt_probationary_seg.tail.pre;
 
+	// find the LRU non-fixed entry to evict
+	while (is_fixed(node))
+		node = node->pre;
 	BUG_ON("probationary segment is empty", _cmt_probationary_seg.size == 0);
 	
 	segment_remove(node);
@@ -148,11 +163,15 @@ static cmt_node* segment_drop()
 
 void cmt_init(void) 
 {
+	BUG_ON("fixed nodes cannot be greater than half of capacity", 
+			CMT_MAX_FIX_ENTRIES >= CMT_ENTRIES / 2)
+
 	hash_table_init(&_cmt_ht, CMT_HT_CAPACITY, 
 			sizeof(cmt_node), _cmt_ht_buffer, CMT_HT_BUFFER_SIZE,
 			_cmt_ht_buckets, CMT_HT_NUM_BUCKETS);
 	segment_init(&_cmt_protected_seg);
 	segment_init(&_cmt_probationary_seg);
+	_cmt_fixed_entries = 0;
 }
 
 BOOL32 cmt_get(UINT32 const lpn, UINT32 *vpn) 
@@ -176,7 +195,7 @@ BOOL32 cmt_get(UINT32 const lpn, UINT32 *vpn)
 
 BOOL32 cmt_is_full() 
 {
-	return segment_is_full(_cmt_probationary_seg);
+	return segment_is_full(_cmt_probationary_seg); 
 }
 
 BOOL32 cmt_add(UINT32 const lpn, UINT32 const vpn)
@@ -225,4 +244,28 @@ BOOL32 cmt_evict(UINT32 *lpn, UINT32 *vpn, BOOL32 *is_dirty)
 	*vpn = victim_node->hn.val;
 	*is_dirty = is_dirty(victim_node);
 	return 0;	
+}
+
+BOOL32 cmt_fix(UINT32 const lpn)
+{
+	cmt_node *node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
+
+	if (node == NULL || _cmt_fixed_entries == CMT_MAX_FIX_ENTRIES) 
+		return 1;
+
+	set_fixed_flag(node);
+	_cmt_fixed_entries++;
+	return 0;
+}
+
+BOOL32 cmt_unfix(UINT32 const lpn) 
+{
+	cmt_node* node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
+
+	if (node == NULL) 
+		return 1;	
+
+	clear_fixed_flag(node);
+	_cmt_fixed_entries--;
+	return 0;
 }

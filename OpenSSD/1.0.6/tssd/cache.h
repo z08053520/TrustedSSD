@@ -15,7 +15,7 @@ void cache_init(void);
 /* get the DRAM buffer address for a page */
 void cache_get(UINT32 const lpn, UINT32 *addr);
 /* put a page into cache, then allocate and return the buffer */
-void cache_put(UINT32 const lpn, UINT32 const vpn, UINT32 *addr);
+void cache_put(UINT32 const lpn, UINT32 *addr);
 
 /* inform the cache that some sectors of the page have been loaded from flash */
 void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors);

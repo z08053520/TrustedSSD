@@ -11,7 +11,6 @@
  *
  *   Let's do some simple math to calculate the number of entries in PMT.
  * For a 64GB flash with 16KB page, PMT_ENTRIES = 64GB / 16KB = 4 millions. 
- * For now, it is only 32.
  * */
 #define PMT_ENTRIES		(PAGES_PER_BANK * NUM_BANKS)
 #define PMT_ENTRIES_PER_PAGE	(BYTES_PER_PAGE / sizeof(UINT32))
@@ -254,6 +253,11 @@ UINT32 ftl_get_vpn(UINT32 const lpn)
 		cmt_add(lpn, vpn);
 	}
 	return vpn;
+}
+
+UINT32 ftl_get_new_vpn(UINT32 const lpn)
+{
+	return 0;
 }
 
 void ftl_read(UINT32 const lba, UINT32 const num_sectors) 
