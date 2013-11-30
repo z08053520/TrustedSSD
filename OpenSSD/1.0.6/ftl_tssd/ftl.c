@@ -228,6 +228,7 @@ void ftl_open(void) {
 
         load_metadata();
 	cmt_init();
+	cache_init();
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
 }
@@ -265,6 +266,7 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 	UINT32 remain_sects, num_sectors_to_read;
     	UINT32 lpn, sect_offset;
     	UINT32 bank, vpn;
+	UINT32 page_buff;
 
     	lpn          = lba / SECTORS_PER_PAGE;
     	sect_offset  = lba % SECTORS_PER_PAGE;
@@ -276,35 +278,45 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
             		num_sectors_to_read = remain_sects;
         	else
             		num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
-		
-		bank = lpn2bank(lpn); // page striping
-		vpn  = ftl_get_vpn(lpn);
 
+		// try to read from cache
+		cache_get(lpn, &page_buff);
+		if (page_buff) {
+			cache_fill(lpn, sect_offset, num_sectors_to_read);
+			mem_copy(RD_BUF_PTR(g_ftl_read_buf_id),
+				 page_buff,
+				 BYTES_PER_PAGE);
+			goto mem_xfer_done;
+		}
+		
+		vpn  = ftl_get_vpn(lpn);
+		// read from flash
         	if (vpn != NULL)
         	{
+			bank = lpn2bank(lpn);
 			nand_page_ptread_to_host(bank,
 						 vpn / PAGES_PER_BLK,
 						 vpn % PAGES_PER_BLK,
 						 sect_offset,
 						 num_sectors_to_read);
+			goto next_page;
         	}
-        	// The host is requesting to read a logical page that has never been written to.
+        	// the logical page has never been written to 
         	else
         	{
 			mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) 
 					+ sect_offset * BYTES_PER_SECTOR,
                          		0xFFFFFFFF, 
 					num_sectors_to_read*BYTES_PER_SECTOR);
+		}
+mem_xfer_done:
+		flash_finish();
+		g_ftl_read_buf_id++;
 
-			flash_finish();
-
-			g_ftl_read_buf_id++;
-
-			// read buffer is ready for SATA transfer
-			SETREG(BM_STACK_RDSET, g_ftl_read_buf_id);
-			SETREG(BM_STACK_RESET, 0x02);
-        	}
-
+		// read buffer is ready for SATA transfer
+		SETREG(BM_STACK_RDSET, g_ftl_read_buf_id);
+		SETREG(BM_STACK_RESET, 0x02);
+next_page:
 		sect_offset   = 0;
 		remain_sects -= num_sectors_to_read;
 		lpn++;

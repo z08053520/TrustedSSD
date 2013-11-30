@@ -384,6 +384,16 @@ void cache_put(UINT32 const lpn, UINT32 *addr)
 	segment_accept(node);
 }
 
+/* fill the page */
+void cache_fill(UINT32 const lpn, UINT32 const offset, UINT32 const num_sectors)
+{
+	cache_node* node = (cache_node*) hash_table_get_node(&_cache_ht, lpn);
+	BUG_ON("node doesn't exist", node == NULL);
+
+	
+}
+
+
 /* inform the cache that some sectors of the page have been loaded from flash */
 void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors)
 {

@@ -16,6 +16,8 @@ void cache_init(void);
 void cache_get(UINT32 const lpn, UINT32 *addr);
 /* put a page into cache, then allocate and return the buffer */
 void cache_put(UINT32 const lpn, UINT32 *addr);
+/* fill the page */
+void cache_fill(UINT32 const lpn, UINT32 const offset, UINT32 const num_sectors);
 
 /* inform the cache that some sectors of the page have been loaded from flash */
 void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors);
