@@ -7,22 +7,22 @@ SECTIONS
 		entry_point = .;
 		init.o(INIT)
 		*(.text)
-	}
+	} > sram
 
 	.rodata :
 	{
 		*(.rodata)
-	}
+	} > sram
 
 	.data :
 	{
 		*(.data)
-	}
+	} > sram
 
 	.bss :
 	{
 		*(.bss)
-	}
+	} > sram
 
 	Image$$ER_ZI$$ZI$$Base = LOADADDR(.bss);
 	Image$$ER_ZI$$ZI$$Length = SIZEOF(.bss);
@@ -34,5 +34,5 @@ SECTIONS
 
 MEMORY
 {
-	ram (a) : ORIGIN = 0, LENGTH = 96k
+	sram : ORIGIN = 0, LENGTH = 96k
 }
