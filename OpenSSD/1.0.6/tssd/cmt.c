@@ -219,12 +219,12 @@ BOOL32 cmt_add(UINT32 const lpn, UINT32 const vpn)
 
 BOOL32 cmt_update(UINT32 const lpn, UINT32 const new_vpn)
 {
-	cmt_node* node;
-	BOOL32 res = hash_table_update(&_cmt_ht, lpn, new_vpn);
+	cmt_node* node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
 
-	if (res) return 1;
+	if (!node) return 1;
+	if (node->hn.val == new_vpn) return 0;
 
-	node = (cmt_node*)(_cmt_ht.last_used_node);
+	node->hn.val = new_vpn;
 	set_dirty_flag(node);
 	return 0;
 }

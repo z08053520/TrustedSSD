@@ -1,6 +1,8 @@
 #include "ftl.h"
 #include "cmt.h"
+#include "gtd.h"
 #include "pmt.h"
+#include "gc.h"
 #include "cache.h"
 
 /* ========================================================================= *
@@ -241,17 +243,33 @@ static void write_page (UINT32 const lpn,
 			UINT32 const num_sectors_to_write)
 {
 	UINT32 buff_addr;
+	UINT32 target_addr, src_addr, num_bytes; 
 
 	cache_get(lpn, &buff_addr, CACHE_BUF_TYPE_USR);
-	if (buff_addr == NULL)
+	if (buff_addr == NULL) {
 		cache_put(lpn, &buff_addr, CACHE_BUF_TYPE_USR);
+
+		/* init buffer */ 
+
+		target_addr = buff_addr;
+		num_bytes   = sect_offset * BYTES_PER_SECTOR;
+		mem_set_dram(target_addr, 0xFFFFFFFF, num_bytes);
+
+		target_addr = buff_addr + (sect_offset + 
+				num_sectors_to_write) * BYTES_PER_SECTOR;
+		num_bytes   = (SECTORS_PER_PAGE - sect_offset - 
+				num_sectors_to_write) * BYTES_PER_SECTOR;
+		mem_set_dram(target_addr, 0xFFFFFFFF, num_bytes);
+	}
 
 	// wait for SATA transfer completion
 	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
 
-	mem_copy(buff_addr + sect_offset * BYTES_PER_PAGE, 
-		 WR_BUF_PTR(g_ftl_write_buf_id) + sect_offset * BYTES_PER_PAGE, 
-		 num_sectors_to_write * BYTES_PER_PAGE);
+	// copy from SATA circular buffer to buffer cache 
+	target_addr = buff_addr + sect_offset * BYTES_PER_PAGE;
+	src_addr    = WR_BUF_PTR(g_ftl_write_buf_id) + sect_offset * BYTES_PER_PAGE;
+	num_bytes   = num_sectors_to_write * BYTES_PER_PAGE;
+	mem_copy(target_addr, src_addr, num_bytes);
 
 	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;	
 
@@ -273,16 +291,15 @@ void ftl_open(void) {
 		format();
 
         load_metadata();
+
+	/* FIXME: is the order important? */
+	gtd_init();
 	cmt_init();
 	cache_init();
+	pmt_init();
+	gc_init();
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
-}
-
-
-UINT32 ftl_get_new_vpn(UINT32 const lpn)
-{
-	return 0;
 }
 
 void ftl_read(UINT32 const lba, UINT32 const num_sectors) 

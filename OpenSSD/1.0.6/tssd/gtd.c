@@ -1,14 +1,12 @@
 #include "gtd.h"
 
-/* load GTD from flash */
-void gtd_load(void)
+void gtd_init(void)
 {
 
 
 }
 
-/* save GTD to flash */
-void gtd_save(void)
+void gtd_flush(void)
 {
 
 }

@@ -19,9 +19,7 @@ UINT32 _GTD[GTD_ENTRIES];
 #define gtd_get_vpn(pmt_index)		_GTD[pmt_index]
 #define gtd_set_vpn(pmt_index, pmt_vpn)	_GTD[pmt_index] = pmt_vpn
 
-/* load GTD from flash */
-void gtd_load(void);
-/* save GTD to flash */
-void gtd_save(void);
+void gtd_init(void);
+void gtd_flush(void);
 
 #endif /* __GTD_H */

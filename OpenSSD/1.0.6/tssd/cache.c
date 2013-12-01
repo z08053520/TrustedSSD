@@ -3,6 +3,7 @@
 #include "ftl.h"
 #include "gtd.h"
 #include "cmt.h"
+#include "gc.h"
 #include "flash_util.h"
 
 /* ========================================================================== 
@@ -201,28 +202,25 @@ static void cache_evict(void)
 {
 	int bank;
 	cache_node* victim_node;
-
+	cache_node* victim_nodes[NUM_BANKS];
 	UINT32 vpn[NUM_BANKS];
 	UINT32 buff_addr[NUM_BANKS];
 	UINT32 valid_sectors_mask[NUM_BANKS];
 
 	/* to leverage the inner parallelism between banks in flash, we do 
-	 * eviction in batch fashion and in two rounds*/
+	 * eviction in a batch fashion */
 
 	/* gather the information of victim pages */
 	FOR_EACH_BANK(bank) {
 		vpn[bank] = 0;
 		buff_addr[bank] = NULL;
 		valid_sectors_mask[bank] = 0;
+		victim_nodes[bank] = NULL;
 
 		if (_cache_probationary_seg[bank].size < PROB_SEGMENT_HIGH_WATER_MARK)
 			continue;
 
-		victim_node = segment_drop(bank);
-		hash_table_remove(&_cache_ht, node_key(victim_node));
-		if (is_usr(victim_node))
-			cmt_unfix(node_lpn(victim_node));
-
+		victim_node = victim_nodes[bank] = segment_drop(bank);
 		if (!is_dirty(victim_node))
 			continue;
 
@@ -234,8 +232,29 @@ static void cache_evict(void)
 	/* read miss sectors in victim pages */
 	fu_read_pages_in_parallel(vpn, buff_addr, valid_sectors_mask);
 
+	/* prepare pages to write */
+	FOR_EACH_BANK(bank) {
+		vpn[bank] = vpn[bank] ? gc_replace_old_vpn(bank, vpn[bank]) 
+				      : gc_allocate_new_vpn(bank) ;
+	}
+
 	/* write back all dirty victim pages */
 	fu_write_pages_in_parallel(vpn, buff_addr);
+
+	/* remove all victim nodes */
+	FOR_EACH_BANK(bank) {
+		victim_node = victim_nodes[bank];
+		if (!victim_node) continue;
+		
+		hash_table_remove(&_cache_ht, node_key(victim_node));
+		if (is_usr(victim_node)) {	/* user page buffer */
+			cmt_update(node_lpn(victim_node), vpn[bank]);
+			cmt_unfix(node_lpn(victim_node));
+		}
+		else { 				/* PMT page buffer */ 
+			gtd_set_vpn(node_pmt_idx(victim_node), vpn[bank]);
+		}
+	}
 }
 
 BOOL32 valid_sectors_include(UINT32 const valid_sectors_mask, 

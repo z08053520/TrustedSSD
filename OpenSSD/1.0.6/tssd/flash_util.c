@@ -105,7 +105,7 @@ void fu_read_page(UINT32 const bank, UINT32 const vpn,
 			    valid_sectors_mask, RETURN_WHEN_DONE);	
 }
 
-#define can_skip_bank(bank)	(vpn[bank] == 0 && buff_addr[bank] == 0)
+#define can_skip_bank(bank)	(vpn[bank] == 0 || buff_addr[bank] == 0)
 
 void fu_read_pages_in_parallel( UINT32 vpn[], 
 				UINT32 buff_addr[],
