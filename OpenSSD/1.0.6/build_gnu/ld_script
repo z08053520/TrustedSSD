@@ -31,3 +31,8 @@ SECTIONS
 	ENTRY(entry_point)
 	_start = entry_point;
 }
+
+MEMORY
+{
+	ram (a) : ORIGIN = 0, LENGTH = 96k
+}

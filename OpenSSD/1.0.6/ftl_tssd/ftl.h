@@ -64,7 +64,5 @@ void ftl_test_write(UINT32 const lba, UINT32 const num_sectors);
 void ftl_flush(void);
 void ftl_isr(void);
 
-UINT32 ftl_get_vpn(UINT32 const lpn);
 UINT32 ftl_get_new_vpn(UINT32 const lpn);
-
 #endif

@@ -169,6 +169,96 @@ static void load_metadata() {
 
 }
 
+static UINT32 get_vpn(UINT32 const lpn)
+{
+	UINT32 vpn;
+	UINT32 victim_lpn, victim_vpn; BOOL32 victim_dirty;
+  
+	// if lpn is not cached, the new entry has to be loaded
+	if (cmt_get(lpn, &vpn)) {	
+		// and if cache is full, a entry has to be evicted
+		if (cmt_is_full()) {	
+			cmt_evict(&victim_lpn, &victim_vpn, &victim_dirty);
+
+			// need to write back
+			if (victim_dirty)
+				pmt_update(victim_lpn, victim_vpn);
+		}
+		pmt_fetch(lpn, &vpn);
+		cmt_add(lpn, vpn);
+	}
+	return vpn;
+}
+
+static void read_page  (UINT32 const lpn, 
+			UINT32 const sect_offset, 
+			UINT32 const num_sectors_to_read)
+{
+    	UINT32 bank, vpn;
+	UINT32 page_buff;
+
+	// try to read from cache
+	cache_get(lpn, &page_buff, CACHE_BUF_TYPE_USR);
+	if (page_buff) {
+		cache_fill(lpn, sect_offset, num_sectors_to_read, CACHE_BUF_TYPE_USR);
+		mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
+			 page_buff + BYTES_PER_SECTOR * sect_offset,
+			 BYTES_PER_SECTOR * num_sectors_to_read);
+		goto mem_xfer_done;
+	}
+	
+	vpn  = get_vpn(lpn);
+	// read from flash
+	if (vpn != NULL)
+	{
+		bank = lpn2bank(lpn);
+		nand_page_ptread_to_host(bank,
+					 vpn / PAGES_PER_BLK,
+					 vpn % PAGES_PER_BLK,
+					 sect_offset,
+					 num_sectors_to_read);
+		return;
+	}
+	// the logical page has never been written to 
+	else
+	{
+		mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) 
+				+ sect_offset * BYTES_PER_SECTOR,
+				0xFFFFFFFF, 
+				num_sectors_to_read*BYTES_PER_SECTOR);
+	}
+mem_xfer_done:
+	flash_finish();
+	g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+
+	// read buffer is ready for SATA transfer
+	SETREG(BM_STACK_RDSET, g_ftl_read_buf_id);
+	SETREG(BM_STACK_RESET, 0x02);
+}
+
+static void write_page (UINT32 const lpn, 
+			UINT32 const sect_offset, 
+			UINT32 const num_sectors_to_write)
+{
+	UINT32 buff_addr;
+
+	cache_get(lpn, &buff_addr, CACHE_BUF_TYPE_USR);
+	if (buff_addr == NULL)
+		cache_put(lpn, &buff_addr, CACHE_BUF_TYPE_USR);
+
+	// wait for SATA transfer completion
+	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
+
+	mem_copy(buff_addr + sect_offset * BYTES_PER_PAGE, 
+		 WR_BUF_PTR(g_ftl_write_buf_id) + sect_offset * BYTES_PER_PAGE, 
+		 num_sectors_to_write * BYTES_PER_PAGE);
+
+	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;	
+
+	SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);
+	SETREG(BM_STACK_RESET, 0x01);
+}
+
 /* ========================================================================= *
  * Public API 
  * ========================================================================= */
@@ -189,28 +279,6 @@ void ftl_open(void) {
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
 }
 
-UINT32 ftl_get_vpn(UINT32 const lpn)
-{
-	UINT32 vpn;
-	UINT32 victim_lpn, victim_vpn; BOOL32 victim_dirty;
-	UINT32 res;
-  
-	// if lpn is not cached, the new entry has to be loaded
-	if (cmt_get(lpn, &vpn)) {	
-		// and if cache is full, a entry has to be evicted
-		if (cmt_is_full()) {	
-			res =  cmt_evict(&victim_lpn, &victim_vpn, &victim_dirty);
-			BUG_ON("failed to evit; never should happen", res);	
-
-			// need to write back
-			if (victim_dirty)
-				pmt_update(victim_lpn, victim_vpn);
-		}
-		pmt_fetch(lpn, &vpn);
-		cmt_add(lpn, vpn);
-	}
-	return vpn;
-}
 
 UINT32 ftl_get_new_vpn(UINT32 const lpn)
 {
@@ -221,8 +289,6 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 {
 	UINT32 remain_sects, num_sectors_to_read;
     	UINT32 lpn, sect_offset;
-    	UINT32 bank, vpn;
-	UINT32 page_buff;
 
     	lpn          = lba / SECTORS_PER_PAGE;
     	sect_offset  = lba % SECTORS_PER_PAGE;
@@ -235,52 +301,36 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
         	else
             		num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
 
-		// try to read from cache
-		cache_get(lpn, &page_buff, CACHE_BUF_TYPE_USR);
-		if (page_buff) {
-			cache_fill(lpn, sect_offset, num_sectors_to_read, CACHE_BUF_TYPE_USR);
-			mem_copy(RD_BUF_PTR(g_ftl_read_buf_id),
-				 page_buff,
-				 BYTES_PER_PAGE);
-			goto mem_xfer_done;
-		}
-		
-		vpn  = ftl_get_vpn(lpn);
-		// read from flash
-        	if (vpn != NULL)
-        	{
-			bank = lpn2bank(lpn);
-			nand_page_ptread_to_host(bank,
-						 vpn / PAGES_PER_BLK,
-						 vpn % PAGES_PER_BLK,
-						 sect_offset,
-						 num_sectors_to_read);
-			goto next_page;
-        	}
-        	// the logical page has never been written to 
-        	else
-        	{
-			mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) 
-					+ sect_offset * BYTES_PER_SECTOR,
-                         		0xFFFFFFFF, 
-					num_sectors_to_read*BYTES_PER_SECTOR);
-		}
-mem_xfer_done:
-		flash_finish();
-		g_ftl_read_buf_id++;
+		read_page(lpn, sect_offset, num_sectors_to_read);
 
-		// read buffer is ready for SATA transfer
-		SETREG(BM_STACK_RDSET, g_ftl_read_buf_id);
-		SETREG(BM_STACK_RESET, 0x02);
-next_page:
 		sect_offset   = 0;
 		remain_sects -= num_sectors_to_read;
 		lpn++;
     	}
 }
 
-void ftl_write(UINT32 const lba, UINT32 const num_sectors) {
+void ftl_write(UINT32 const lba, UINT32 const num_sectors) 
+{
+	UINT32 remain_sects, num_sectors_to_write;
+    	UINT32 lpn, sect_offset;
 
+	lpn          = lba / SECTORS_PER_PAGE;
+	sect_offset  = lba % SECTORS_PER_PAGE;
+ 	remain_sects = num_sectors;
+
+    	while (remain_sects != 0)
+    	{
+		if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
+			num_sectors_to_write = remain_sects;
+		else
+			num_sectors_to_write = SECTORS_PER_PAGE - sect_offset;
+		
+		write_page(lpn, sect_offset, num_sectors_to_write);
+
+		sect_offset   = 0;
+		remain_sects -= num_sectors_to_write;
+		lpn++;
+	}
 }
 
 void ftl_test_write(UINT32 const lba, UINT32 const num_sectors) {
