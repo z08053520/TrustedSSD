@@ -202,5 +202,9 @@ scan_list_t;
 // page-level striping technique (I/O parallelism)
 #define lpn2bank(lpn)             ((lpn) % NUM_BANKS)
 
+#define COUNT_BUCKETS(TOTAL, BUCKET_SIZE) \
+	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )
+
+
 #endif	// JASMINE_H
 

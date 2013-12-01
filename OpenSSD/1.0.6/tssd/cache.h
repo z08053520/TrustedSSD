@@ -10,14 +10,24 @@
 #define CACHE_BYTES		(NUM_CACHE_BUFFERS * BYTES_PER_PAGE)
 #define CACHE_BUF(i)		(CACHE_ADDR + BYTES_PER_PAGE * i)
 
+typedef enum _cache_buf_type {
+	/* Cache for page mapping table (PMT). 
+	 * For this type of entries, the key is pmt_index. */
+	CACHE_BUF_TYPE_PMT,	
+	/* Cache for user pages.
+	 * For this type of entries, the key is lpn. */
+	CACHE_BUF_TYPE_USR	
+} cache_buf_type;
+
 void cache_init(void);
 
 /* get the DRAM buffer address for a page */
-void cache_get(UINT32 const lpn, UINT32 *addr);
+void cache_get(UINT32 key, UINT32 *addr, cache_buf_type const type);
 /* put a page into cache, then allocate and return the buffer */
-void cache_put(UINT32 const lpn, UINT32 *addr);
+void cache_put(UINT32 key, UINT32 *addr, cache_buf_type const type);
 /* fill the page */
-void cache_fill(UINT32 const lpn, UINT32 const offset, UINT32 const num_sectors);
+void cache_fill(UINT32 key, UINT32 const offset, 
+		UINT32 const num_sectors, cache_buf_type const type);
 
 /* inform the cache that some sectors of the page have been loaded from flash */
 void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors);

@@ -284,7 +284,7 @@ static void cache_evict(void)
 			continue;
 
 		victim_node = victim_nodes[bank] = segment_drop(bank);
-		hash_table_remove(&_cache_ht, node_lpn(victim_node));
+		hash_table_remove(&_cache_ht, node_key(victim_node));
 		if (!is_dirty(victim_node))
 			continue;
 
@@ -334,9 +334,11 @@ void cache_init(void)
 }
 
 /* get the DRAM buffer address for a page */
-void cache_get(UINT32 const lpn, UINT32 *addr)
+void cache_get(UINT32 key, UINT32 *addr, cache_buf_type const type)
 {
-	cache_node* node = (cache_node*) hash_table_get_node(&_cache_ht, lpn);
+	cache_node* node = (cache_node*) hash_table_get_node(
+						&_cache_ht, 
+						cache_key(key, type);
 	if (node == NULL) {
 		*addr = NULL;
 		return;
@@ -357,25 +359,32 @@ void cache_get(UINT32 const lpn, UINT32 *addr)
 }
 	
 /* put a page into cache, then allocate and return the buffer */
-void cache_put(UINT32 const lpn, UINT32 *addr)
+void cache_put(UINT32 key, UINT32 *addr, cache_buf_type const type)
 {
-	UINT8 prob_seg_index = lpn2bank(lpn);
+	UINT8 prob_seg_index;
 	cache_node* node;
 	BOOL32 res;
 
+	key = cache_key(key, type);
+
+	prob_seg_index = key2bank(key);
 	if (segment_is_full(_cache_probationary_seg[prob_seg_index])) {
 		cache_evict();	
 	}
 
-	res = hash_table_insert(&_cache_ht, lpn, 0);
+	res = hash_table_insert(&_cache_ht, key, 0);
 	BUG_ON("insertion to hash table failed", res);
 
 	node = (cache_node*)(_cache_ht.last_used_node);
 	node->pre = node->next = NULL;
 	node->flag = 0;
-	res = cmt_fix(lpn);
-	BUG_ON("cmt fix failure", res);
-
+	/* Make sure lpn->vpn mapping for user page is kept in CMT.
+	 * This is not necessary for PMT page since the vpn of them are 
+	 * maintained by GTD. */
+	if (type == CACHE_BUF_TYPE_USR) {
+		res = cmt_fix(key);
+		BUG_ON("cmt fix failure", res);
+	}
 	/* The index of hash node is guarrantted to be unique.
 	 * As a result, each cache node has a unique buffer. */
 	node->buff_id = hash_table_get_node_index(&_cache_ht, (hash_node*)node);
@@ -385,12 +394,15 @@ void cache_put(UINT32 const lpn, UINT32 *addr)
 }
 
 /* fill the page */
-void cache_fill(UINT32 const lpn, UINT32 const offset, UINT32 const num_sectors)
+void cache_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
+		cache_buf_type const type)
 {
-	cache_node* node = (cache_node*) hash_table_get_node(&_cache_ht, lpn);
+	cache_node* node = (cache_node*) hash_table_get_node(
+						&_cache_ht, 
+						cache_key(key, type));
 	BUG_ON("node doesn't exist", node == NULL);
 
-	
+		
 }
 
 

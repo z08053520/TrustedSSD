@@ -4,9 +4,6 @@
 #include "jasmine.h"
 #include "cache.h"
 
-#define COUNT_BUCKETS(TOTAL, BUCKET_SIZE) \
-	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )
-
 /* ========================================================================= *
  * DRAM Segmentation
  * ========================================================================= */
