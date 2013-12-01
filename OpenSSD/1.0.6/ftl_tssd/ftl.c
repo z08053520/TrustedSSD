@@ -1,5 +1,6 @@
 #include "ftl.h"
 #include "cmt.h"
+#include "pmt.h"
 #include "cache.h"
 
 /* ========================================================================= *
@@ -235,9 +236,9 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
             		num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
 
 		// try to read from cache
-		cache_get(lpn, &page_buff);
+		cache_get(lpn, &page_buff, CACHE_BUF_TYPE_USR);
 		if (page_buff) {
-			cache_fill(lpn, sect_offset, num_sectors_to_read);
+			cache_fill(lpn, sect_offset, num_sectors_to_read, CACHE_BUF_TYPE_USR);
 			mem_copy(RD_BUF_PTR(g_ftl_read_buf_id),
 				 page_buff,
 				 BYTES_PER_PAGE);

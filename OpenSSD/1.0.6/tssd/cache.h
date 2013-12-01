@@ -28,6 +28,7 @@ void cache_put(UINT32 key, UINT32 *addr, cache_buf_type const type);
 /* fill the page */
 void cache_fill(UINT32 key, UINT32 const offset, 
 		UINT32 const num_sectors, cache_buf_type const type);
+void cache_fill_full_page(UINT32 key, cache_buf_type const type);
 
 /* inform the cache that some sectors of the page have been loaded from flash */
 void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors);

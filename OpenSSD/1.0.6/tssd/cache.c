@@ -1,12 +1,14 @@
 #include "cache.h"
 #include "hash_table.h"
 #include "ftl.h"
+#include "gtd.h"
 #include "cmt.h"
+#include "flash_util.h"
 
 /* ========================================================================== 
  * Cache maintains a hash table for fast look-up 
  *
- * 	key -- the lpn of a page
+ * 	key -- the lpn of a user page or the index of PMT page
  * 	val -- mask that indicates valid sectors, at most 32 sectors 
  * ========================================================================*/
 
@@ -18,9 +20,27 @@ typedef struct _cache_node {
 	UINT16	flag;
 } cache_node;
 
-#define node_lpn(node)		((node)->hn.key)
+#define node_key(node)		((node)->hn.key)
+#define node_lpn(node)		node_key(node)	
+#define node_pmt_idx(node)	(node_key(node) & 0x7FFFFFFF)
 #define node_addr(node)		(CACHE_BUF((node)->buff_id))
 #define node_mask(node)		((node)->hn.val)
+
+#define node_type(node)		(((node)->hn.key >> 31) == 1? CACHE_BUF_TYPE_PMT : CACHE_BUF_TYPE_USR)
+#define is_pmt(node)		(node_type(node) == CACHE_BUF_TYPE_PMT)
+#define is_usr(node)		(node_type(node) == CACHE_BUF_TYPE_USR)
+
+UINT32 node_vpn(cache_node* node) {
+	UINT32 vpn;
+	if (is_usr(node)) 
+		cmt_get(node_lpn(node), &vpn);
+	else
+		vpn = gtd_get_vpn(node_pmt_idx(node));
+	return vpn;
+}
+
+#define real_key(key, type)	(type == CACHE_BUF_TYPE_USR ? key : (key | 1 << 31))
+#define key2bank(key)		lpn2bank(key)
 
 #define CACHE_HT_CAPACITY	NUM_CACHE_BUFFERS		
 #define CACHE_HT_BUFFER_SIZE	(CACHE_HT_CAPACITY * sizeof(cache_node))
@@ -177,142 +197,54 @@ static cache_node* segment_drop(UINT8 const prob_seg_index)
  * Private Functions 
  * ========================================================================*/
 
-static void read_page(cache_node *node) 
-{
-	UINT32 lpn  = node_lpn(node);
-	UINT32 addr = node_addr(node);
-	UINT32 vpn; 
-
-	UINT32 bank = lpn2bank(lpn);
-
-	UINT32 mask = node_mask(node);
-	UINT8 valid_sectors = __builtin_popcount(mask);
-	UINT8 low_holes     = __builtin_ctz(mask);
-	UINT8 high_holes    = __builtin_clz(mask);
-
-	BOOL32 res = cmt_get(lpn, &vpn);
-	BUG_ON("lpn is not fixed in CMT", res);
-
-	/* this is an unproved performance optimization */
-	if (valid_sectors > 16 && (high_holes + valid_sectors + low_holes == SECTORS_PER_PAGE)) {
-		if (high_holes) {
-			nand_page_ptread(bank, 
-				 	 vpn / PAGES_PER_VBLK, 
-				 	 vpn % PAGES_PER_VBLK, 
-			 	 	 low_holes + valid_sectors, 
-					 high_holes, 
-				 	 addr, RETURN_ON_ISSUE);
-		}
-		if (low_holes) {
-			nand_page_ptread(bank, 
-				 	 vpn / PAGES_PER_VBLK, 
-				 	 vpn % PAGES_PER_VBLK, 
-			 	 	 0, 
-					 low_holes, 
-				 	 addr, RETURN_ON_ISSUE);
-		}
-	}
-	else {
-		nand_page_ptread(bank, 
-				 vpn / PAGES_PER_VBLK, 
-				 vpn % PAGES_PER_VBLK, 
-			 	 0, SECTORS_PER_PAGE, 
-				 FTL_BUF(bank), RETURN_ON_ISSUE);
-		set_merge_flag(node);
-	}
-}
-
-static void write_page(cache_node *node)
-{
-	UINT32 lpn  = node_lpn(node);
-	UINT32 addr = node_addr(node);
-
-	UINT32 new_vpn = ftl_get_new_vpn(lpn);
-	UINT32 bank = lpn2bank(lpn);
-	
-	BOOL32 res = cmt_update(lpn, new_vpn);
-	BUG_ON("lpn is not fixed in CMT", res);
-
-	nand_page_program(bank, 
-			  new_vpn / PAGES_PER_VBLK, 
-			  new_vpn % PAGES_PER_VBLK, 
-			  addr); 	
-}
-
-static void merge_page(cache_node *node)
-{
-	UINT8 begin = 0, end = 0; 
-	UINT32 addr = node_addr(node);
-	UINT32 mask = node_mask(node);
-	UINT32 bank = lpn2bank(node_lpn(node));
-
-	if (!need_merge(node)) return;
-	
-	while (begin < SECTORS_PER_PAGE) {
-		while (begin < SECTORS_PER_PAGE && (((mask >> begin) & 1) == 1))
-			begin++;
-
-		if (begin >= SECTORS_PER_PAGE) break;
-
-		end = begin + 1;
-		while (end < SECTORS_PER_PAGE && (((mask >> end) & 1) == 0))
-			end++;
-
-		mem_copy(addr + begin * BYTES_PER_SECTOR,
-			 FTL_BUF(bank) + begin * BYTES_PER_SECTOR, 
-			 (end - begin) * BYTES_PER_SECTOR);
-
-		begin = end;
-	}
-}
-
 static void cache_evict(void)
 {
 	int bank;
-	cache_node* victim_nodes[NUM_BANKS];
 	cache_node* victim_node;
-	UINT32 write_back_flag = 0;
+
+	UINT32 vpn[NUM_BANKS];
+	UINT32 buff_addr[NUM_BANKS];
+	UINT32 valid_sectors_mask[NUM_BANKS];
 
 	/* to leverage the inner parallelism between banks in flash, we do 
 	 * eviction in batch fashion and in two rounds*/
 
-	/* first round: get victims and fill partial pages */
+	/* gather the information of victim pages */
 	FOR_EACH_BANK(bank) {
-		victim_nodes[bank] = NULL; 
+		vpn[bank] = 0;
+		buff_addr[bank] = NULL;
+		valid_sectors_mask[bank] = 0;
 
 		if (_cache_probationary_seg[bank].size < PROB_SEGMENT_HIGH_WATER_MARK)
 			continue;
 
-		victim_node = victim_nodes[bank] = segment_drop(bank);
+		victim_node = segment_drop(bank);
 		hash_table_remove(&_cache_ht, node_key(victim_node));
+		if (is_usr(victim_node))
+			cmt_unfix(node_lpn(victim_node));
+
 		if (!is_dirty(victim_node))
 			continue;
 
-		write_back_flag |= (1 << bank);
-		if (!is_whole_page_valid(victim_node)) 
-			read_page(victim_node);	
+		vpn[bank] = node_vpn(victim_node);
+		buff_addr[bank] = node_addr(victim_node);
+		valid_sectors_mask[bank] = node_mask(victim_node);
 	}
-	flash_finish();
 
-	/* second round: write back all victim pages */
-	FOR_EACH_BANK(bank) {
-		if ((write_back_flag & (1 << bank)) == 0)
-			continue;
+	/* read miss sectors in victim pages */
+	fu_read_pages_in_parallel(vpn, buff_addr, valid_sectors_mask);
 
-		victim_node = victim_nodes[bank];
-		merge_page(victim_node);
-		write_page(victim_node);
-	}
-	flash_finish();
+	/* write back all dirty victim pages */
+	fu_write_pages_in_parallel(vpn, buff_addr);
+}
 
-	/* third round: unfix lpn->vpn mapping entry in cmt  */
-	FOR_EACH_BANK(bank) {
-		victim_node = victim_nodes[bank];
-		if (victim_node == NULL) continue;
-
-		cmt_unfix(node_lpn(victim_node));
-	}	
-} 
+BOOL32 valid_sectors_include(UINT32 const valid_sectors_mask, 
+			     UINT32 const offset, 
+			     UINT32 const num_sectors)
+{
+	UINT32 test_sectors_mask = ((1 << num_sectors) - 1) << offset;
+	return (valid_sectors_mask & test_sectors_mask) == test_sectors_mask;
+}
 
 /* ========================================================================== 
  * Public Interface 
@@ -338,7 +270,7 @@ void cache_get(UINT32 key, UINT32 *addr, cache_buf_type const type)
 {
 	cache_node* node = (cache_node*) hash_table_get_node(
 						&_cache_ht, 
-						cache_key(key, type);
+						real_key(key, type));
 	if (node == NULL) {
 		*addr = NULL;
 		return;
@@ -365,7 +297,7 @@ void cache_put(UINT32 key, UINT32 *addr, cache_buf_type const type)
 	cache_node* node;
 	BOOL32 res;
 
-	key = cache_key(key, type);
+	key = real_key(key, type);
 
 	prob_seg_index = key2bank(key);
 	if (segment_is_full(_cache_probationary_seg[prob_seg_index])) {
@@ -399,12 +331,26 @@ void cache_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
 {
 	cache_node* node = (cache_node*) hash_table_get_node(
 						&_cache_ht, 
-						cache_key(key, type));
+						real_key(key, type));
+	UINT32 bank, vpn, buff_addr, mask;
+
 	BUG_ON("node doesn't exist", node == NULL);
 
-		
+	mask = node_mask(node);
+	if (valid_sectors_include(mask, offset, num_sectors)) return;
+
+	key  = real_key(key, type);
+	bank = key2bank(key);
+	vpn  = node_vpn(node);
+	buff_addr = node_addr(node);
+
+	fu_read_page(bank, vpn, buff_addr, mask);
 }
 
+void cache_fill_full_page(UINT32 key, cache_buf_type const type)
+{
+	cache_fill(key, 0, SECTORS_PER_PAGE, type);
+}
 
 /* inform the cache that some sectors of the page have been loaded from flash */
 void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors)
