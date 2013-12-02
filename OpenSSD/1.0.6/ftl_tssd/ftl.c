@@ -284,13 +284,9 @@ static void write_page (UINT32 const lpn,
 void ftl_open(void) {
 	led(0);
     	sanity_check();
-	build_bad_blk_list();
-	
-	/* if this is the first time after reloading firmware */
-	if (check_format_mark() == FALSE)
-		format();
 
-        load_metadata();
+	bb_init();	
+	load_metadata();
 
 	/* FIXME: is the order important? */
 	gtd_init();
