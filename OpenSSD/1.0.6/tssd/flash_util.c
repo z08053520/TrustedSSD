@@ -107,7 +107,7 @@ void fu_format(UINT32 const from_vblk)
 	{
 		FOR_EACH_BANK(bank)
 		{
-            		if (is_bad_block(bank, vblk))
+            		if (bb_is_bad(bank, vblk))
 				continue;
 				
 			nand_block_erase(bank, vblk);

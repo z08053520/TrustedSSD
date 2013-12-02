@@ -21,11 +21,11 @@ gc_metadata _metadata[NUM_BANKS];
 
 void find_next_good_vblk(UINT32 const bank, UINT32 *next_good_vblk) 
 {
-	while (next_good_vblk < VBLKS_PER_BANK && bb_is_bad(bank, next_good_vblk)) 
-		next_good_vblk++;
+	while (*next_good_vblk < VBLKS_PER_BANK && bb_is_bad(bank, *next_good_vblk)) 
+		(*next_good_vblk)++;
 
 	BUG_ON("no available blocks; need garbage collection", 
-			next_good_vblk == VBLKS_PER_BANK);
+			*next_good_vblk == VBLKS_PER_BANK);
 }
 
 

@@ -3,7 +3,7 @@
 
 void bb_init()
 {
-	UINT32 bank, num_entries, result, vblk_offset;
+	UINT32 bank, num_entries, vblk_offset;
 	scan_list_t* scan_list = (scan_list_t*) TEMP_BUF_ADDR;
 	UINT32 i;
 

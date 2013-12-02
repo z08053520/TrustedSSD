@@ -364,6 +364,9 @@ void cache_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
 	buff_addr = node_addr(node);
 
 	fu_read_page(bank, vpn, buff_addr, mask);
+
+	/* FIXME */
+	cache_load_sectors(lpn, 0, SECTORS_PER_PAGE);
 }
 
 void cache_fill_full_page(UINT32 key, cache_buf_type const type)

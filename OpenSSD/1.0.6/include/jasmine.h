@@ -175,7 +175,7 @@ typedef struct
 }
 scan_list_t;
 
-
+/* FIXME: Why?  */
 #define NUM_LSECTORS	(21168 + ((NUM_PSECTORS) / 2097152 * 1953504)) // 125045424
 
 #include "ftl.h"

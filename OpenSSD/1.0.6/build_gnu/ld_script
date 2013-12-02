@@ -1,3 +1,8 @@
+MEMORY
+{
+	sram : ORIGIN = 0, LENGTH = 96k
+}
+
 SECTIONS
 {
 	. = 0;
@@ -32,7 +37,3 @@ SECTIONS
 	_start = entry_point;
 }
 
-MEMORY
-{
-	sram : ORIGIN = 0, LENGTH = 96k
-}
