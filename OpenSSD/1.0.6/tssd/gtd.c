@@ -2,11 +2,11 @@
 
 void gtd_init(void)
 {
-	// FIXME:  
-	// set_sram
+	// TODO: load GTD from flash
+	mem_set_sram(_GTD, 0, GTD_ENTRIES * sizeof(UINT32));
 }
 
 void gtd_flush(void)
 {
-
+	// TODO: flush GTD to flash
 }

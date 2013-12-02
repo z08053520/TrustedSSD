@@ -363,7 +363,12 @@ void cache_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
 	vpn  = node_vpn(node);
 	buff_addr = node_addr(node);
 
-	fu_read_page(bank, vpn, buff_addr, mask);
+
+	/* If PMT page is not in flash yet, write all 0's instead of 1's */
+	if (type == CACHE_BUF_TYPE_PMT && !vpn)
+		mem_set_dram(buff_addr, 0, BYTES_PER_PAGE);
+	else
+		fu_read_page(bank, vpn, buff_addr, mask);
 
 	/* FIXME */
 	cache_load_sectors(lpn, 0, SECTORS_PER_PAGE);
