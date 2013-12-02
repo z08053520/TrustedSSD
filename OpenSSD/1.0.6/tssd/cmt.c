@@ -9,12 +9,13 @@ typedef struct _cmt_node {
 	hash_node hn;
 	struct _cmt_node *next;
 	struct _cmt_node *pre;
+	/* FIXME: use UINT8? */
 	UINT32	flag;
 } cmt_node;
 
 /* CMT is implemented as a hash_table */
 #define CMT_HT_CAPACITY		CMT_ENTRIES
-#define CMT_HT_BUFFER_SIZE	CMT_ENTRIES * sizeof(cmt_node)
+#define CMT_HT_BUFFER_SIZE	(CMT_ENTRIES * sizeof(cmt_node))
 #define CMT_HT_LOAD_FACTOR	4 / 3		// 0.75	
 #define CMT_HT_NUM_BUCKETS 	(CMT_HT_CAPACITY * CMT_HT_LOAD_FACTOR)
 
@@ -60,6 +61,7 @@ static cmt_segment _cmt_probationary_seg;
 
 static UINT32 _cmt_fixed_entries;
 
+/* FIXME: adjust ratio of probationary entries over protected entries */
 static void segment_init(cmt_segment* seg)
 {
 	BUG_ON("CMT_ENTRIES not even", CMT_ENTRIES % 2 != 0);
@@ -67,6 +69,7 @@ static void segment_init(cmt_segment* seg)
 	seg->head.pre = seg->tail.next = NULL;
 	seg->head.next = &seg->tail;
 	seg->tail.pre = &seg->head; 
+	seg->head.flag = seg->tail.flag = 0;
 
 	seg->size = 0;
 	seg->capacity = CMT_ENTRIES / 2 ;
@@ -142,20 +145,22 @@ static void segment_accept(cmt_node *node)
 }
 
 /* remove a node from segmented LRU cache */
+/* TODO: make drop operation O(1) */
 static cmt_node* segment_drop()
 {
 	cmt_node *node = _cmt_probationary_seg.tail.pre;
 
+	BUG_ON("probationary segment is not full", 
+			!segment_is_full(_cmt_probationary_seg));
+
 	// find the LRU non-fixed entry to evict
 	while (is_fixed(node))
 		node = node->pre;
-	BUG_ON("probationary segment is empty", _cmt_probationary_seg.size == 0);
 	
 	segment_remove(node);
 	_cmt_probationary_seg.size--;
 	return node;
 }
-
 
 /* ========================================================================== 
  * Public Functions 
@@ -206,10 +211,9 @@ BOOL32 cmt_add(UINT32 const lpn, UINT32 const vpn)
 	if (cmt_is_full()) return 1;
 	
 	res = hash_table_insert(&_cmt_ht, lpn, vpn);
-
 	if (res) return 1;
 
-	node = (cmt_node*)(_cmt_ht.last_used_node);
+	node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
 	node->pre = node->next = NULL;
 	node->flag = 0;
 
@@ -238,7 +242,7 @@ BOOL32 cmt_evict(UINT32 *lpn, UINT32 *vpn, BOOL32 *is_dirty)
 	
 	victim_node = segment_drop(); 
 	res = hash_table_remove(&_cmt_ht, victim_node->hn.key);
-	if (res) return 1;
+	BUG_ON("hash node removal failure", res);
 
 	*lpn = victim_node->hn.key;
 	*vpn = victim_node->hn.val;
@@ -253,8 +257,10 @@ BOOL32 cmt_fix(UINT32 const lpn)
 	if (node == NULL || _cmt_fixed_entries == CMT_MAX_FIX_ENTRIES) 
 		return 1;
 
-	set_fixed_flag(node);
-	_cmt_fixed_entries++;
+	if (!is_fixed(node)) {
+		set_fixed_flag(node);
+		_cmt_fixed_entries++;
+	}
 	return 0;
 }
 
@@ -265,7 +271,9 @@ BOOL32 cmt_unfix(UINT32 const lpn)
 	if (node == NULL) 
 		return 1;	
 
-	clear_fixed_flag(node);
-	_cmt_fixed_entries--;
+	if (is_fixed(node)) {
+		clear_fixed_flag(node);
+		_cmt_fixed_entries--;
+	}
 	return 0;
 }

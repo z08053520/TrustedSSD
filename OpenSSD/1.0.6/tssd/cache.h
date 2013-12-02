@@ -25,6 +25,7 @@ void cache_init(void);
 void cache_get(UINT32 key, UINT32 *addr, cache_buf_type const type);
 /* put a page into cache, then allocate and return the buffer */
 void cache_put(UINT32 key, UINT32 *addr, cache_buf_type const type);
+
 /* fill the page */
 void cache_fill(UINT32 key, UINT32 const offset, 
 		UINT32 const num_sectors, cache_buf_type const type);

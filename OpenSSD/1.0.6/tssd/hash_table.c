@@ -22,26 +22,30 @@ static UINT32 hash_function(UINT32 const key)
 }
 
 void hash_table_init(hash_table*  ht,    UINT32 const capacity, 
-		     UINT8 node_size,	/* user may use custom data structure 
-					   that includes hash_node */
+		     UINT8 const node_size, /* user may use custom data structure 
+					       that includes hash_node */
 		     UINT8*  node_buffer,   UINT32 const buffer_size,
 		     hash_node** buckets,   UINT32 const num_buckets)
 {
 	BUG_ON("null pointer", ht == NULL || 
 			       buckets == NULL || 
 			       node_buffer == NULL);
-	BUG_ON("invalid argument", capacity <= 0 || 
+	BUG_ON("invalid argument", num_buckets == 0 || 
 				   capacity > num_buckets || 
 				   capacity * node_size > buffer_size ||
 				   node_size < sizeof(hash_node) );
 
 	ht->size = 0;
 	ht->capacity = capacity;
-	ht->node_size = node_size;
+	
 	ht->buckets  = buckets;
 	ht->num_buckets = num_buckets;
+	mem_set_sram(ht->buckets, NULL, sizeof(hash_node*) * ht->num_buckets);	
+	
+	ht->node_size = node_size;
 	ht->node_buffer = node_buffer;
 	ht->buffer_size = buffer_size;
+
 	ht->free_nodes = NULL;
 	ht->last_used_node = NULL;
 }
@@ -49,15 +53,15 @@ void hash_table_init(hash_table*  ht,    UINT32 const capacity,
 hash_node* hash_table_get_node(hash_table* ht, UINT32 const key)
 {
 	hash_node* node;
-	UINT32 hash_val;
+	UINT32 bucket_idx;
 
 	BUG_ON("null pointer", ht == NULL); 
 
 	if (ht->last_used_node && ht->last_used_node->key == key)
 		return ht->last_used_node;
 
-	hash_val = hash_function(key) % ht->num_buckets;
-	node = ht->buckets[hash_val];
+	bucket_idx = hash_function(key) % ht->num_buckets;
+	node = ht->buckets[bucket_idx];
 
 	while (node) {
 		if (node->key == key) {
@@ -81,13 +85,16 @@ BOOL32 hash_table_get(hash_table* ht, UINT32 const key, UINT32 *val)
 
 UINT32  hash_table_get_node_index(hash_table* ht, hash_node* node)
 {
+	BUG_ON("invalid node address", 
+			((UINT8*)node - ht->node_buffer) % ht->node_size != 0);
+
 	return ((UINT8*)node - ht->node_buffer) / ht->node_size;
 }
 
 BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val)
 {
 	hash_node* new_node;
-	UINT32 hash_val;
+	UINT32 bucket_idx;
 
 	BUG_ON("null pointer", ht == NULL);
 	
@@ -105,10 +112,10 @@ BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val)
 	new_node->key = key;
 	new_node->val = val;
 
-	hash_val = hash_function(key) % ht->num_buckets;
-	new_node->next = ht->buckets[hash_val];
+	bucket_idx = hash_function(key) % ht->num_buckets;
+	new_node->next = ht->buckets[bucket_idx];
 
-	ht->buckets[hash_val] = ht->last_used_node = new_node;
+	ht->buckets[bucket_idx] = ht->last_used_node = new_node;
 	ht->size += 1;
 	return 0;
 }
@@ -126,22 +133,22 @@ BOOL32 	hash_table_update(hash_table* ht, UINT32 const key, UINT32 const newval)
 BOOL32 	hash_table_remove(hash_table* ht, UINT32 const key)
 {
 	hash_node *node, *pre_node = NULL;
-	UINT32 hash_val;
+	UINT32 bucket_idx;
 
 	BUG_ON("null pointer", ht == NULL); 
 	
-	hash_val = hash_function(key) % ht->num_buckets;
-	node = ht->buckets[hash_val];
+	bucket_idx = hash_function(key) % ht->num_buckets;
+	node = ht->buckets[bucket_idx];
 
 	while (node) {
 		if (node->key == key) {
 			if (pre_node)
 				pre_node->next = node->next;
 			else
-				ht->buckets[hash_val] = node->next;
+				ht->buckets[bucket_idx] = node->next;
 			node->next = ht->free_nodes;
 			ht->free_nodes = node;
-			ht->size -= 1;
+			ht->size--;
 			return 0;
 		}	
 		pre_node = node;
