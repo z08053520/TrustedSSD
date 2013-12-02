@@ -98,6 +98,23 @@ static BOOL32 read_page_with_mask(UINT32 const bank,
  * Public Interface 
  * ========================================================================*/
 
+void fu_format(UINT32 const from_vblk)
+{
+	UINT32 vblk = from_vblk;
+	UINT32 bank;
+
+	for (; vblk < VBLKS_PER_BANK; vblk++)
+	{
+		FOR_EACH_BANK(bank)
+		{
+            		if (is_bad_block(bank, vblk))
+				continue;
+				
+			nand_block_erase(bank, vblk);
+            	}
+        }
+}
+
 void fu_read_page(UINT32 const bank, UINT32 const vpn, 
 		    	    UINT32 const buff_addr, UINT32 const valid_sectors_mask)
 {

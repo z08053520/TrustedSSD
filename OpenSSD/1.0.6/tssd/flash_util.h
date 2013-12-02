@@ -3,6 +3,8 @@
 
 #include "jasmine.h"
 
+void fu_format(UINT32 const from_vblk);
+
 void fu_read_page (UINT32 const bank, UINT32 const vpn, UINT32 const buff_addr, 
 			UINT32 const valid_sectors_mask);
 void fu_write_page(UINT32 const bank, UINT32 const vpn, UINT32 const buff_addr);
