@@ -301,13 +301,9 @@ UINT32 _mem_search_equ(const void* const addr, UINT32 const num_bytes_per_item, 
 	SETREG(MU_SIZE, num_items);
 	SETREG(MU_CMD, cmd);
 
-	while (1)
-	{
+	do {
 		retval = GETREG(MU_RESULT);
-
-		if (retval != 0xFFFFFFFF)
-			break;
-	}
+	} while (retval == 0xFFFFFFFF);
 
 	#if DEBUG_MEM_UTIL
 	busy = 0;

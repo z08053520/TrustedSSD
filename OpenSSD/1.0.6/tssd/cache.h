@@ -30,10 +30,8 @@ void cache_fill(UINT32 key, UINT32 const offset,
 		UINT32 const num_sectors, cache_buf_type const type);
 void cache_fill_full_page(UINT32 key, cache_buf_type const type);
 
-/* inform the cache that some sectors of the page have been loaded from flash */
-void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors);
-/* inform the cache that some sectors of the page have been overwritten in
- * DRAM so that cache can write back to flash when evicting the page*/
-void cache_overwrite_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors);
+void cache_set_valid_sectors(UINT32 key, UINT8 offset, UINT8 const num_sectors, 
+			     cache_buf_type const type);
+void cache_set_dirty(UINT32 key, cache_buf_type const type);
 
 #endif /*  __CACHE_H */

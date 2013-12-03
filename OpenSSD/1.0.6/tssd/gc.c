@@ -13,8 +13,6 @@ typedef struct _gc_metadata
 
 gc_metadata _metadata[NUM_BANKS];
 
-#define no_free_blk(bank)	(_metadata[bank].free_blk_cnt == 0)
-
 /* ========================================================================== 
  * Private Functions 
  * ========================================================================*/
@@ -62,9 +60,8 @@ UINT32 gc_allocate_new_vpn(UINT32 const bank)
 
 		new_vpn = _metadata[bank].cur_write_vpn 
 			= next_good_vblk * PAGES_PER_VBLK;
-		return new_vpn;
 	}
-	
-	new_vpn = _metadata[bank].cur_write_vpn ++;
+	else	
+		new_vpn = _metadata[bank].cur_write_vpn ++;
 	return new_vpn;
 }
