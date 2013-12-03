@@ -26,7 +26,7 @@ static void sanity_check(void)
 		+ FTL_BUF_BYTES + HIL_BUF_BYTES + TEMP_BUF_BYTES 
 		+ BAD_BLK_BMP_BYTES + CACHE_BYTES;
 
-	BUG_ON("DRAM is under/over-utilized", dram_requirement != DRAM_SIZE);
+	BUG_ON("DRAM is over-utilized", dram_requirement >= DRAM_SIZE);
 	BUG_ON("ftl_metadata is too larget", sizeof(ftl_metadata) > BYTES_PER_PAGE);
 }
 
@@ -58,10 +58,14 @@ static void read_page  (UINT32 const lpn,
 {
     	UINT32 bank, vpn;
 	UINT32 page_buff;
+	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 
 	// try to read from cache
 	cache_get(lpn, &page_buff, CACHE_BUF_TYPE_USR);
 	if (page_buff) {
+		// wait for the next buffer to get SATA transfer done
+		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+
 		cache_fill(lpn, sect_offset, num_sectors_to_read, CACHE_BUF_TYPE_USR);
 		mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
 			 page_buff + BYTES_PER_SECTOR * sect_offset,
@@ -70,10 +74,7 @@ static void read_page  (UINT32 const lpn,
 	}
 	
 	vpn  = get_vpn(lpn);
-
-	// wait for the next buffer to get SATA transfer done
-	while (g_ftl_read_buf_id == GETREG(SATA_RBUF_PTR));
-
+			
 	// read from flash
 	if (vpn != NULL)
 	{
@@ -88,6 +89,9 @@ static void read_page  (UINT32 const lpn,
 	// the logical page has never been written to 
 	else
 	{
+		// wait for the next buffer to get SATA transfer done
+		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+
             	// Send 0xFF...FF to host when the host request to read the 
 		// sector that has never been written.
 		mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) 
@@ -97,13 +101,15 @@ static void read_page  (UINT32 const lpn,
 	}
 
 mem_xfer_done:
-	g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
-	
+	// wait for flash finish to avoid race condition when updating
+	// BM_STACK_LIMIT
 	flash_finish();
 
 	// read buffer is ready for SATA transfer
 	SETREG(BM_STACK_RDSET, g_ftl_read_buf_id);
 	SETREG(BM_STACK_RESET, 0x02);
+
+	g_ftl_read_buf_id = next_read_buf_id;
 }
 
 static void write_page (UINT32 const lpn, 
@@ -118,7 +124,7 @@ static void write_page (UINT32 const lpn,
 		cache_put(lpn, &buff_addr, CACHE_BUF_TYPE_USR);
 
 		/* init buffer */ 
-
+		/* this init code should not be necessary
 		target_addr = buff_addr;
 		num_bytes   = sect_offset * BYTES_PER_SECTOR;
 		mem_set_dram(target_addr, 0xFFFFFFFF, num_bytes);
@@ -128,6 +134,7 @@ static void write_page (UINT32 const lpn,
 		num_bytes   = (SECTORS_PER_PAGE - sect_offset - 
 				num_sectors_to_write) * BYTES_PER_SECTOR;
 		mem_set_dram(target_addr, 0xFFFFFFFF, num_bytes);
+		*/
 	}
 
 	// wait for SATA transfer completion

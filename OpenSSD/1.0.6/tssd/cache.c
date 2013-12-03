@@ -227,6 +227,9 @@ static void cache_evict(void)
 
 	/* prepare pages to write */
 	FOR_EACH_BANK(bank) {
+		/* if don't need to write back, then skip it */
+		if (buff_addr[bank] == NULL) continue;
+
 		vpn[bank] = vpn[bank] ? gc_replace_old_vpn(bank, vpn[bank]) 
 				      : gc_allocate_new_vpn(bank) ;
 	}
@@ -239,7 +242,6 @@ static void cache_evict(void)
 		victim_node = victim_nodes[bank];
 		if (!victim_node) continue;
 		
-		hash_table_remove(&_cache_ht, node_key(victim_node));
 		if (is_usr(victim_node)) {	/* user page buffer */
 			cmt_update(node_lpn(victim_node), vpn[bank]);
 			cmt_unfix(node_lpn(victim_node));
@@ -247,6 +249,7 @@ static void cache_evict(void)
 		else { 				/* PMT page buffer */ 
 			gtd_set_vpn(node_pmt_idx(victim_node), vpn[bank]);
 		}
+		hash_table_remove(&_cache_ht, node_key(victim_node));
 	}
 }
 
@@ -254,6 +257,9 @@ BOOL32 valid_sectors_include(UINT32 const valid_sectors_mask,
 			     UINT32 const offset, 
 			     UINT32 const num_sectors)
 {
+	if (num_sectors == SECTORS_PER_PAGE)
+		return valid_sectors_mask == 0xFFFFFFFF;
+
 	UINT32 test_sectors_mask = ((1 << num_sectors) - 1) << offset;
 	return (valid_sectors_mask & test_sectors_mask) == test_sectors_mask;
 }
@@ -378,9 +384,12 @@ void cache_set_valid_sectors(UINT32 key, UINT8 offset, UINT8 const num_sectors,
 						real_key(key, type));
 
 	BUG_ON("non-existing node", node == NULL);
-	BUG_ON("out of bounds", offset + num_sectors >= SECTORS_PER_PAGE);
+	BUG_ON("out of bounds", offset + num_sectors > SECTORS_PER_PAGE);
 
-	node_mask(node) |= (((1 << num_sectors) - 1) << offset);
+	if (num_sectors == SECTORS_PER_PAGE)
+		node_mask(node) = 0xFFFFFFFF;
+	else
+		node_mask(node) |= (((1 << num_sectors) - 1) << offset);
 }
 
 void cache_set_dirty(UINT32 key, cache_buf_type const type)

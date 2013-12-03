@@ -598,7 +598,6 @@ int is_jasmine(const char *name)
 		printf("is_jasmine in if(ioctl)\n");
 		exit(1);
 	}
-        printf("function is_jasmine \n");
 	close(fd);
 	return strncmp((char *)&id[27], DEVICE_ID, strlen(DEVICE_ID)) == 0;
 }
@@ -622,7 +621,9 @@ BOOL32 open_target_drv()
 			&ma, &mi, &sz, ptname) != 4)
 			continue;
 		snprintf(devname, sizeof(devname), "/dev/%s", ptname);
+		printf("Checking device %s...\n", devname);
 		if (is_whole_disk(devname) && is_jasmine(devname) ) {
+			printf("\tPassed.\n\tNow open it...\n");
 			if ((hc->handle = open(devname, O_RDWR|O_DIRECT|O_SYNC)) < 0) {
 				fprintf(stderr, "failed to open jasmine device");
 				exit(1);
