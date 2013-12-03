@@ -30,10 +30,6 @@ static void sanity_check(void)
 	BUG_ON("ftl_metadata is too larget", sizeof(ftl_metadata) > BYTES_PER_PAGE);
 }
 
-static void load_metadata() {
-
-}
-
 static UINT32 get_vpn(UINT32 const lpn)
 {
 	UINT32 vpn;

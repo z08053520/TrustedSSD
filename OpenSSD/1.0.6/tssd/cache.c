@@ -27,8 +27,6 @@ typedef struct _cache_node {
 #define node_addr(node)		(CACHE_BUF((node)->buff_id))
 #define node_mask(node)		((node)->hn.val)
 
-#define BIT31			(1 << 31)
-
 #define node_type(node)		( (node)->hn.key & BIT31 ? \
 					CACHE_BUF_TYPE_PMT : \
 					CACHE_BUF_TYPE_USR )
