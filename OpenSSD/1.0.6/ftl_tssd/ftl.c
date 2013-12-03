@@ -143,12 +143,18 @@ static void write_page (UINT32 const lpn,
 	num_bytes   = num_sectors_to_write * BYTES_PER_PAGE;
 	mem_copy(target_addr, src_addr, num_bytes);
 
-	cache_overwrite_sectors(lpn, sect_offset, num_sectors_to_write);
+	cache_set_valid_sectors(lpn, sect_offset, num_sectors_to_write, CACHE_BUF_TYPE_USR);
+	cache_set_dirty(lpn, CACHE_BUF_TYPE_USR);
 
 	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;	
 
 	SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);
 	SETREG(BM_STACK_RESET, 0x01);
+}
+
+static void print_info(void)
+{
+
 }
 
 /* ========================================================================= *
@@ -159,15 +165,18 @@ void ftl_open(void) {
 	led(0);
     	sanity_check();
 
-	bb_init();	
-	load_metadata();
+	print_info();
 
-	/* FIXME: is the order important? */
-	gtd_init();
+	/* the initialization order indicates the dependencies between modules */
+	bb_init();	
 	cmt_init();
-	cache_init();
-	pmt_init();
+	gtd_init();
+
 	gc_init();
+
+	cache_init();
+
+	pmt_init();
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
 }
@@ -229,5 +238,5 @@ void ftl_flush(void) {
 }
 
 void ftl_isr(void) {
-
+	/* TODO: add BSP interrupt handler */
 }

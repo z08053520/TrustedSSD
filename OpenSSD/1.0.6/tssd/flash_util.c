@@ -51,6 +51,13 @@ static BOOL32 read_page_with_mask(UINT32 const bank,
 
 	if (valid_sectors >= SECTORS_PER_PAGE) return 0;
 
+	/* page not written to flash yet */
+	if (!vpn) {
+		mem_set_dram(FTL_BUF(bank), 0xFFFFFFFF, BYTES_PER_PAGE);
+		merge_buff(buff_addr, valid_sectors_mask, FTL_BUF(bank));
+		return 0;
+	}
+
 	/* this is an unproved performance optimization */
 	if (valid_sectors > 16 && (high_holes + valid_sectors + low_holes == SECTORS_PER_PAGE)) {
 		if (high_holes) {
@@ -122,7 +129,7 @@ void fu_read_page(UINT32 const bank, UINT32 const vpn,
 			    valid_sectors_mask, RETURN_WHEN_DONE);	
 }
 
-#define can_skip_bank(bank)	(vpn[bank] == 0 || buff_addr[bank] == 0)
+#define can_skip_bank(bank)	(buff_addr[bank] == 0)
 
 void fu_read_pages_in_parallel( UINT32 vpn[], 
 				UINT32 buff_addr[],
@@ -152,6 +159,8 @@ void fu_read_pages_in_parallel( UINT32 vpn[],
 
 void fu_write_page(UINT32 const bank, UINT32 const vpn, UINT32 const buff_addr)
 {
+	BUG_ON("can't write to vpn #0", vpn == 0);
+
 	nand_page_program(bank, 
 			  vpn / PAGES_PER_VBLK, 
 			  vpn % PAGES_PER_VBLK, 

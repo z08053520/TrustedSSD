@@ -1,19 +1,23 @@
 #include "bad_blocks.h"
 #include "ftl.h"
 
+#define _bmp_base_addr(bank)	(BAD_BLK_BMP_ADDR + bank * BAD_BLK_BMP_BYTES_PER_BANK)
+#define _bb_set_bmp(bank, blk)	set_bit_dram(_bmp_base_addr(bank), blk)
+#define _bb_tst_bmp(bank, blk)	tst_bit_dram(_bmp_base_addr(bank), blk)
+
 void bb_init()
 {
 	UINT32 bank, num_entries, vblk_offset;
 	scan_list_t* scan_list = (scan_list_t*) TEMP_BUF_ADDR;
 	UINT32 i;
 
-	mem_set_dram(BAD_BLK_BMP_ADDR, NULL, BAD_BLK_BMP_BYTES);
+	mem_set_dram(BAD_BLK_BMP_ADDR, 0, BAD_BLK_BMP_BYTES);
 
 	disable_irq();
 
 	flash_clear_irq();
 
-	for (bank = 0; bank < NUM_BANKS; bank++)
+	FOR_EACH_BANK(bank)	
 	{
 		SETREG(FCP_CMD, FC_COL_ROW_READ_OUT);
 		SETREG(FCP_BANK, REAL_BANK(bank));
@@ -41,11 +45,13 @@ void bb_init()
 			BUG_ON("invalid entry in scan list", 
 					pblk_offset == 0 || pblk_offset >= PBLKS_PER_BANK);
 			write_dram_16(scan_list->list + i, pblk_offset);
-		}
 
-		for (vblk_offset = 1; vblk_offset < VBLKS_PER_BANK; vblk_offset++)
-			if (mem_search_equ_dram(scan_list, sizeof(UINT16), num_entries, vblk_offset) < num_entries)
-				set_bit_dram(BAD_BLK_BMP_ADDR + bank*(VBLKS_PER_BANK/8 + 1), vblk_offset);
+#ifdef OPTION_2_PLANE
+			_bb_set_bmp(bank, pblk_offset / 2);
+#else
+			_bb_set_bmp(bank, pblk_offset);
+#endif
+		}
 	}
 	
 	enable_irq();
@@ -53,5 +59,5 @@ void bb_init()
 
 BOOL32 bb_is_bad(UINT32 const bank, UINT32 const blk)
 {    
-	return tst_bit_dram(BAD_BLK_BMP_ADDR + bank*(VBLKS_PER_BANK/8 + 1), blk);
+	return _bb_tst_bmp(bank, blk);
 }

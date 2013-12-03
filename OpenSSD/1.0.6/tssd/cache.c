@@ -27,7 +27,11 @@ typedef struct _cache_node {
 #define node_addr(node)		(CACHE_BUF((node)->buff_id))
 #define node_mask(node)		((node)->hn.val)
 
-#define node_type(node)		(((node)->hn.key >> 31) == 1? CACHE_BUF_TYPE_PMT : CACHE_BUF_TYPE_USR)
+#define BIT31			(1 << 31)
+
+#define node_type(node)		( (node)->hn.key & BIT31 ? \
+					CACHE_BUF_TYPE_PMT : \
+					CACHE_BUF_TYPE_USR )
 #define is_pmt(node)		(node_type(node) == CACHE_BUF_TYPE_PMT)
 #define is_usr(node)		(node_type(node) == CACHE_BUF_TYPE_USR)
 
@@ -40,7 +44,7 @@ UINT32 node_vpn(cache_node* node) {
 	return vpn;
 }
 
-#define real_key(key, type)	(type == CACHE_BUF_TYPE_USR ? key : (key | 1 << 31))
+#define real_key(key, type)	(type == CACHE_BUF_TYPE_USR ? key : (key | BIT31))
 #define key2bank(key)		lpn2bank(key)
 
 #define CACHE_HT_CAPACITY	NUM_CACHE_BUFFERS		
@@ -57,9 +61,6 @@ static hash_table 	_cache_ht;
 /* the second lowest bit is segment bit. Bit 1 is for protected seg. Bit 0 is 
  * for probationary seg. */
 #define PROTECTED_FLAG		(1 << 1)		
-/* the third lowest bit is merge bit, which indicates whether the buffer of 
- * a node need to be merge with data in FTL_BUF */
-#define MERGE_FLAG		(1 << 2)
 
 #define is_dirty(node)			(node->flag & DIRTY_FLAG)
 #define set_dirty_flag(node)		node->flag |= DIRTY_FLAG
@@ -68,12 +69,6 @@ static hash_table 	_cache_ht;
 #define is_protected(node)		(node->flag & PROTECTED_FLAG)
 #define set_protected_flag(node) 	node->flag |= PROTECTED_FLAG
 #define clear_protected_flag(node) 	node->flag &= (~PROTECTED_FLAG)
-
-#define need_merge(node) 		(node->flag & MERGE_FLAG)
-#define set_merge_flag(node)		node->flag |= MERGE_FLAG
-
-#define is_whole_page_valid(node)	(node_mask(node)== 0xFFFFFFFF)
-
 
 /* ========================================================================== 
  * Segmented LRU Cache Policy
@@ -133,7 +128,7 @@ static void segment_forward(cache_node *node)
 /* move up a node from probationary segment to protected segment */
 static void segment_up(cache_node *node)
 {
-	UINT8 prob_seg_index = lpn2bank(node_lpn(node));
+	UINT8 prob_seg_index = key2bank(node_key(node));
 
 	BUG_ON("node not in probationary segment", is_protected(node));
 
@@ -149,7 +144,7 @@ static void segment_up(cache_node *node)
 static cache_node* segment_down()
 {
 	cache_node* node = _cache_protected_seg.tail.pre;
-	UINT8 prob_seg_index = lpn2bank(node_lpn(node));
+	UINT8 prob_seg_index = key2bank(node_key(node));
 	cache_segment *prob_seg = &_cache_probationary_seg[prob_seg_index];
 
 	BUG_ON("protected segment is not full", 
@@ -168,7 +163,7 @@ static cache_node* segment_down()
 /* accept a node in segmented LRU cache */
 static void segment_accept(cache_node *node)
 {
-	UINT8 prob_seg_index = lpn2bank(node_lpn(node));
+	UINT8 prob_seg_index = key2bank(node_key(node));
 	cache_segment *prob_seg = &_cache_probationary_seg[prob_seg_index];
 
 	BUG_ON("probationary segment is full", 
@@ -186,13 +181,13 @@ static cache_node* segment_drop(UINT8 const prob_seg_index)
 	cache_segment *prob_seg = &_cache_probationary_seg[prob_seg_index];
 	cache_node *node = prob_seg->tail.pre;
 
-	BUG_ON("probationary segment is empty", prob_seg->size == 0);
+	BUG_ON("probationary segment is not full enough", 
+			prob_seg->size < PROB_SEGMENT_HIGH_WATER_MARK);
 	
 	segment_remove(node);
 	prob_seg->size--;
 	return node;
 }
-
 
 /* ========================================================================== 
  * Private Functions 
@@ -271,16 +266,17 @@ BOOL32 valid_sectors_include(UINT32 const valid_sectors_mask,
 
 void cache_init(void)
 {
-	int i;
+	UINT32 bank;
 
 	BUG_ON("page size larger than 16KB", BYTES_PER_PAGE > 16 * 1024);
 
 	hash_table_init(&_cache_ht, CACHE_HT_CAPACITY, 
 			sizeof(cache_node), _cache_ht_buffer, CACHE_HT_BUFFER_SIZE,
 			_cache_ht_buckets, CACHE_HT_NUM_BUCKETS);
+
 	segment_init(&_cache_protected_seg, TRUE);
-	FOR_EACH_BANK(i) {	
-		segment_init(&_cache_probationary_seg[i], FALSE);
+	FOR_EACH_BANK(bank) {	
+		segment_init(&_cache_probationary_seg[bank], FALSE);
 	}
 }
 
@@ -294,6 +290,7 @@ void cache_get(UINT32 key, UINT32 *addr, cache_buf_type const type)
 		*addr = NULL;
 		return;
 	}
+	*addr = node_addr(node);
 
 	// move node to the head in protected segment
 	if (is_protected(node))
@@ -305,8 +302,6 @@ void cache_get(UINT32 key, UINT32 *addr, cache_buf_type const type)
 			segment_down();
 		segment_up(node);	
 	}
-	
-	*addr = node_addr(node);
 }
 	
 /* put a page into cache, then allocate and return the buffer */
@@ -326,14 +321,14 @@ void cache_put(UINT32 key, UINT32 *addr, cache_buf_type const type)
 	res = hash_table_insert(&_cache_ht, key, 0);
 	BUG_ON("insertion to hash table failed", res);
 
-	node = (cache_node*)(_cache_ht.last_used_node);
+	node = (cache_node*) hash_table_get_node(&_cache_ht, key);
 	node->pre = node->next = NULL;
 	node->flag = 0;
 	/* Make sure lpn->vpn mapping for user page is kept in CMT.
 	 * This is not necessary for PMT page since the vpn of them are 
 	 * maintained by GTD. */
 	if (type == CACHE_BUF_TYPE_USR) {
-		res = cmt_fix(key);
+		res = cmt_fix(node_lpn(node));
 		BUG_ON("cmt fix failure", res);
 	}
 	/* The index of hash node is guarrantted to be unique.
@@ -363,10 +358,13 @@ void cache_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
 	vpn  = node_vpn(node);
 	buff_addr = node_addr(node);
 
-	fu_read_page(bank, vpn, buff_addr, mask);
+	/* If PMT page is not in flash yet, write all 0's instead of 1's */
+	if (type == CACHE_BUF_TYPE_PMT && !vpn)
+		mem_set_dram(buff_addr, 0, BYTES_PER_PAGE);
+	else
+		fu_read_page(bank, vpn, buff_addr, mask);
 
-	/* FIXME */
-	cache_load_sectors(lpn, 0, SECTORS_PER_PAGE);
+	cache_set_valid_sectors(key, 0, SECTORS_PER_PAGE, type);
 }
 
 void cache_fill_full_page(UINT32 key, cache_buf_type const type)
@@ -374,31 +372,26 @@ void cache_fill_full_page(UINT32 key, cache_buf_type const type)
 	cache_fill(key, 0, SECTORS_PER_PAGE, type);
 }
 
-/* inform the cache that some sectors of the page have been loaded from flash */
-void cache_load_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors)
+void cache_set_valid_sectors(UINT32 key, UINT8 offset, UINT8 const num_sectors, 
+			     cache_buf_type const type)
 {
-	cache_node *node = (cache_node*) hash_table_get_node(&_cache_ht, lpn);
-	UINT8 end_sector = MIN(offset + num_sectors, SECTORS_PER_PAGE);
-	UINT32 mask;
+	cache_node *node = (cache_node*) hash_table_get_node(
+						&_cache_ht, 
+						real_key(key, type));
 
-	BUG_ON("wrong lpn", node == NULL);
+	BUG_ON("non-existing node", node == NULL);
 	BUG_ON("out of bounds", offset + num_sectors >= SECTORS_PER_PAGE);
 
-	mask = node_mask(node);
-	while (offset < end_sector) {
-		mask |= (1 << offset);
-		offset ++;
-	}
-	node_mask(node) = mask;
+	node_mask(node) |= (((1 << num_sectors) - 1) << offset);
 }
 
-/* inform the cache that some sectors of the page have been overwritten in
- * DRAM so that cache can write back to flash when evicting the page*/
-void cache_overwrite_sectors(UINT32 const lpn, UINT8 offset, UINT8 const num_sectors)
+void cache_set_dirty(UINT32 key, cache_buf_type const type)
 {
-	cache_node *node = (cache_node*) hash_table_get_node(&_cache_ht, lpn);
+	cache_node *node = (cache_node*) hash_table_get_node(
+						&_cache_ht, 
+						real_key(key, type));
 
-	cache_load_sectors(lpn, offset, num_sectors);
+	BUG_ON("non-existing node", node == NULL);
+
 	set_dirty_flag(node);
 }
-
