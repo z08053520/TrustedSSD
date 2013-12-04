@@ -170,6 +170,8 @@ void cmt_init(void)
 {
 	BUG_ON("fixed nodes cannot be greater than half of capacity", 
 			CMT_MAX_FIX_ENTRIES >= CMT_ENTRIES / 2)
+	INFO("cmt>init", "CMT capacity = %d, CMT buckets = %d", 
+				CMT_HT_BUFFER_SIZE, CMT_HT_NUM_BUCKETS);
 
 	hash_table_init(&_cmt_ht, CMT_HT_CAPACITY, 
 			sizeof(cmt_node), _cmt_ht_buffer, CMT_HT_BUFFER_SIZE,
@@ -182,8 +184,11 @@ void cmt_init(void)
 BOOL32 cmt_get(UINT32 const lpn, UINT32 *vpn) 
 {
 	cmt_node* node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
+	if (!node) INFO("cmt>get", "cache miss for lpn %d", lpn);
 	if (!node) return 1;
 	*vpn = node->hn.val;
+
+	INFO("cmt>get", "cache hit for lpn %d (vpn %d)", lpn, *vpn);
 
 	// move node to the head in protected segment
 	if (is_protected(node))
@@ -213,6 +218,8 @@ BOOL32 cmt_add(UINT32 const lpn, UINT32 const vpn)
 	res = hash_table_insert(&_cmt_ht, lpn, vpn);
 	if (res) return 1;
 
+	INFO("cmt>add", "add lpn %d (vpn %d)", lpn, vpn);
+
 	node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
 	node->pre = node->next = NULL;
 	node->flag = 0;
@@ -227,6 +234,9 @@ BOOL32 cmt_update(UINT32 const lpn, UINT32 const new_vpn)
 
 	if (!node) return 1;
 	if (node->hn.val == new_vpn) return 0;
+
+	INFO("cmt>add", "update lpn %d (new vpn %d, old vpn %d)", 
+			lpn, new_vpn, node->hn.val);
 
 	node->hn.val = new_vpn;
 	set_dirty_flag(node);
@@ -247,6 +257,9 @@ BOOL32 cmt_evict(UINT32 *lpn, UINT32 *vpn, BOOL32 *is_dirty)
 	*lpn = victim_node->hn.key;
 	*vpn = victim_node->hn.val;
 	*is_dirty = is_dirty(victim_node);
+
+	INFO("cmt>evict", "evict lpn %d (vpn %d%s)", 
+				*lpn, *vpn, *is_dirty ? ", dirty" : ", fresh");
 	return 0;	
 }
 
@@ -258,6 +271,8 @@ BOOL32 cmt_fix(UINT32 const lpn)
 		return 1;
 
 	if (!is_fixed(node)) {
+		INFO("cmt>fix", "fix lpn %d", lpn); 
+	
 		set_fixed_flag(node);
 		_cmt_fixed_entries++;
 	}
@@ -272,6 +287,8 @@ BOOL32 cmt_unfix(UINT32 const lpn)
 		return 1;	
 
 	if (is_fixed(node)) {
+		INFO("cmt>unfix", "unfix lpn %d", lpn); 
+
 		clear_fixed_flag(node);
 		_cmt_fixed_entries--;
 	}

@@ -11,6 +11,8 @@ void bb_init()
 	scan_list_t* scan_list = (scan_list_t*) TEMP_BUF_ADDR;
 	UINT32 i;
 
+	INFO("bb>init", "bad block bitmap initialization");
+	
 	mem_set_dram(BAD_BLK_BMP_ADDR, 0, BAD_BLK_BMP_BYTES);
 
 	disable_irq();
@@ -37,6 +39,9 @@ void bb_init()
 		num_entries = read_dram_16(&(scan_list->num_entries));
 		BUG_ON("too many entries for scan list", num_entries > SCAN_LIST_ITEMS);
 
+		INFO("bb>init", "bank %d: # of bad blocks = %d", bank, num_entries);
+
+		uart_printf("\tbank %d: ", bank);
 		for (i = 0; i < num_entries; i++)
 		{
 			UINT16 entry = read_dram_16(scan_list->list + i);
@@ -46,12 +51,15 @@ void bb_init()
 					pblk_offset == 0 || pblk_offset >= PBLKS_PER_BANK);
 			write_dram_16(scan_list->list + i, pblk_offset);
 
+			uart_printf(i ? ", %d" : "%d", pblk_offset);
 #ifdef OPTION_2_PLANE
 			_bb_set_bmp(bank, pblk_offset / 2);
 #else
 			_bb_set_bmp(bank, pblk_offset);
 #endif
+			BUG_ON("should be bad but not tested", !bb_is_bad(bank, pblk_offset));
 		}
+		uart_print("");
 	}
 	
 	enable_irq();

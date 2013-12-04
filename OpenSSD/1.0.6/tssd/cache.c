@@ -292,9 +292,13 @@ void cache_get(UINT32 key, UINT32 *addr, cache_buf_type const type)
 						real_key(key, type));
 	if (node == NULL) {
 		*addr = NULL;
+		INFO("cache>get", "cache miss for %s = %d", 
+				type == CACHE_BUF_TYPE_USR ? "lpn" : "pmt", key);
 		return;
 	}
 	*addr = node_addr(node);
+	INFO("cache>get", "cache hit for %s = %d", 
+			type == CACHE_BUF_TYPE_USR ? "lpn" : "pmt", key);
 
 	// move node to the head in protected segment
 	if (is_protected(node))
@@ -319,8 +323,13 @@ void cache_put(UINT32 key, UINT32 *addr, cache_buf_type const type)
 
 	prob_seg_index = key2bank(key);
 	if (segment_is_full(_cache_probationary_seg[prob_seg_index])) {
+		INFO("cache>put", "cache is full");
 		cache_evict();	
 	}
+
+	INFO("cache>put", "put a new page (%s = %d) into cache",
+				type == CACHE_BUF_TYPE_USR ? "lpn" : "pmt", 
+				key);
 
 	res = hash_table_insert(&_cache_ht, key, 0);
 	BUG_ON("insertion to hash table failed", res);

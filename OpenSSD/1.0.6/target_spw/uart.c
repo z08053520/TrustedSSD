@@ -98,7 +98,7 @@ void uart_print_32(UINT32 time)
     sprintf(buf, "%u", time);
     /* itoa(time, buf); */
 
-    uart_print(buf);
+    _uart_print(buf);
 }
 void uart_print_hex(UINT32 num)
 {
