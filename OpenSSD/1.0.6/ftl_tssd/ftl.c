@@ -16,6 +16,17 @@ typedef struct {
 
 } ftl_metadata;
 
+#define _KB 	1024
+#define _MB 	(_KB * _KB)
+#define PRINT_SIZE(name, size)	do {\
+	if (size < _KB)\
+		uart_printf("Size of %s == %dbytes\n", name, size);\
+	else if (size < _MB)\
+		uart_printf("Size of %s == %dKB\n", name, size / _KB);\
+	else\
+		uart_printf("Size of %s == %dMB\n", name, size / _MB);\
+} while(0);
+
 /* ========================================================================= *
  * Private Functions 
  * ========================================================================= */
@@ -157,7 +168,19 @@ static void write_page (UINT32 const lpn,
 
 static void print_info(void)
 {
-	uart_printf("TrustedSSD FTL (compiled at %s %s)\n", __TIME__, __DATE__);
+	uart_printf("TrustedSSD FTL (compiled at %s %s)\n\n", __TIME__, __DATE__);
+
+	uart_print("=== Memory Configuration ===");
+	PRINT_SIZE("DRAM", 	DRAM_SIZE);
+	uart_printf("# of cache buffers == %d\n", NUM_CACHE_BUFFERS);	
+	PRINT_SIZE("cache", 	CACHE_BYTES);
+	PRINT_SIZE("bad block bitmap",	BAD_BLK_BMP_BYTES); 
+	PRINT_SIZE("non R/W buffers", 	NON_RW_BUF_BYTES);
+	uart_printf("# of read buffers == %d\n", NUM_RD_BUFFERS);
+	PRINT_SIZE("read buffers", 	RD_BUF_BYTES);
+	uart_printf("# of write buffers == %d\n", NUM_WR_BUFFERS);
+	PRINT_SIZE("write buffers", 	WR_BUF_BYTES);
+	uart_print("");
 }
 
 /* ========================================================================= *
@@ -171,7 +194,7 @@ void ftl_open(void) {
     	sanity_check();
 
 	/* the initialization order indicates the dependencies between modules */
-	bb_init();	
+	bb_init();
 	cmt_init();
 	gtd_init();
 

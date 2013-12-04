@@ -232,6 +232,7 @@ scan_list_t;
 			while(1);\
 		}\
 	} while(0);
+	
 #else
 	#define LOG(label, ...)
 	#define INFO(label, ...)
