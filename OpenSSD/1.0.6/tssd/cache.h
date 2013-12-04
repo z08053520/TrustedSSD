@@ -9,6 +9,7 @@
 #define NUM_CACHE_BUFFERS	(2 * NUM_BANKS * CACHE_SCALE)
 #define CACHE_BYTES		(NUM_CACHE_BUFFERS * BYTES_PER_PAGE)
 #define CACHE_BUF(i)		(CACHE_ADDR + BYTES_PER_PAGE * i)
+#define CACHE_BUF_IDX(addr)	((addr - CACHE_ADDR) / BYTES_PER_PAGE)
 
 typedef enum _cache_buf_type {
 	/* Cache for page mapping table (PMT). 
