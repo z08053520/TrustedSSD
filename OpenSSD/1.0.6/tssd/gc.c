@@ -50,7 +50,6 @@ UINT32 gc_replace_old_vpn(UINT32 const bank, UINT32 const old_vpn)
 
 UINT32 gc_allocate_new_vpn(UINT32 const bank)
 {
-	UINT32 new_vpn;
 	UINT32 next_good_vblk;
 
 	/* if need to find a new block */
@@ -58,10 +57,7 @@ UINT32 gc_allocate_new_vpn(UINT32 const bank)
 		next_good_vblk = _metadata[bank].cur_write_vpn / PAGES_PER_VBLK;
 		find_next_good_vblk(bank, &next_good_vblk);
 
-		new_vpn = _metadata[bank].cur_write_vpn 
-			= next_good_vblk * PAGES_PER_VBLK;
+		_metadata[bank].cur_write_vpn = next_good_vblk * PAGES_PER_VBLK;
 	}
-	else	
-		new_vpn = _metadata[bank].cur_write_vpn ++;
-	return new_vpn;
+	return _metadata[bank].cur_write_vpn ++;
 }
