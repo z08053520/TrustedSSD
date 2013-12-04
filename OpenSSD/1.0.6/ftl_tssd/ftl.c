@@ -165,10 +165,10 @@ static void print_info(void)
  * ========================================================================= */
 
 void ftl_open(void) {
+	print_info();
+	
 	led(0);
     	sanity_check();
-
-	print_info();
 
 	/* the initialization order indicates the dependencies between modules */
 	bb_init();	

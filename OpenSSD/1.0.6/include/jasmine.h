@@ -185,18 +185,6 @@ scan_list_t;
 #include "uart.h"
 #endif
 
-#if OPTION_UART_DEBUG
-	#define BUG_ON(MESSAGE, COND) do {\
-		if (COND) {\
-			uart_print(MESSAGE);\
-			led_blink();\
-			while(1);\
-		}\
-	} while(0);
-#else
-	#define BUG_ON(MESSAGE, COND)
-#endif
-
 #define FOR_EACH_BANK(i)	for(i=0;i<NUM_BANKS;i++)
 
 // page-level striping technique (I/O parallelism)
@@ -206,12 +194,50 @@ scan_list_t;
 	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )
 
 #if OPTION_UART_DEBUG
-	#define LOG(...) 	do {\
+	/* log levels */
+	#define LL_INFO 	0
+	#define LL_WARNING 	1
+	#define LL_ERROR	2
+	/* only logs with level no less than LL_LEVEL are printed */
+	#define LL_LEVEL 	LL_INFO
+
+	#define LOG(label, ...) do {\
+		uart_printf("[%s] ", label);\
 		uart_printf(__VA_ARGS__);\
-		uart_printf(" [function %s at line %d in file %s]", __FUNCTION__, __LINE__, __FILE__);\
+		uart_printf(" <function %s, line %d, file %s>", __FUNCTION__, __LINE__, __FILE__);\
+	} while(0);
+
+	#if LL_INFO >= LL_LEVEL 
+		#define INFO(label, ...) 	LOG(label, __VA_ARGS__)
+	#else
+		#define INFO(label, ...)
+	#endif
+
+	#if LL_WARNING >= LL_LEVEL
+		#define WARNING(label, ...)	LOG(label, __VA_ARGS__);
+	#else
+		#define WARNING(label, ...)
+	#endif
+
+	#if LL_ERROR >= LL_LEVEL
+		#define ERROR(label, ...)	LOG(label, __VA_ARGS__);
+	#else
+		#define ERROR(label, ...)
+	#endif
+	
+	#define BUG_ON(MESSAGE, COND) do {\
+		if (COND) {\
+			ERROR("__BUG__", MESSAGE);\
+			led_blink();\
+			while(1);\
+		}\
 	} while(0);
 #else
-	#define LOG(...)
+	#define LOG(label, ...)
+	#define INFO(label, ...)
+	#define WARNING(label, ...)
+	#define ERROR(label, ...)
+	#define BUG_ON(MESSAGE, COND)
 #endif
 
 #endif	// JASMINE_H
