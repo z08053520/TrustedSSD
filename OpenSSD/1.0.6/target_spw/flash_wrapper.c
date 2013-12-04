@@ -100,17 +100,9 @@ void nand_page_read_to_host(UINT32 const bank, UINT32 const vblock, UINT32 const
 
     g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 
-    #if OPTION_FTL_TEST == FALSE
-    {
-        while (1)
-        {
-            UINT32 sata_id = GETREG(SATA_RBUF_PTR);
-
-            if (g_ftl_read_buf_id != sata_id)
-                break;
-        }
-    }
-    #endif
+#if OPTION_FTL_TEST == FALSE
+    while (g_ftl_read_buf_id == GETREG(SATA_RBUF_PTR)) ;
+#endif
     flash_issue_cmd(bank, RETURN_ON_ISSUE);
 }
 // partial page read to host
@@ -139,18 +131,10 @@ void nand_page_ptread_to_host(UINT32 const bank, UINT32 const vblock, UINT32 con
 
     g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 
-    #if OPTION_FTL_TEST == FALSE
-    {
-        while (1)
-        {
-            UINT32 sata_id = GETREG(SATA_RBUF_PTR);
-
-            if (g_ftl_read_buf_id != sata_id)
-                break;
-        }
-    }
-    #endif
-    flash_issue_cmd(bank, RETURN_ON_ISSUE);
+#if OPTION_FTL_TEST == FALSE
+    while (g_ftl_read_buf_id == GETREG(SATA_RBUF_PTR)) ;
+#endif
+   flash_issue_cmd(bank, RETURN_ON_ISSUE);
 }
 void nand_page_program(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const buf_addr)
 {

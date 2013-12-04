@@ -117,7 +117,7 @@ mem_xfer_done:
 	flash_finish();
 
 	// read buffer is ready for SATA transfer
-	SETREG(BM_STACK_RDSET, g_ftl_read_buf_id);
+	SETREG(BM_STACK_RDSET, next_read_buf_id);
 	SETREG(BM_STACK_RESET, 0x02);
 
 	g_ftl_read_buf_id = next_read_buf_id;
