@@ -1,3 +1,3 @@
 #!/bin/sh
-sudo echo "- - -"  | sudo tee /sys/class/scsi_host/host?/scan
+echo "- - -"  | sudo tee /sys/class/scsi_host/host?/scan
 
