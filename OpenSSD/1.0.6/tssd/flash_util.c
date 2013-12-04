@@ -139,7 +139,6 @@ void fu_read_pages_in_parallel( UINT32 vpn[],
 	BOOL32 need_merge[NUM_BANKS];
 
 	FOR_EACH_BANK(bank) {
-		need_merge[bank] = FALSE;
 		if (can_skip_bank(bank)) continue;
 
 		need_merge[bank] = read_page_with_mask(bank, 

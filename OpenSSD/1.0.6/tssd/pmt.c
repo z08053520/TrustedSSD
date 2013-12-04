@@ -49,4 +49,6 @@ void pmt_update(UINT32 const lpn, UINT32 const vpn)
 	UINT32 pmt_buff = load_pmt_buffer(pmt_index);
 
 	write_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset, vpn);
+
+	cache_set_dirty(pmt_index, CACHE_BUF_TYPE_PMT);
 }
