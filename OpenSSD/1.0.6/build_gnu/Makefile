@@ -15,8 +15,8 @@ LIBS	= -lgcc
 #VPATH	= ../ftl_$(FTL):../sata:..:../target_spw
 VPATH	= ../ftl_$(FTL):../sata:..:../target_spw:../tssd
 
-#SRCS 	= ftl.c sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c
-SRCS 	= ftl.c sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c cache.c cmt.c hash_table.c gtd.c pmt.c flash_util.c gc.c bad_blocks.c
+#SRCS 	= ftl.c sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c syscalls.c
+SRCS 	= ftl.c sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c cache.c cmt.c hash_table.c gtd.c pmt.c flash_util.c gc.c bad_blocks.c syscalls.c
 INITSRC	= ../target_spw/init_gnu.s
 OBJS	= $(SRCS:.c=.o) init.o
 DEPS	= $(SRCS:.c=.d)

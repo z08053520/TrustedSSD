@@ -66,7 +66,7 @@ void uart_init(void)
 	SETREG(UART_CTRL, uart_ctrl);
 }
 
-void uart_print(char* string)
+static void _uart_print(char* string)
 {
 	while (1)
 	{
@@ -77,6 +77,11 @@ void uart_print(char* string)
 		if (*string == '\0')
 			break;
 	}
+}
+
+void uart_print(char* string)
+{
+	uart_print(string);
 
 	uart_txbyte('\r');
 	uart_txbyte('\n');
@@ -126,4 +131,19 @@ void uart_print_hex(UINT32 num)
 	uart_txbyte('\r');
 	uart_txbyte('\n');
 }
+
+#include <stdarg.h>
+void uart_printf(const char *msg, ...)
+{
+	fflush(stdout);
+
+	char out[256];
+	va_list ap;
+	va_start(ap, msg);
+	int len = vsnprintf(out, 256, msg, ap);
+	va_end(ap);
+	out[len] = '\0';
+	_uart_print(out);
+}
+
 #endif	// OPTION_UART_DEBUG

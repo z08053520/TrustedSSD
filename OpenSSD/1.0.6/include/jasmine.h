@@ -205,6 +205,14 @@ scan_list_t;
 #define COUNT_BUCKETS(TOTAL, BUCKET_SIZE) \
 	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )
 
+#if OPTION_UART_DEBUG
+	#define LOG(...) 	do {\
+		uart_printf(__VA_ARGS__);\
+		uart_printf(" [function %s at line %d in file %s]", __FUNCTION__, __LINE__, __FILE__);\
+	} while(0);
+#else
+	#define LOG(...)
+#endif
 
 #endif	// JASMINE_H
 

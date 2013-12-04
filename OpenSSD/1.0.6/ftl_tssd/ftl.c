@@ -157,7 +157,7 @@ static void write_page (UINT32 const lpn,
 
 static void print_info(void)
 {
-
+	uart_printf("TrustedSSD FTL (compiled at %s %s)\n", __TIME__, __DATE__);
 }
 
 /* ========================================================================= *
