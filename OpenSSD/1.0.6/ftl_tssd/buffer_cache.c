@@ -21,7 +21,7 @@ typedef struct _bc_node {
 } bc_node;
 
 #define KEY_PMT_BIT		(1 << (HT_KEY_LEN-1))
-#define KEY_PMT_MASK		(VAL_PMT_BIT - 1) 
+#define KEY_PMT_MASK		(KEY_PMT_BIT - 1) 
 
 #define node_key(node)		((node)->hn.key)
 #define node_val(node)		((node)->hn.val)
@@ -31,7 +31,7 @@ typedef struct _bc_node {
 #define node_buf(node)		(BC_BUF(node_buf_id(node)))
 #define node_mask(node)		((node)->mask)
 
-#define node_type(node)		(node_key(node) & VAL_PMT_BIT ? \
+#define node_type(node)		(node_key(node) & KEY_PMT_BIT ? \
 					BC_BUF_TYPE_PMT : \
 					BC_BUF_TYPE_USR)
 #define is_pmt(node)		(node_type(node) == BC_BUF_TYPE_PMT)
@@ -60,16 +60,16 @@ static UINT16 		_bc_ht_buckets[BC_HT_NUM_BUCKETS];
 static hash_table 	_bc_ht;
 
 #define to_idx(node)	ht_node2idx(&_bc_ht, node)
-#define to_node(idx)	ht_idx2node(&_bc_ht, idx)
+#define to_node(idx)	((bc_node*)ht_idx2node(&_bc_ht, idx))
 #define next(node)	to_node((node)->next_idx)
 #define pre(node)	to_node((node)->pre_idx)
 
 /* the lowest bit is dirty bit. Bit 1 is dirty. Bit 0 is clean*/
 #define DIRTY_FLAG		(1 << 0)
 
-#define is_dirty(node)			(node->flag & DIRTY_FLAG)
-#define set_dirty_flag(node)		node->flag |= DIRTY_FLAG
-#define clear_dirty_flag(node)		node->flag &= (~DIRTY_FLAG)
+#define is_dirty(node)			(node->hn.flags & DIRTY_FLAG)
+#define set_dirty_flag(node)		node->hn.flags |= DIRTY_FLAG
+#define clear_dirty_flag(node)		node->hn.flags &= (~DIRTY_FLAG)
 
 /* ========================================================================== 
  * LRU Cache Policy
@@ -87,7 +87,7 @@ static bc_segment _bc_lru_seg[NUM_BANKS];
 
 static void segment_init(bc_segment* seg, bc_node *head, bc_node *tail)
 {
-	head->pre_idx  = tail->next_id = HT_NULL_IDX;
+	head->pre_idx  = tail->next_idx = HT_NULL_IDX;
 	head->next_idx = to_idx(tail);
 	tail->pre_idx  = to_idx(head);
 
@@ -237,6 +237,7 @@ BOOL32 valid_sectors_include(UINT32 const valid_sectors_mask,
 void bc_init(void)
 {
 	UINT32 bank;
+	bc_node* head_tail_buf = (bc_node*)(_bc_ht_buffer + BC_HT_BUFFER_SIZE);
 
 	BUG_ON("page size larger than 16KB", BYTES_PER_PAGE > 16 * 1024);
 
@@ -244,9 +245,10 @@ void bc_init(void)
 			sizeof(bc_node), _bc_ht_buffer, BC_HT_BUFFER_SIZE,
 			_bc_ht_buckets, BC_HT_NUM_BUCKETS);
 
-	segment_init(&_bc_lru_seg, TRUE);
 	FOR_EACH_BANK(bank) {	
-		segment_init(&_bc_lru_seg[bank], FALSE);
+		segment_init(&_bc_lru_seg[bank], 
+				head_tail_buf + 2 * bank, 
+				head_tail_buf + 2 * bank + 1);
 	}
 }
 
@@ -303,7 +305,7 @@ void bc_put(UINT32 key, UINT32 *addr, bc_buf_type const type)
 	}
 	/* The index of hash node is guarrantted to be unique.
 	 * As a result, each cache node has a unique buffer. */
-	node_buf_id(node) = hash_table_get_node_index(&_bc_ht, (hash_node*)node);
+	node_buf_id(node) = ht_node2idx(&_bc_ht, node);
 	*addr = node_buf(node);
 
 	segment_accept(node);

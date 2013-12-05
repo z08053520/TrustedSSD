@@ -1,12 +1,12 @@
 #ifndef __CMT_H
 #define __CMT_H
 #include "jasmine.h"
-#include "cache.h"
+#include "buffer_cache.h"
 
 /* the number of fixed entries must be less than half of capacity */
-#define CMT_MAX_FIX_ENTRIES		NUM_CACHE_BUFFERS
+#define CMT_MAX_FIX_ENTRIES		NUM_BC_BUFFERS
 #define CMT_MIN_EVICTABLE_ENTRIES	128
-#define CMT_ENTRIES			(CMT_MAX_FIT_ENTRIES + CMT_MIN_EVICTABLE_ENTRIES)	
+#define CMT_ENTRIES			(CMT_MAX_FIX_ENTRIES + CMT_MIN_EVICTABLE_ENTRIES)	
 
 /* ========================================================================== 
  * CMT(Cached Mapping Table) Public API 

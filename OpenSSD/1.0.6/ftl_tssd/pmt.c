@@ -1,5 +1,5 @@
 #include "pmt.h"
-#include "cache.h"
+#include "buffer_cache.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
@@ -16,11 +16,11 @@ static UINT32 load_pmt_buffer(UINT32 const pmt_index)
 {
 	UINT32 pmt_buff;
 
-	cache_get(pmt_index, &pmt_buff, CACHE_BUF_TYPE_PMT);
+	bc_get(pmt_index, &pmt_buff, BC_BUF_TYPE_PMT);
 	if (pmt_buff == NULL) {
 		INFO("pmt>load pmt buffer", "cache miss for pmt idx = %d", pmt_index);
-		cache_put(pmt_index, &pmt_buff, CACHE_BUF_TYPE_PMT);
-		cache_fill_full_page(pmt_index, CACHE_BUF_TYPE_PMT);
+		bc_put(pmt_index, &pmt_buff, BC_BUF_TYPE_PMT);
+		bc_fill_full_page(pmt_index, BC_BUF_TYPE_PMT);
 	}
 	else
 		INFO("pmt>load pmt buffer", "cache hit for pmt idx = %d", pmt_index);
@@ -55,5 +55,5 @@ void pmt_update(UINT32 const lpn, UINT32 const vpn)
 	write_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset, vpn);
 	INFO("pmt>update", "lpn = %d (new vpn = %d, pmt_idx = %d)", lpn, vpn, pmt_index);
 
-	cache_set_dirty(pmt_index, CACHE_BUF_TYPE_PMT);
+	bc_set_dirty(pmt_index, BC_BUF_TYPE_PMT);
 }

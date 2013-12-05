@@ -3,7 +3,7 @@
 #include "gtd.h"
 #include "pmt.h"
 #include "gc.h"
-#include "cache.h"
+#include "buffer_cache.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
@@ -35,7 +35,7 @@ static void sanity_check(void)
 {
 	UINT32 dram_requirement = RD_BUF_BYTES + WR_BUF_BYTES + COPY_BUF_BYTES
 		+ FTL_BUF_BYTES + HIL_BUF_BYTES + TEMP_BUF_BYTES 
-		+ BAD_BLK_BMP_BYTES + CACHE_BYTES;
+		+ BAD_BLK_BMP_BYTES + BC_BYTES;
 
 	BUG_ON("DRAM is over-utilized", dram_requirement >= DRAM_SIZE);
 	BUG_ON("ftl_metadata is too larget", sizeof(ftl_metadata) > BYTES_PER_PAGE);
@@ -77,14 +77,14 @@ static void read_page  (UINT32 const lpn,
 			g_ftl_read_buf_id, GETREG(SATA_RBUF_PTR), GETREG(BM_READ_LIMIT));
 
 	// try to read from cache
-	cache_get(lpn, &page_buff, CACHE_BUF_TYPE_USR);
+	bc_get(lpn, &page_buff, BC_BUF_TYPE_USR);
 	if (page_buff) {
-		INFO("ftl>read>logic", "read from buff cache %d", CACHE_BUF_IDX(page_buff));
+		INFO("ftl>read>logic", "read from buff cache %d", BC_BUF_IDX(page_buff));
 
 		// wait for the next buffer to get SATA transfer done
 		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
 
-		cache_fill(lpn, sect_offset, num_sectors_to_read, CACHE_BUF_TYPE_USR);
+		bc_fill(lpn, sect_offset, num_sectors_to_read, BC_BUF_TYPE_USR);
 		mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
 			 page_buff + BYTES_PER_SECTOR * sect_offset,
 			 BYTES_PER_SECTOR * num_sectors_to_read);
@@ -145,9 +145,9 @@ static void write_page (UINT32 const lpn,
 	INFO("ftl>read>flow control", "g_ftl_write_buf_id=%d, SATA_WBUF_PTR=%d, BM_WRITE_LIMIT=%d", 
 			g_ftl_write_buf_id, GETREG(SATA_WBUF_PTR), GETREG(BM_WRITE_LIMIT));
 
-	cache_get(lpn, &buff_addr, CACHE_BUF_TYPE_USR);
+	bc_get(lpn, &buff_addr, BC_BUF_TYPE_USR);
 	if (buff_addr == NULL) {
-		cache_put(lpn, &buff_addr, CACHE_BUF_TYPE_USR);
+		bc_put(lpn, &buff_addr, BC_BUF_TYPE_USR);
 
 		INFO("ftl>read>logic", "cache miss");
 		/* init buffer */ 
@@ -166,7 +166,7 @@ static void write_page (UINT32 const lpn,
 	else
 		INFO("ftl>read>logic", "cache hit");
 
-	INFO("ftl>read>logic", "write to buff cache %d", CACHE_BUF_IDX(buff_addr));
+	INFO("ftl>read>logic", "write to buff cache %d", BC_BUF_IDX(buff_addr));
 
 	// wait for SATA transfer completion
 	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
@@ -177,8 +177,8 @@ static void write_page (UINT32 const lpn,
 	num_bytes   = num_sectors_to_write * BYTES_PER_PAGE;
 	mem_copy(target_addr, src_addr, num_bytes);
 
-	cache_set_valid_sectors(lpn, sect_offset, num_sectors_to_write, CACHE_BUF_TYPE_USR);
-	cache_set_dirty(lpn, CACHE_BUF_TYPE_USR);
+	bc_set_valid_sectors(lpn, sect_offset, num_sectors_to_write, BC_BUF_TYPE_USR);
+	bc_set_dirty(lpn, BC_BUF_TYPE_USR);
 
 	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;	
 
@@ -192,8 +192,8 @@ static void print_info(void)
 
 	uart_print("=== Memory Configuration ===");
 	PRINT_SIZE("DRAM", 	DRAM_SIZE);
-	uart_printf("# of cache buffers == %d\n", NUM_CACHE_BUFFERS);	
-	PRINT_SIZE("cache", 	CACHE_BYTES);
+	uart_printf("# of cache buffers == %d\n", NUM_BC_BUFFERS);	
+	PRINT_SIZE("cache", 	BC_BYTES);
 	PRINT_SIZE("bad block bitmap",	BAD_BLK_BMP_BYTES); 
 	PRINT_SIZE("non R/W buffers", 	NON_RW_BUF_BYTES);
 	uart_printf("# of read buffers == %d\n", NUM_RD_BUFFERS);
@@ -220,7 +220,7 @@ void ftl_open(void) {
 
 	gc_init();
 
-	cache_init();
+	bc_init();
 
 	pmt_init();
 

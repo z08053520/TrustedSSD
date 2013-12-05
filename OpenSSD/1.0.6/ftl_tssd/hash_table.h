@@ -8,14 +8,14 @@
 #define HT_VAL_LEN	20
 #define HT_IDX_LEN	12
 
-#define HT_NUL_IDX	0xFFF
+#define HT_NULL_IDX	0xFFF
 
 // hash node
 typedef struct _hash_node{
     	UINT32 key	: HT_KEY_LEN;
     	UINT32 flags 	: HT_FLAG_LEN; 
     	UINT32 val	: HT_VAL_LEN;
-    	UINT32 next_idx	: HT_IDX_LEN
+    	UINT32 next_idx	: HT_IDX_LEN;
 } hash_node;
 
 #define ht_idx2node(ht, idx)			((idx) < HT_NULL_IDX ? (hash_node*) ((ht)->node_buffer + (ht)->node_size * (idx)) : NULL)

@@ -23,16 +23,16 @@ static UINT16 		_cmt_ht_buckets[CMT_HT_NUM_BUCKETS];
 static hash_table 	_cmt_ht;
 
 #define to_idx(node)	ht_node2idx(&_cmt_ht, node)
-#define to_node(idx)	ht_idx2node(&_cmt_ht, idx)
+#define to_node(idx)	((cmt_node*)ht_idx2node(&_cmt_ht, idx))
 #define next(node)	to_node((node)->next_idx)
 #define pre(node)	to_node((node)->pre_idx)
 
 #define DIRTY_FLAG		(1 << 0)
 #define FIXED_FLAG		(1 << 1)
 
-#define _is_xxx_flag(node, xxx)		(node->hn.flag & xxx)
-#define _set_xxx_flag(node, xxx)	node->hn.flag |= xxx
-#define _clear_xxx_flag(node, xxx)	node->hh.flag &= (~xxx)
+#define _is_xxx_flag(node, xxx)		(node->hn.flags & xxx)
+#define _set_xxx_flag(node, xxx)	node->hn.flags |= xxx
+#define _clear_xxx_flag(node, xxx)	node->hn.flags &= (~xxx)
 
 #define is_dirty(node)			_is_xxx_flag(node,  DIRTY_FLAG)
 #define set_dirty_flag(node)		_set_xxx_flag(node, DIRTY_FLAG)	
@@ -124,7 +124,7 @@ static void segment_fix(cmt_node *node)
 	BUG_ON("fix segment is full", segment_is_full(_cmt_fix_seg));
 
 	segment_remove(node);
-	set_fix_flag(node);
+	set_fixed_flag(node);
 
 	segment_insert(_cmt_fix_seg.head, node);
 	_cmt_fix_seg.size++;
@@ -136,7 +136,7 @@ static void segment_unfix(cmt_node *node)
 	if (!is_fixed(node)) return;
 
 	segment_remove(node);
-	clear_fix_flag(node);
+	clear_fixed_flag(node);
 	_cmt_fix_seg.size--;
 
 	segment_insert(pre(_cmt_lru_seg.tail), node);

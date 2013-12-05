@@ -100,7 +100,7 @@ BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val)
 		ht->free_node_idxes = new_node->next_idx;
 	}
 	else {
-		new_node = ht_idx2node(ht, node_size);
+		new_node = ht_idx2node(ht, ht->node_size);
 	}
 	new_node->key = key;
 	new_node->val = val;
