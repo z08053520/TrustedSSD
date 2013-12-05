@@ -6,7 +6,6 @@ LD 	= $(PREFIX)ld
 OBJCOPY	= $(PREFIX)objcopy
 RM	= rm
 
-#INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw
 CFLAGS 	= -mcpu=arm7tdmi-s -mthumb-interwork -ffreestanding -nostdlib -std=c99 -O2 -g -DPROGRAM_MAIN_FW -Wall
 ASFLAGS	= -R -mcpu=arm7tdmi-s
@@ -15,8 +14,8 @@ LIBS	= -lgcc
 #VPATH	= ../ftl_$(FTL):../sata:..:../target_spw
 VPATH	= ../ftl_$(FTL):../sata:..:../target_spw
 
-#SRCS 	= ftl.c sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c syscalls.c
-SRCS 	= ftl.c sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c cache.c cmt.c hash_table.c gtd.c pmt.c flash_util.c gc.c bad_blocks.c syscalls.c
+FTL_SRCS = $(shell find ../ftl_$(FTL) -name '*.c' -printf '%f ')
+SRCS 	= sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c syscalls.c ${FTL_SRCS}
 INITSRC	= ../target_spw/init_gnu.s
 OBJS	= $(SRCS:.c=.o) init.o
 DEPS	= $(SRCS:.c=.d)
@@ -41,6 +40,5 @@ init.o: $(INITSRC)
 
 clean:
 	$(RM) $(OBJS) $(DEPS) $(TARGETELF) $(TARGETBIN)
-
 
 include $(DEPS)
