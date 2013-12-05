@@ -3,12 +3,21 @@
 
 #include "jasmine.h"
 
+#define SHASHTBL_KEY_LEN	24
+#define SHASHTBL_FLAG_LEN	8
+#define SHASHTBL_VAL_LEN	20
+#define SHASHTBL_IDX_LEN	12	
 // hash node
 typedef struct _hash_node{
-    UINT32 key;
-    UINT32 val;
-    struct _hash_node* next;
+    	UINT32 key	: SHASHTBL_KEY_LEN;
+    	UINT32 flag 	: SHASHTBL_FLAG_LEN; 
+    	UINT32 val	: SHASHTBL_VAL_LEN;
+    	UINT32 next_idx	: SHASHTBL_IDX_LEN
 } hash_node;
+
+#define ht_node_get_next(ht, node)	((hash_node*) (ht->node_buffer + \
+						ht->node_size * node->next_idx))
+#define ht_node_set_next(ht, node, next)	((next - ht->node_buffer) / ht->node_size)
 
 // static hash table
 typedef struct {

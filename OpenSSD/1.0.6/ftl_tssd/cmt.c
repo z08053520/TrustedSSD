@@ -61,6 +61,9 @@ static cmt_segment _cmt_probationary_seg;
 
 static UINT32 _cmt_fixed_entries;
 
+static UINT32 _cmt_statistic_total;
+static UINT32 _cmt_statistic_hit;
+
 /* FIXME: adjust ratio of probationary entries over protected entries */
 static void segment_init(cmt_segment* seg)
 {
@@ -176,19 +179,33 @@ void cmt_init(void)
 	hash_table_init(&_cmt_ht, CMT_HT_CAPACITY, 
 			sizeof(cmt_node), _cmt_ht_buffer, CMT_HT_BUFFER_SIZE,
 			_cmt_ht_buckets, CMT_HT_NUM_BUCKETS);
+
 	segment_init(&_cmt_protected_seg);
 	segment_init(&_cmt_probationary_seg);
+
 	_cmt_fixed_entries = 0;
+	_cmt_statistic_total = 0;
+	_cmt_statistic_hit = 0;
 }
 
 BOOL32 cmt_get(UINT32 const lpn, UINT32 *vpn) 
 {
 	cmt_node* node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
-	if (!node) INFO("cmt>get", "cache miss for lpn %d", lpn);
+
+	// print debug infomation
+	_cmt_statistic_total++;
+	if (!node) {
+		INFO("cmt>get", "cache miss for lpn %d", lpn);
+	}
+	else {
+		_cmt_statistic_hit++;
+		INFO("cmt>get", "cache hit for lpn %d (vpn %d)", lpn, *vpn);
+	}
+	INFO("cmt>statistic", "cache hit ratio = %d / %d", 
+				_cmt_statistic_hit, _cmt_statistic_total);
+
 	if (!node) return 1;
 	*vpn = node->hn.val;
-
-	INFO("cmt>get", "cache hit for lpn %d (vpn %d)", lpn, *vpn);
 
 	// move node to the head in protected segment
 	if (is_protected(node))
@@ -219,6 +236,8 @@ BOOL32 cmt_add(UINT32 const lpn, UINT32 const vpn)
 	if (res) return 1;
 
 	INFO("cmt>add", "add lpn %d (vpn %d)", lpn, vpn);
+	INFO("cmt>statistic", "size-capacity ratio = %d / %d", 
+					_cmt_ht.size, _cmt_ht.capacity);
 
 	node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
 	node->pre = node->next = NULL;
@@ -260,6 +279,8 @@ BOOL32 cmt_evict(UINT32 *lpn, UINT32 *vpn, BOOL32 *is_dirty)
 
 	INFO("cmt>evict", "evict lpn %d (vpn %d%s)", 
 				*lpn, *vpn, *is_dirty ? ", dirty" : ", fresh");
+	INFO("cmt>statistic", "size-capacity ratio = %d / %d", 
+				_cmt_ht.size, _cmt_ht.capacity);
 	return 0;	
 }
 
