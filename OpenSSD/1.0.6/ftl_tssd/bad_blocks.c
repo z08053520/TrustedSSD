@@ -36,6 +36,8 @@ void bb_init()
 		while (BSP_FSM(bank) != BANK_IDLE);
 		BUG_ON("scan list corruption", BSP_INTR(bank) & FIRQ_DATA_CORRUPT);
 
+		BUG_ON("data corruption", BSP_INTR(bank) & FIRQ_DATA_CORRUPT);
+
 		num_entries = read_dram_16(&(scan_list->num_entries));
 		BUG_ON("too many entries for scan list", num_entries > SCAN_LIST_ITEMS);
 
@@ -52,7 +54,7 @@ void bb_init()
 			write_dram_16(scan_list->list + i, pblk_offset);
 
 			uart_printf(i ? ", %d" : "%d", pblk_offset);
-#ifdef OPTION_2_PLANE
+#if OPTION_2_PLANE
 			_bb_set_bmp(bank, pblk_offset / 2);
 #else
 			_bb_set_bmp(bank, pblk_offset);

@@ -1,5 +1,5 @@
 //
-// Lightweight static hash table source file
+// Lightweight static hash table 
 //
 #include "hash_table.h"
 #include "misc.h"

@@ -204,7 +204,7 @@ scan_list_t;
 	#define LOG(label, ...) do {\
 		uart_printf("[%s] ", label);\
 		uart_printf(__VA_ARGS__);\
-		uart_printf(" <function %s, line %d, file %s>", __FUNCTION__, __LINE__, __FILE__);\
+		uart_printf(" <function %s, line %d, file %s>\r\n", __FUNCTION__, __LINE__, __FILE__);\
 	} while(0);
 
 	#if LL_INFO >= LL_LEVEL 

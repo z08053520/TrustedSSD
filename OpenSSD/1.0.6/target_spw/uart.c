@@ -81,7 +81,7 @@ static void _uart_print(char* string)
 
 void uart_print(char* string)
 {
-	uart_print(string);
+	_uart_print(string);
 
 	uart_txbyte('\r');
 	uart_txbyte('\n');

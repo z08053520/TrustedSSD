@@ -21,9 +21,6 @@ typedef struct _hash_node{
 #define ht_idx2node(ht, idx)			((idx) < HT_NULL_IDX ? (hash_node*) ((ht)->node_buffer + (ht)->node_size * (idx)) : NULL)
 #define ht_node2idx(ht, node) 			(node ? ((UINT8*)node - (ht)->node_buffer) / (ht)->node_size : HT_NULL_IDX)
 
-#define ht_node_get_next(ht, node)		ht_idx2node(ht, (node)->next_idx)	
-#define ht_node_set_next(ht, node, next)	node->next_idx = ht_node2idx(ht, next)
-
 #define ht_is_full(ht) 				((ht)->size == (ht)->capacity)
 
 // static hash table
@@ -33,7 +30,7 @@ typedef struct {
 	UINT16* 	buckets;	/* pre-allocated memory for buckets */
 	UINT32 		num_buckets;
 	hash_node* 	last_used_node;	/* for fast re-access */
-	/* memory management related fields */
+	/* node memory management related fields */
 	UINT8  		node_size;	/* in bytes */
 	UINT8* 		node_buffer;	/* used to allocate memory for hash nodes */
 	UINT32 		buffer_size;	/* in bytes */
@@ -55,6 +52,5 @@ BOOL32 	hash_table_update(hash_table* ht, UINT32 const key, UINT32 const newval)
 BOOL32 	hash_table_remove(hash_table* ht, UINT32 const key);
 
 hash_node* hash_table_get_node(hash_table* ht, UINT32 const key);
-
 
 #endif // _HT_H
