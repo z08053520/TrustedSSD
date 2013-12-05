@@ -4,8 +4,9 @@
 #include "cache.h"
 
 /* the number of fixed entries must be less than half of capacity */
-#define CMT_MAX_FIX_ENTRIES	NUM_CACHE_BUFFERS
-#define CMT_ENTRIES		(2 * CMT_MAX_FIX_ENTRIES + 2)
+#define CMT_MAX_FIX_ENTRIES		NUM_CACHE_BUFFERS
+#define CMT_MIN_EVICTABLE_ENTRIES	128
+#define CMT_ENTRIES			(CMT_MAX_FIT_ENTRIES + CMT_MIN_EVICTABLE_ENTRIES)	
 
 /* ========================================================================== 
  * CMT(Cached Mapping Table) Public API 

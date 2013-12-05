@@ -25,7 +25,7 @@ void hash_table_init(hash_table*  ht,    UINT32 const capacity,
 		     UINT8 const node_size, /* user may use custom data structure 
 					       that includes hash_node */
 		     UINT8*  node_buffer,   UINT32 const buffer_size,
-		     hash_node** buckets,   UINT32 const num_buckets)
+		     UINT16* buckets,   UINT32 const num_buckets)
 {
 	BUG_ON("null pointer", ht == NULL || 
 			       buckets == NULL || 
@@ -40,13 +40,13 @@ void hash_table_init(hash_table*  ht,    UINT32 const capacity,
 	
 	ht->buckets  = buckets;
 	ht->num_buckets = num_buckets;
-	mem_set_sram(ht->buckets, NULL, sizeof(hash_node*) * ht->num_buckets);	
+	mem_set_sram(ht->buckets, HT_NULL_IDX, sizeof(UINT16) * ht->num_buckets);	
 	
 	ht->node_size = node_size;
 	ht->node_buffer = node_buffer;
 	ht->buffer_size = buffer_size;
 
-	ht->free_nodes = NULL;
+	ht->free_node_idxes = HT_NULL_IDX;
 	ht->last_used_node = NULL;
 }
 
@@ -61,14 +61,14 @@ hash_node* hash_table_get_node(hash_table* ht, UINT32 const key)
 		return ht->last_used_node;
 
 	bucket_idx = hash_function(key) % ht->num_buckets;
-	node = ht->buckets[bucket_idx];
+	node = ht_idx2node(ht, ht->buckets[bucket_idx]);
 
 	while (node) {
 		if (node->key == key) {
 			ht->last_used_node = node;	
 			return node;		
 		}
-		node = node->next;
+		node = ht_idx2node(ht, node->next_idx);
         }
 	return NULL;
 }
@@ -83,14 +83,6 @@ BOOL32 hash_table_get(hash_table* ht, UINT32 const key, UINT32 *val)
     	return 0;
 }
 
-UINT32  hash_table_get_node_index(hash_table* ht, hash_node* node)
-{
-	BUG_ON("invalid node address", 
-			((UINT8*)node - ht->node_buffer) % ht->node_size != 0);
-
-	return ((UINT8*)node - ht->node_buffer) / ht->node_size;
-}
-
 BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val)
 {
 	hash_node* new_node;
@@ -98,24 +90,25 @@ BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val)
 
 	BUG_ON("null pointer", ht == NULL);
 	
-	if (hash_table_is_full(ht))
+	if (ht_is_full(ht))
 		return 1;
 
-	if (ht->free_nodes) {
-		new_node = ht->free_nodes;
-		ht->free_nodes = new_node->next;
-		new_node->next = NULL;
+	bucket_idx = hash_function(key) % ht->num_buckets;
+
+	if (ht->free_node_idxes != HT_NULL_IDX) {
+		new_node = ht_idx2node(ht, ht->free_node_idxes);
+		ht->free_node_idxes = new_node->next_idx;
 	}
 	else {
-		new_node = (hash_node*)(& ht->node_buffer[ht->size * ht->node_size]);
+		new_node = ht_idx2node(ht, node_size);
 	}
 	new_node->key = key;
 	new_node->val = val;
+	new_node->flags = 0;
+	new_node->next_idx = ht->buckets[bucket_idx];
 
-	bucket_idx = hash_function(key) % ht->num_buckets;
-	new_node->next = ht->buckets[bucket_idx];
-
-	ht->buckets[bucket_idx] = ht->last_used_node = new_node;
+	ht->buckets[bucket_idx] = ht_node2idx(ht, new_node);
+	ht->last_used_node = new_node;
 	ht->size += 1;
 	return 0;
 }
@@ -138,21 +131,21 @@ BOOL32 	hash_table_remove(hash_table* ht, UINT32 const key)
 	BUG_ON("null pointer", ht == NULL); 
 	
 	bucket_idx = hash_function(key) % ht->num_buckets;
-	node = ht->buckets[bucket_idx];
+	node = ht_idx2node(ht, ht->buckets[bucket_idx]);
 
 	while (node) {
 		if (node->key == key) {
 			if (pre_node)
-				pre_node->next = node->next;
+				pre_node->next_idx = node->next_idx;
 			else
-				ht->buckets[bucket_idx] = node->next;
-			node->next = ht->free_nodes;
-			ht->free_nodes = node;
+				ht->buckets[bucket_idx] = node->next_idx;
+			node->next_idx = ht->free_node_idxes;
+			ht->free_node_idxes = ht_node2idx(ht, node);
 			ht->size--;
 			return 0;
 		}	
 		pre_node = node;
-		node = node->next;
+		node = ht_idx2node(ht, node->next_idx);
 	}
 	return 1;
 }
