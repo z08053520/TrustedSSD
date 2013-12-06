@@ -151,7 +151,7 @@ void cmt_init(void)
 	cmt_node *head_tail_buff;
 
 	INFO("cmt>init", "CMT capacity = %d, CMT buckets = %d", 
-				CMT_HT_BUFFER_SIZE, CMT_HT_NUM_BUCKETS);
+				CMT_HT_CAPACITY, CMT_HT_NUM_BUCKETS);
 
 	hash_table_init(&_cmt_ht, CMT_HT_CAPACITY, 
 			sizeof(cmt_node), _cmt_ht_buffer, CMT_HT_BUFFER_SIZE,
