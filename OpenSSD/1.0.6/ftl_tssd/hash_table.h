@@ -56,5 +56,4 @@ BOOL32 	hash_table_remove(hash_table* ht, UINT32 const key);
 
 hash_node* hash_table_get_node(hash_table* ht, UINT32 const key);
 
-
 #endif // _HT_H

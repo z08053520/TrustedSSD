@@ -93,6 +93,9 @@ BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val)
 	if (ht_is_full(ht))
 		return 1;
 
+	if (hash_table_get_node(ht, key))
+		return 1;
+	
 	bucket_idx = hash_function(key) % ht->num_buckets;
 
 	if (ht->free_node_idxes != HT_NULL_IDX) {
