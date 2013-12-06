@@ -225,6 +225,8 @@ void ftl_open(void) {
 	pmt_init();
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
+
+	uart_print("ftl_open done\r\n");
 }
 
 void ftl_read(UINT32 const lba, UINT32 const num_sectors) 

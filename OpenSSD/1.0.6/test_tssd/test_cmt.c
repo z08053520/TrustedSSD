@@ -1,6 +1,7 @@
 /* ===========================================================================
  * Unit test for Cached Mapping Table (CMT)
  * =========================================================================*/
+#include "jasmine.h"
 #if OPTION_FTL_TEST
 #include "cmt.h"
 
@@ -20,10 +21,10 @@ void ftl_test(void)
 
 	// add
 	for(i = 0; i < CMT_ENTRIES; i++) {
-		res = cmt_add(i, 3 * i);
-		BUG_ON("adding failed", res != 0);
 		res = cmt_is_full();
 		BUG_ON("actually cmt is not full", res != 0);
+		res = cmt_add(i, 3 * i);
+		BUG_ON("adding failed", res != 0);
 	}
 
 	// full
@@ -32,7 +33,6 @@ void ftl_test(void)
 
 	res = cmt_add(CMT_ENTRIES + 1, 100);
 	BUG_ON("adding to full cmt should have failed", res == 0);
-
 
 	// check
 	for(i = 0; i < CMT_ENTRIES; i++) {
@@ -59,7 +59,7 @@ void ftl_test(void)
 	for(i = 0; i < CMT_ENTRIES / 2 - 1; i++) {
 		res = cmt_evict(&lpn, &vpn, &is_dirty);
 		BUG_ON("any evciting error", res != 0);
-		BUG_ON("lpn wrong", lpn != i + 2);
+		BUG_ON("lpn wrong", lpn != 2*(i + 1));
 		BUG_ON("vpn wrong", vpn != 3 * lpn);
 		BUG_ON("should not be dirty", is_dirty);
 	}
@@ -68,7 +68,7 @@ void ftl_test(void)
 	for(i = 0; i < CMT_ENTRIES / 2 - 1; i++) {
 		res = cmt_evict(&lpn, &vpn, &is_dirty);
 		BUG_ON("any evciting error", res != 0);
-		BUG_ON("lpn wrong", lpn != i + 3);
+		BUG_ON("lpn wrong", lpn != 3 + 2 * i);
 		BUG_ON("vpn wrong", vpn != 4 * lpn);
 		BUG_ON("should be dirty", !is_dirty);
 	}

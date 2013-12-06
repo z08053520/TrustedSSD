@@ -34,13 +34,14 @@ void hash_table_init(hash_table*  ht,    UINT32 const capacity,
 				   capacity > num_buckets || 
 				   capacity * node_size > buffer_size ||
 				   node_size < sizeof(hash_node) );
-
+	
 	ht->size = 0;
 	ht->capacity = capacity;
-	
 	ht->buckets  = buckets;
 	ht->num_buckets = num_buckets;
-	mem_set_sram(ht->buckets, HT_NULL_IDX, sizeof(UINT16) * ht->num_buckets);	
+
+	UINT32 null_idx_32 = (HT_NULL_IDX << 16) | HT_NULL_IDX;
+	mem_set_sram(ht->buckets, null_idx_32, sizeof(UINT16) * ht->num_buckets);	
 	
 	ht->node_size = node_size;
 	ht->node_buffer = node_buffer;
@@ -103,7 +104,7 @@ BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val)
 		ht->free_node_idxes = new_node->next_idx;
 	}
 	else {
-		new_node = ht_idx2node(ht, ht->node_size);
+		new_node = ht_idx2node(ht, ht->size);
 	}
 	new_node->key = key;
 	new_node->val = val;
@@ -112,7 +113,7 @@ BOOL32 	hash_table_insert(hash_table* ht, UINT32 const key, UINT32 const val)
 
 	ht->buckets[bucket_idx] = ht_node2idx(ht, new_node);
 	ht->last_used_node = new_node;
-	ht->size += 1;
+	ht->size++;
 	return 0;
 }
 

@@ -26,8 +26,8 @@
 #define	CLOCK_SPEED		175000000
 
 #define	OPTION_2_PLANE			0	// 1 = 2-plane mode, 0 = 1-plane mode
-#define OPTION_ENABLE_ASSERT	0	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
-#define OPTION_FTL_TEST			0	// 1 = FTL test without SATA communication, 0 = normal
+#define OPTION_ENABLE_ASSERT		1	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
+#define OPTION_FTL_TEST			1	// 1 = FTL test without SATA communication, 0 = normal
 #define OPTION_UART_DEBUG		1	// 1 = enable UART message output, 0 = disable
 #define OPTION_SLOW_SATA		0	// 1 = SATA 1.5Gbps, 0 = 3Gbps
 #define OPTION_SUPPORT_NCQ		0	// 1 = support SATA NCQ (=FPDMA) for AHCI hosts, 0 = support only DMA mode
@@ -195,17 +195,24 @@ scan_list_t;
 
 #if OPTION_UART_DEBUG
 	/* log levels */
-	#define LL_INFO 	0
-	#define LL_WARNING 	1
-	#define LL_ERROR	2
+	#define LL_DEBUG	0
+	#define LL_INFO 	1	
+	#define LL_WARNING 	2	
+	#define LL_ERROR	3	
 	/* only logs with level no less than LL_LEVEL are printed */
-	#define LL_LEVEL 	LL_INFO
+	#define LL_LEVEL 	LL_DEBUG
 
 	#define LOG(label, ...) do {\
 		uart_printf("[%s] ", label);\
 		uart_printf(__VA_ARGS__);\
 		uart_printf(" <function %s, line %d, file %s>\r\n", __FUNCTION__, __LINE__, __FILE__);\
 	} while(0);
+
+	#if LL_DEBUG >= LL_LEVEL 
+		#define DEBUG(label, ...) 	LOG(label, __VA_ARGS__)
+	#else
+		#define DEBUG(label, ...)
+	#endif
 
 	#if LL_INFO >= LL_LEVEL 
 		#define INFO(label, ...) 	LOG(label, __VA_ARGS__)
@@ -235,6 +242,7 @@ scan_list_t;
 	
 #else
 	#define LOG(label, ...)
+	#define DEBUG(label, ...)
 	#define INFO(label, ...)
 	#define WARNING(label, ...)
 	#define ERROR(label, ...)

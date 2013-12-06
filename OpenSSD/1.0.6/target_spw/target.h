@@ -175,7 +175,6 @@ void enable_fiq(void);
 void enable_interrupt(void);
 void disable_interrupt(void);
 
-
 #if OPTION_ENABLE_ASSERT
 	#define ASSERT(X)				       \
 	{								       \

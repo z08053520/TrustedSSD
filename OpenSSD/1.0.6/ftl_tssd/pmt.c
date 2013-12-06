@@ -33,7 +33,8 @@ static UINT32 load_pmt_buffer(UINT32 const pmt_index)
 
 void pmt_init(void)
 {
-
+	INFO("pmt>init", "# of PMT entries = %d, # of PMT pages = %d",
+			PMT_ENTRIES, PMT_PAGES);
 }
 
 void pmt_fetch(UINT32 const lpn, UINT32 *vpn)

@@ -15,7 +15,8 @@ typedef struct _cmt_node {
 #define CMT_HT_CAPACITY		CMT_ENTRIES
 #define CMT_HT_BUFFER_SIZE	(CMT_ENTRIES * sizeof(cmt_node))
 #define CMT_HT_LOAD_FACTOR	4 / 3		// 0.75	
-#define CMT_HT_NUM_BUCKETS 	(CMT_HT_CAPACITY * CMT_HT_LOAD_FACTOR)
+/* make sure # of buckets is even due to limitations of mem_set_sram */
+#define CMT_HT_NUM_BUCKETS 	(CMT_HT_CAPACITY * CMT_HT_LOAD_FACTOR / 2 * 2)
 
 /* some extra space for head & tail node of two segments */
 static UINT8  		_cmt_ht_buffer[CMT_HT_BUFFER_SIZE + 4 * sizeof(cmt_node)];
@@ -109,7 +110,7 @@ static cmt_node* segment_drop()
 {
 	cmt_node *node = pre(_cmt_lru_seg.tail);
 
-	BUG_ON("lru segment is not full", !segment_is_full(_cmt_lru_seg));
+	BUG_ON("lru segment is empty! can't drop", _cmt_lru_seg.size == 0);
 
 	segment_remove(node);
 	_cmt_lru_seg.size--;
@@ -239,7 +240,7 @@ BOOL32 cmt_evict(UINT32 *lpn, UINT32 *vpn, BOOL32 *is_dirty)
 	cmt_node* victim_node; 	
 	UINT32 res;
 
-	BUG_ON("evict entry when LRU cache is empty", cmt_evictable_entries() == 0);
+	if (cmt_evictable_entries() == 0) return 1;
 	
 	victim_node = segment_drop(); 
 	res = hash_table_remove(&_cmt_ht, victim_node->hn.key);

@@ -52,7 +52,8 @@ UINT32 node_vpn(bc_node* node) {
 #define BC_HT_CAPACITY		NUM_BC_BUFFERS
 #define BC_HT_BUFFER_SIZE	(BC_HT_CAPACITY * sizeof(bc_node))
 #define BC_HT_LOAD_FACTOR	4 / 3		// 0.75	
-#define BC_HT_NUM_BUCKETS 	(BC_HT_CAPACITY * BC_HT_LOAD_FACTOR)
+/* make sure # of buckets is even due to limitations of mem_set_sram */
+#define BC_HT_NUM_BUCKETS 	(BC_HT_CAPACITY * BC_HT_LOAD_FACTOR / 2 * 2)
 
 /* some extra space for heads and tails of segment (per bank) */
 static UINT8  		_bc_ht_buffer[BC_HT_BUFFER_SIZE + NUM_BANKS * 2 * sizeof(bc_node)];
@@ -241,10 +242,12 @@ void bc_init(void)
 
 	BUG_ON("page size larger than 16KB", BYTES_PER_PAGE > 16 * 1024);
 
+	INFO("bc>init", "# of cache buffers = %d, size of buffer cache ~= %dMB", 
+				NUM_BC_BUFFERS, BC_BYTES / 1024 / 1024);
+
 	hash_table_init(&_bc_ht, BC_HT_CAPACITY, 
 			sizeof(bc_node), _bc_ht_buffer, BC_HT_BUFFER_SIZE,
 			_bc_ht_buckets, BC_HT_NUM_BUCKETS);
-
 	FOR_EACH_BANK(bank) {	
 		segment_init(&_bc_lru_seg[bank], 
 				head_tail_buf + 2 * bank, 

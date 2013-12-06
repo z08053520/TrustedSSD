@@ -36,6 +36,7 @@ void gc_init(void)
 	UINT32 bank;
 	UINT32 user_data_from_vblk = 1;
 
+	INFO("gc>init", "format flash");
 	fu_format(user_data_from_vblk);
 
 	FOR_EACH_BANK(bank) {

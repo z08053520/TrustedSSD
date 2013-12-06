@@ -107,10 +107,10 @@ static BOOL32 read_page_with_mask(UINT32 const bank,
 
 void fu_format(UINT32 const from_vblk)
 {
-	UINT32 vblk = from_vblk;
+	UINT32 vblk;
 	UINT32 bank;
 
-	for (; vblk < VBLKS_PER_BANK; vblk++)
+	for (vblk = from_vblk; vblk < VBLKS_PER_BANK; vblk++)
 	{
 		FOR_EACH_BANK(bank)
 		{

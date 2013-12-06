@@ -16,7 +16,7 @@ LIBS	= -lgcc
 VPATH	= ../ftl_$(FTL):../sata:..:../target_spw:../test_tssd
 
 FTL_SRCS = $(shell find ../ftl_$(FTL) -name '*.c' -printf '%f ')
-TEST_SRC = test_hash_table.c 
+TEST_SRC = test_flash_util.c 
 SRCS 	= sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c syscalls.c ${FTL_SRCS} ${TEST_SRC}
 INITSRC	= ../target_spw/init_gnu.s
 OBJS	= $(SRCS:.c=.o) init.o
