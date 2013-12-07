@@ -180,7 +180,8 @@ void disable_interrupt(void);
 	{								       \
 		if (!(X))					       \
 		{                                  \
-            uart_print("assert error");    \
+            uart_printf("assert error <function %s, line %d, file %s>\r\n",\
+			    __FUNCTION__, __LINE__, __FILE__);    \
             led_blink();                   \
 			while (1);				       \
 		}							       \

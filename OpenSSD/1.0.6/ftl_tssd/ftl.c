@@ -41,7 +41,8 @@ static void sanity_check(void)
 	BUG_ON("ftl_metadata is too larget", sizeof(ftl_metadata) > BYTES_PER_PAGE);
 }
 
-static UINT32 get_vpn(UINT32 const lpn)
+/* this private function is used by unit test so it is not declared as static */
+UINT32 get_vpn(UINT32 const lpn)
 {
 	UINT32 vpn;
 	UINT32 victim_lpn, victim_vpn; 
@@ -87,6 +88,9 @@ static void read_page  (UINT32 const lpn,
 		#endif
 
 		bc_fill(lpn, sect_offset, num_sectors_to_read, BC_BUF_TYPE_USR);
+		INFO("ftl>read_page", 
+	     	     "page_buff = %d, sect_offset = %d, num_sectors_to_read = %d", 
+	             page_buff, sect_offset, num_sectors_to_read);
 		mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
 			 page_buff + BYTES_PER_SECTOR * sect_offset,
 			 BYTES_PER_SECTOR * num_sectors_to_read);
@@ -151,6 +155,9 @@ static void write_page (UINT32 const lpn,
 
 	bc_get(lpn, &buff_addr, BC_BUF_TYPE_USR);
 	if (buff_addr == NULL) {
+		// make sure lpn->vpn mapping is in CMT
+		// this is a requirement of putting a lpn into buffer cache 
+		get_vpn(lpn);
 		bc_put(lpn, &buff_addr, BC_BUF_TYPE_USR);
 
 		INFO("ftl>read>logic", "cache miss");
@@ -178,9 +185,13 @@ static void write_page (UINT32 const lpn,
 	#endif
 
 	// copy from SATA circular buffer to buffer cache 
-	target_addr = buff_addr + sect_offset * BYTES_PER_PAGE;
-	src_addr    = WR_BUF_PTR(g_ftl_write_buf_id) + sect_offset * BYTES_PER_PAGE;
-	num_bytes   = num_sectors_to_write * BYTES_PER_PAGE;
+	target_addr = buff_addr + sect_offset * BYTES_PER_SECTOR;
+	src_addr    = WR_BUF_PTR(g_ftl_write_buf_id) + sect_offset * BYTES_PER_SECTOR;
+	num_bytes   = num_sectors_to_write * BYTES_PER_SECTOR;
+
+	INFO("ftl>write_page", 
+	     "targe_addr = %d, src_addr = %d, sect_offset = %d, num_sectors_to_write = %d, num_bytes = %d", 
+	     target_addr, src_addr, sect_offset, num_sectors_to_write, num_bytes);
 	mem_copy(target_addr, src_addr, num_bytes);
 
 	bc_set_valid_sectors(lpn, sect_offset, num_sectors_to_write, BC_BUF_TYPE_USR);

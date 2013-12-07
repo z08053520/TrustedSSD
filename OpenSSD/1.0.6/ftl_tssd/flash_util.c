@@ -29,8 +29,10 @@ static void merge_buff(UINT32 const target_buf_addr,
 			end++;
 
 		// fill sectors from begin to end (exclusive)
+		INFO("fu>merge", "targe_buf_addr = %d, src_buf_addr = %d, begin = %d, end = %d", 
+				target_buf_addr, src_buf_addr, begin, end);
 		mem_copy(target_buf_addr + begin * BYTES_PER_SECTOR,
-			 src_buf_addr + begin * BYTES_PER_SECTOR, 
+			 src_buf_addr    + begin * BYTES_PER_SECTOR, 
 			 (end - begin) * BYTES_PER_SECTOR);
 
 		begin = end + 1;
@@ -152,8 +154,7 @@ void fu_read_pages_in_parallel( UINT32 vpn[],
 	FOR_EACH_BANK(bank) {
 		if (can_skip_bank(bank) || !need_merge[bank]) continue;
 
-		merge_buff(buff_addr[bank], FTL_BUF(bank), 
-			   valid_sectors_mask[bank]);
+		merge_buff(buff_addr[bank], valid_sectors_mask[bank], FTL_BUF(bank));
 	}
 }
 

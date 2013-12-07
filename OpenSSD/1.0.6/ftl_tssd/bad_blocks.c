@@ -5,6 +5,8 @@
 #define _bb_set_bmp(bank, blk)	set_bit_dram(_bmp_base_addr(bank), blk)
 #define _bb_tst_bmp(bank, blk)	tst_bit_dram(_bmp_base_addr(bank), blk)
 
+static UINT32 _bad_blcks_cnt[NUM_BANKS];
+
 void bb_init()
 {
 	UINT32 bank, num_entries;
@@ -14,6 +16,7 @@ void bb_init()
 	INFO("bb>init", "bad block bitmap initialization");
 	
 	mem_set_dram(BAD_BLK_BMP_ADDR, 0, BAD_BLK_BMP_BYTES);
+	mem_set_sram(_bad_blcks_cnt, 0, NUM_BANKS);
 
 	disable_irq();
 
@@ -60,6 +63,8 @@ void bb_init()
 			_bb_set_bmp(bank, pblk_offset);
 #endif
 			BUG_ON("should be bad but not tested", !bb_is_bad(bank, pblk_offset));
+			
+			_bad_blcks_cnt[bank]++;
 		}
 		uart_print("");
 	}
@@ -70,4 +75,9 @@ void bb_init()
 BOOL32 bb_is_bad(UINT32 const bank, UINT32 const blk)
 {    
 	return _bb_tst_bmp(bank, blk);
+}
+
+UINT32 bb_get_num(UINT32 const bank)
+{
+	return _bad_blcks_cnt[bank];
 }

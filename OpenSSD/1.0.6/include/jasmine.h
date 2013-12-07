@@ -194,8 +194,8 @@ scan_list_t;
 
 #if OPTION_UART_DEBUG
 	/* log levels */
-	#define LL_DEBUG	0
-	#define LL_INFO 	1	
+	#define LL_INFO 	0	
+	#define LL_DEBUG	1	
 	#define LL_WARNING 	2	
 	#define LL_ERROR	3	
 	/* only logs with level no less than LL_LEVEL are printed */
@@ -207,16 +207,16 @@ scan_list_t;
 		uart_printf(" <function %s, line %d, file %s>\r\n", __FUNCTION__, __LINE__, __FILE__);\
 	} while(0);
 
-	#if LL_DEBUG >= LL_LEVEL 
-		#define DEBUG(label, ...) 	LOG(label, __VA_ARGS__)
-	#else
-		#define DEBUG(label, ...)
-	#endif
-
 	#if LL_INFO >= LL_LEVEL 
 		#define INFO(label, ...) 	LOG(label, __VA_ARGS__)
 	#else
 		#define INFO(label, ...)
+	#endif
+
+	#if LL_DEBUG >= LL_LEVEL 
+		#define DEBUG(label, ...) 	LOG(label, __VA_ARGS__)
+	#else
+		#define DEBUG(label, ...)
 	#endif
 
 	#if LL_WARNING >= LL_LEVEL
