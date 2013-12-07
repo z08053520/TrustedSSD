@@ -135,5 +135,6 @@ void init_jasmine(void)
 	#if OPTION_FTL_TEST
 	extern void ftl_test();
 	ftl_test();
+	while(1);
 	#endif
 }
