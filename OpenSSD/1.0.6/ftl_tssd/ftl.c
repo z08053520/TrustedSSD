@@ -82,7 +82,9 @@ static void read_page  (UINT32 const lpn,
 		INFO("ftl>read>logic", "read from buff cache %d", BC_BUF_IDX(page_buff));
 
 		// wait for the next buffer to get SATA transfer done
+		#if OPTION_FTL_TEST == 0
 		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+		#endif
 
 		bc_fill(lpn, sect_offset, num_sectors_to_read, BC_BUF_TYPE_USR);
 		mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
@@ -110,7 +112,9 @@ static void read_page  (UINT32 const lpn,
 	else
 	{
 		// wait for the next buffer to get SATA transfer done
+		#if OPTION_FTL_TEST == 0
 		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+		#endif
 
 		INFO("ftl>read>logic", "read non-existing page");
             	// Send 0xFF...FF to host when the host request to read the 
@@ -169,7 +173,9 @@ static void write_page (UINT32 const lpn,
 	INFO("ftl>read>logic", "write to buff cache %d", BC_BUF_IDX(buff_addr));
 
 	// wait for SATA transfer completion
+	#if OPTION_FTL_TEST == 0
 	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
+	#endif
 
 	// copy from SATA circular buffer to buffer cache 
 	target_addr = buff_addr + sect_offset * BYTES_PER_PAGE;
