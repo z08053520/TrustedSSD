@@ -6,6 +6,20 @@ LD 	= $(PREFIX)ld
 OBJCOPY	= $(PREFIX)objcopy
 RM	= rm
 
+# Specify at most ONE unit test to run
+#
+# If any unit test is specifed, the firmware will be compiled to run unit test 
+# withour any SATA communication; otherwise, a normal firmware that can handle 
+# SATA request will be generated.
+#TEST = buffer_cache
+#TEST = cmt
+#TEST = flash_util
+#TEST = ftl
+#TEST = gc
+#TEST = gtd
+#TEST = hash_table
+TEST = pmt
+
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size
 CFLAGS 	= -mcpu=arm7tdmi-s -mthumb-interwork -ffreestanding -nostdlib -std=c99 -O2 -g -DPROGRAM_MAIN_FW -Wall
@@ -13,18 +27,23 @@ ASFLAGS	= -R -mcpu=arm7tdmi-s
 # Try --gc-sections to optimize size
 LDFLAGS	= -static -nostartfiles -ffreestanding -T ld_script -Wl,-O1,-Map=list.txt
 LIBS	= -lgcc
-VPATH	= ../ftl_$(FTL):../sata:../target_spw:../test_tssd
+VPATH	= ../ftl_$(FTL):../sata:../target_spw
 
 FTL_SRCS = $(shell find ../ftl_$(FTL) -name '*.c' -printf '%f ')
 # Comment TEST_SRC if you don't want to do any unit test
-#TEST_SRC = test_ftl.c 
-SRCS 	= sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c syscalls.c ${FTL_SRCS} ${TEST_SRC}
+SRCS 	= sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c syscalls.c ${FTL_SRCS}
 INITSRC	= ../target_spw/init_gnu.s
 OBJS	= $(SRCS:.c=.o) init.o
 DEPS	= $(SRCS:.c=.d)
 TARGET 	= firmware
 TARGETELF = $(TARGET).elf
 TARGETBIN = $(TARGET).bin
+
+ifdef TEST
+CFLAGS += -D OPTION_FTL_TEST
+VPATH  += :../test_tssd
+SRCS   += test_${TEST}.c
+endif
 
 $(TARGETBIN): $(TARGETELF)
 	$(OBJCOPY) -O binary --strip-all --strip-debug $< $@
@@ -42,6 +61,6 @@ init.o: $(INITSRC)
 	$(AS) $(ASFLAGS) $< -o $@
 
 clean:
-	$(RM) $(OBJS) $(DEPS) $(TARGETELF) $(TARGETBIN)
+	@$(RM) $(OBJS) $(DEPS) $(TARGETELF) $(TARGETBIN)
 
 include $(DEPS)

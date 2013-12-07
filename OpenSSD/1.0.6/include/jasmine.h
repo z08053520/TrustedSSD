@@ -27,11 +27,20 @@
 
 #define	OPTION_2_PLANE			0	// 1 = 2-plane mode, 0 = 1-plane mode
 #define OPTION_ENABLE_ASSERT		1	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
-#define OPTION_FTL_TEST			0	// 1 = FTL test without SATA communication, 0 = normal
 #define OPTION_UART_DEBUG		1	// 1 = enable UART message output, 0 = disable
 #define OPTION_SLOW_SATA		0	// 1 = SATA 1.5Gbps, 0 = 3Gbps
 #define OPTION_SUPPORT_NCQ		0	// 1 = support SATA NCQ (=FPDMA) for AHCI hosts, 0 = support only DMA mode
 #define OPTION_REDUCED_CAPACITY	0	// reduce the number of blocks per bank for testing purpose
+
+/* About macro OPTION_FTL_TEST 
+ *
+ * This macro can be defined in Makefile. If it is defined, then the firmware 
+ * is running in FTL test mode without SATA communication; otherwise it is in 
+ * normal mode. 
+ *
+ * To run unit tests, you have to specify which test case to run, which would 
+ * automatically define OPTION_FTL_TEST.
+ * */
 
 #define CHN_WIDTH			2 	// 2 = 16bit IO
 #define NUM_CHNLS_MAX		4
