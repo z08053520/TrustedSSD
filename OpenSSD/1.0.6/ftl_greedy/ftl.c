@@ -330,6 +330,9 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
         vpn  = get_vpn(lpn);
         CHECK_VPAGE(vpn);
 
+	uart_printf("[ftl_read] g_ftl_read_buf_id=%d, SATA_RBUF_PTR=%d, BM_READ_LIMIT=%d\r\n", 
+			g_ftl_read_buf_id, GETREG(SATA_RBUF_PTR), GETREG(BM_READ_LIMIT));
+
         if (vpn != NULL)
         {
             nand_page_ptread_to_host(bank,
@@ -415,6 +418,8 @@ static void write_page(UINT32 const lpn, UINT32 const sect_offset, UINT32 const 
 
     g_ftl_statistics[bank].page_wcount++;
 
+	uart_printf("[ftl_write] g_ftl_write_buf_id=%d, SATA_WBUF_PTR=%d, BM_WRITE_LIMIT=%d\r\n", 
+			g_ftl_write_buf_id, GETREG(SATA_WBUF_PTR), GETREG(BM_WRITE_LIMIT));
     // if old data already exist,
     if (old_vpn != NULL)
     {

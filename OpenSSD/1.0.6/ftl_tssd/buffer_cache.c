@@ -39,8 +39,11 @@ typedef struct _bc_node {
 
 UINT32 node_vpn(bc_node* node) {
 	UINT32 vpn;
-	if (is_usr(node)) 
-		cmt_get(node_lpn(node), &vpn);
+	BOOL32 res;
+	if (is_usr(node)) { 
+		res = cmt_get(node_lpn(node), &vpn);
+		BUG_ON("lpn->vpn should have been cached", res);
+	}
 	else
 		vpn = gtd_get_vpn(node_pmt_idx(node));
 	return vpn;
