@@ -30,7 +30,7 @@
 #define OPTION_UART_DEBUG		1	// 1 = enable UART message output, 0 = disable
 #define OPTION_SLOW_SATA		0	// 1 = SATA 1.5Gbps, 0 = 3Gbps
 #define OPTION_SUPPORT_NCQ		0	// 1 = support SATA NCQ (=FPDMA) for AHCI hosts, 0 = support only DMA mode
-#define OPTION_REDUCED_CAPACITY	0	// reduce the number of blocks per bank for testing purpose
+#define OPTION_REDUCED_CAPACITY		0	// reduce the number of blocks per bank for testing purpose
 
 /* About macro OPTION_FTL_TEST 
  *
@@ -38,8 +38,8 @@
  * is running in FTL test mode without SATA communication; otherwise it is in 
  * normal mode. 
  *
- * To run unit tests, you have to specify which test case to run, which would 
- * automatically define OPTION_FTL_TEST.
+ * To run unit tests, you have to specify which test case to run in the
+ * Makefile, which will automatically define OPTION_FTL_TEST.
  * */
 
 #define CHN_WIDTH			2 	// 2 = 16bit IO

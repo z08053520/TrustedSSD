@@ -13,13 +13,13 @@
 #define GTD_SIZE		(GTD_ENTRIES * sizeof(UINT32))
 #define GTD_ENTRIES_PER_PAGE	(BYTES_PER_PAGE / sizeof(UINT32))	
 #define GTD_PAGES		COUNT_BUCKETS(GTD_ENTRIES, GTD_ENTRIES_PER_PAGE)
-
-UINT32 _GTD[GTD_ENTRIES];
-
-#define gtd_get_vpn(pmt_index)		_GTD[pmt_index]
-#define gtd_set_vpn(pmt_index, pmt_vpn)	_GTD[pmt_index] = pmt_vpn
+#define GTD_BYTES		(BYTES_PER_PAGE * GTD_PAGES)
+#define GTD_ADDR		(BAD_BLK_BMP_ADDR + BAD_BLK_BMP_BYTES)
 
 void gtd_init(void);
 void gtd_flush(void);
+
+UINT32 gtd_get_vpn(UINT32 const pmt_index);
+void   gtd_set_vpn(UINT32 const pmt_index, UINT32 const pmt_vpn);
 
 #endif /* __GTD_H */

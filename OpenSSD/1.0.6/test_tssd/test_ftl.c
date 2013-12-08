@@ -16,7 +16,6 @@
 
 extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
 
-
 /* ===========================================================================
  * Performance Report 
  * =========================================================================*/
@@ -121,6 +120,42 @@ static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors, UINT32 c
 		sata_buf      = RD_BUF_PTR(sata_buf_id);
 	}
 }
+
+
+/* ===========================================================================
+ * DRAM buffer to store lbas and req_sizes 
+ * =========================================================================*/
+#define BUF_SIZE	(BYTES_PER_SECTOR * 16)
+#define LPN_BUF		TEMP_BUF_ADDR
+#define VPN_BUF		(TEMP_BUF_ADDR + BUF_SIZE)
+
+static void init_dram()
+{
+	mem_set_dram(LPN_BUF, 0, BUF_SIZE);
+	mem_set_dram(VPN_BUF, 0, BUF_SIZE);
+}
+
+static UINT32 get_lpn(UINT32 const i)
+{
+	return read_dram_32(LPN_BUF + sizeof(UINT32) * i);
+}
+
+static void set_lpn(UINT32 const i, UINT32 const lpn)
+{
+	write_dram_32(LPN_BUF + sizeof(UINT32) * i, lpn);
+}
+
+static UINT32 get_vpn(UINT32 const i)
+{
+	return read_dram_32(VPN_BUF + sizeof(UINT32) * i);
+}	
+
+static void set_vpn(UINT32 const i, UINT32 const vpn)
+{
+	write_dram_32(VPN_BUF + sizeof(UINT32) * i, vpn);
+}
+
+
 
 /* ===========================================================================
  * Tests for sequential and random R/W 

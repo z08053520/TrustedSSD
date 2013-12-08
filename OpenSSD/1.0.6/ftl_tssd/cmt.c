@@ -223,6 +223,8 @@ BOOL32 cmt_update(UINT32 const lpn, UINT32 const new_vpn)
 	if (!node) return 1;
 	if (node->hn.val == new_vpn) return 0;
 
+	BUG_ON("new vpn should never be in block #0", new_vpn < PAGES_PER_VBLK);
+
 	INFO("cmt>add", "update lpn %d (new vpn %d, old vpn %d)", 
 			lpn, new_vpn, node->hn.val);
 

@@ -1,6 +1,6 @@
 MEMORY
 {
-	sram : ORIGIN = 0, LENGTH = 96k
+	sram : ORIGIN = 0, LENGTH = 95k
 }
 
 SECTIONS

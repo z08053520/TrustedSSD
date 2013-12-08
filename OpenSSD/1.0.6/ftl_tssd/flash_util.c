@@ -178,4 +178,10 @@ void fu_write_pages_in_parallel(UINT32 vpn[],
 
 		fu_write_page(bank, vpn[bank], buff_addr[bank]);	
 	}
+	// This seemingly-natural line of flash_finish() is the wisdom 
+	// comes from a painful debugging effort. I am not sure wait for 
+	// flash to finish is the best way to go.
+	//
+	// TODO: improve performance by eliminating synchronous flash writes
+	flash_finish();
 }

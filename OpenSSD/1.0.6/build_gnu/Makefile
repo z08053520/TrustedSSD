@@ -14,11 +14,11 @@ RM	= rm
 #TEST = buffer_cache
 #TEST = cmt
 #TEST = flash_util
-TEST = ftl
+#TEST = ftl
 #TEST = gc
 #TEST = gtd
 #TEST = hash_table
-#TEST = pmt
+TEST = pmt
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size
@@ -30,7 +30,6 @@ LIBS	= -lgcc
 VPATH	= ../ftl_$(FTL):../sata:../target_spw
 
 FTL_SRCS = $(shell find ../ftl_$(FTL) -name '*.c' -printf '%f ')
-# Comment TEST_SRC if you don't want to do any unit test
 SRCS 	= sata_identify.c sata_cmd.c sata_isr.c sata_main.c sata_table.c initialize.c mem_util.c flash.c flash_wrapper.c misc.c uart.c syscalls.c ${FTL_SRCS}
 INITSRC	= ../target_spw/init_gnu.s
 OBJS	= $(SRCS:.c=.o) init.o

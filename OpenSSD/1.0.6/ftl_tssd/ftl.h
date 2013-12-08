@@ -4,6 +4,7 @@
 #include "jasmine.h"
 #include "buffer_cache.h"
 #include "bad_blocks.h"
+#include "gtd.h"
 
 /* ========================================================================= *
  * DRAM Segmentation
@@ -15,13 +16,13 @@
 #define NUM_NON_RW_BUFFERS	(NUM_COPY_BUFFERS + NUM_FTL_BUFFERS + NUM_HIL_BUFFERS + NUM_TEMP_BUFFERS)
 #define NON_RW_BUF_BYTES	(NUM_NON_RW_BUFFERS * BYTES_PER_PAGE)
 
-#define DRAM_BYTES_OTHER	(NON_RW_BUF_BYTES + BC_BYTES + BAD_BLK_BMP_BYTES)
+#define DRAM_BYTES_OTHER	(NON_RW_BUF_BYTES + BC_BYTES + BAD_BLK_BMP_BYTES + GTD_BYTES)
 
 #define NUM_RW_BUFFERS		((DRAM_SIZE - DRAM_BYTES_OTHER) / BYTES_PER_PAGE - 1)
 #define NUM_RD_BUFFERS		(COUNT_BUCKETS(NUM_RW_BUFFERS / 8, NUM_BANKS) * NUM_BANKS)
 #define NUM_WR_BUFFERS		(NUM_RW_BUFFERS - NUM_RD_BUFFERS)
 
-#define BUFS_ADDR		(DRAM_BASE + BC_BYTES + BAD_BLK_BMP_BYTES)
+#define BUFS_ADDR		(DRAM_BASE + BC_BYTES + BAD_BLK_BMP_BYTES + GTD_BYTES)
 
 #define RD_BUF_ADDR		BUFS_ADDR	
 #define RD_BUF_BYTES            (NUM_RD_BUFFERS * BYTES_PER_PAGE)

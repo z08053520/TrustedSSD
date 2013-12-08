@@ -19,8 +19,8 @@
 
 #include "jasmine.h"
 
-const UINT8 c_bank_map[NUM_BANKS] = BANK_MAP;
-UINT8 c_bank_rmap[NUM_BANKS_MAX] = BANK_RMAP;
+const UINT8 c_bank_map[] = BANK_MAP;
+UINT8 c_bank_rmap[] = BANK_RMAP;
 
 void flash_issue_cmd(UINT32 const bank, UINT32 const sync)
 {

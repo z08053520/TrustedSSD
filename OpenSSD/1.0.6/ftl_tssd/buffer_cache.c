@@ -117,7 +117,7 @@ static void segment_insert(bc_node *head, bc_node* node)
 	head->next_idx = to_idx(node);
 }
 
-#define SEGMENT_HIGH_WATER_MARK		(NUM_BC_BUFFERS_PER_BANK * 7 / 8)
+#define SEGMENT_HIGH_WATER_MARK		(NUM_BC_BUFFERS_PER_BANK * 7 / 8 + 1)
 
 #define segment_is_full(seg) 		((seg).size == (seg).capacity)
 
@@ -169,28 +169,35 @@ static void bc_evict(void)
 	UINT32 vpn[NUM_BANKS];
 	UINT32 buff_addr[NUM_BANKS];
 	UINT32 valid_sectors_mask[NUM_BANKS];
+	BOOL8  dirty[NUM_BANKS];
 
 	/* to leverage the inner parallelism between banks in flash, we do 
 	 * eviction in a batch fashion */
+	INFO("bc", "eviction happens");
 
+//	uart_printf("banks that have buff evicted: ");
 	/* gather the information of victim pages */
 	FOR_EACH_BANK(bank) {
 		vpn[bank] = 0;
 		buff_addr[bank] = NULL;
 		valid_sectors_mask[bank] = 0;
 		victim_nodes[bank] = NULL;
+		dirty[bank] = FALSE;
 
 		if (_bc_lru_seg[bank].size < SEGMENT_HIGH_WATER_MARK)
 			continue;
+//		uart_printf("%d, ", bank);
 
 		victim_node = victim_nodes[bank] = segment_drop(bank);
 		if (!is_dirty(victim_node))
 			continue;
 
+		dirty[bank] = TRUE;
 		vpn[bank] = node_vpn(victim_node);
 		buff_addr[bank] = node_buf(victim_node);
 		valid_sectors_mask[bank] = node_mask(victim_node);
 	}
+//	uart_print("");
 
 	/* read miss sectors in victim pages */
 	fu_read_pages_in_parallel(vpn, buff_addr, valid_sectors_mask);
@@ -200,6 +207,7 @@ static void bc_evict(void)
 		/* if don't need to write back, then skip it */
 		if (buff_addr[bank] == NULL) continue;
 
+		BUG_ON("only dirty page should be written back", !dirty[bank]);
 		vpn[bank] = vpn[bank] ? gc_replace_old_vpn(bank, vpn[bank]) 
 				      : gc_allocate_new_vpn(bank) ;
 	}
@@ -208,19 +216,27 @@ static void bc_evict(void)
 	fu_write_pages_in_parallel(vpn, buff_addr);
 
 	/* remove all victim nodes */
+//	uart_printf("banks that have dirty buff evicted: ");
 	FOR_EACH_BANK(bank) {
+		// remove all victim pages from hash table
 		victim_node = victim_nodes[bank];
 		if (!victim_node) continue;
-		
+		hash_table_remove(&_bc_ht, node_key(victim_node));
+
+		// update vpn for all dirty pages
+		if (!dirty[bank]) continue;
+//		uart_printf("%d ", bank);
 		if (is_usr(victim_node)) {	/* user page buffer */
 			cmt_update(node_lpn(victim_node), vpn[bank]);
 			cmt_unfix(node_lpn(victim_node));
+//			uart_printf("(usr), ");
 		}
 		else { 				/* PMT page buffer */ 
 			gtd_set_vpn(node_pmt_idx(victim_node), vpn[bank]);
+//			uart_printf("(pmt), ");
 		}
-		hash_table_remove(&_bc_ht, node_key(victim_node));
 	}
+//	uart_print("");
 }
 
 BOOL32 valid_sectors_include(UINT32 const valid_sectors_mask, 

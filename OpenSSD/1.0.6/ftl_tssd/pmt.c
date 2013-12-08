@@ -5,8 +5,8 @@
  * Macros, Data Structure and Gloal Variables 
  * ========================================================================= */
 
-#define pmt_get_index(lpn)	lpn / PMT_ENTRIES_PER_PAGE
-#define pmt_get_offset(lpn)	lpn % PMT_ENTRIES_PER_PAGE
+#define pmt_get_index(lpn)	(lpn / PMT_ENTRIES_PER_PAGE)
+#define pmt_get_offset(lpn)	(lpn % PMT_ENTRIES_PER_PAGE)
 
 /* ========================================================================= *
  * Private Functions 
@@ -18,12 +18,12 @@ static UINT32 load_pmt_buffer(UINT32 const pmt_index)
 
 	bc_get(pmt_index, &pmt_buff, BC_BUF_TYPE_PMT);
 	if (pmt_buff == NULL) {
-		INFO("pmt>load pmt buffer", "cache miss for pmt idx = %d", pmt_index);
+		INFO("pmt>load pmt buffer", "cache miss for pmt idx = %d, bank = %d", pmt_index, lpn2bank(pmt_index));
 		bc_put(pmt_index, &pmt_buff, BC_BUF_TYPE_PMT);
 		bc_fill_full_page(pmt_index, BC_BUF_TYPE_PMT);
 	}
 	else
-		INFO("pmt>load pmt buffer", "cache hit for pmt idx = %d", pmt_index);
+		INFO("pmt>load pmt buffer", "cache hit for pmt idx = %d, bank = %d", pmt_index, lpn2bank(pmt_index));
 	return pmt_buff;
 }
 
