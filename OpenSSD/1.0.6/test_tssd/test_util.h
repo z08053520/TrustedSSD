@@ -4,6 +4,21 @@
 #include "jasmine.h"
 #include <stdlib.h>
 
+void timer_reset() 
+{
+    start_interval_measurement(TIMER_CH2, TIMER_PRESCALE_0);
+}
+
+UINT32 timer_ellapsed_us() 
+{
+    UINT32 rtime;
+
+    rtime = 0xFFFFFFFF - GET_TIMER_VALUE(TIMER_CH2);
+    // Tick to us
+    rtime = (UINT32)((UINT64)rtime * 2 * 1000000 * PRESCALE_TO_DIV(TIMER_PRESCALE_0) / CLOCK_SPEED);
+    return rtime;
+}
+
 UINT32 random(UINT32 const min, UINT32 const max)
 {
 	return min + (rand() % (max-min+1));

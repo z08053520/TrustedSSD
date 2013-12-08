@@ -15,6 +15,39 @@
 
 extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
 
+#define PERF_REPORT_THRESHOLD	(2 * 1024 * 1024) 	/* 2MB */
+static UINT32 pm_total_bytes;
+
+static void perf_monitor_reset() 
+{
+	pm_total_bytes = 0;
+	timer_reset();
+}
+
+static void perf_monitor_report()
+{
+	UINT32 time_us 	  = timer_ellapsed_us();
+	UINT32 throughput = pm_total_bytes * 976 / time_us; /* KB/s */
+
+	uart_printf("Transferred %d bytes (~%dMB) in %dus (~%dms), "
+		    "throughput %dKB/s (~%dMB/s)",
+		    pm_total_bytes, pm_total_bytes / 1024 /1024,
+		    time_us, time_us / 1000, 
+		    throughput, throughput / 1024);
+}
+
+static void perf_monitor_update(UINT32 const num_sectors)
+{
+	pm_total_bytes += BYTES_PER_SECTOR * num_sectors;
+	
+	if (pm_total_bytes >= PERF_REPORT_THRESHOLD) {
+		perf_monitor_report();
+
+		pm_total_bytes = 0;
+		timer_reset();
+	}
+}
+
 static void do_flash_write(UINT32 const lba, UINT32 const req_sectors, 
 			   UINT32 const sata_val) 
 {
@@ -96,7 +129,8 @@ static void seq_rw_test()
 
 	BUG_ON("too many requests to run", num_requests > MAX_NUM_REQS);
 
-	// sequential write
+	uart_print("sequential write");
+	perf_monitor_reset();
 	lba = 0;
 	for (j = 0; j < NUM_SEQ_REQ_SIZES; j++) {
 		req_sectors = req_sizes[j];
@@ -105,10 +139,12 @@ static void seq_rw_test()
 			do_flash_write(lba, req_sectors, val);
 
 			lba += req_sectors;
+			perf_monitor_update(req_sectors);	
 		}
 	}
 
-	// seqential read and verify
+	uart_print("seqential read and verify");
+	perf_monitor_reset();
 	lba = 0;
 	for (j = 0; j < NUM_SEQ_REQ_SIZES; j++) {
 		req_sectors = req_sizes[j];
@@ -117,6 +153,7 @@ static void seq_rw_test()
 			do_flash_verify(lba, req_sectors, val);
 
 			lba += req_sectors;
+			perf_monitor_update(req_sectors);	
 		}
 	}
 
@@ -134,7 +171,8 @@ static void rnd_rw_test()
 
 	BUG_ON("too many requests to run", num_requests > MAX_NUM_REQS);
 
-	// random write
+	uart_print("random write");
+	perf_monitor_reset();
 	for (i = 0; i < num_requests; i++) {
 		lba 	  = random(0, MAX_LPA); 
 		req_size  = random(1, MAX_NUM_SECTORS); 
@@ -144,15 +182,20 @@ static void rnd_rw_test()
 
 		lbas[i]      = lba;
 		req_sizes[i] = req_size;
+		
+		perf_monitor_update(req_size);	
 	}
 
-	// random read and verify
+	uart_print("random read and verify");
+	perf_monitor_reset();
 	for (i = 0; i < num_requests; i++) {
 		lba	 = lbas[i];
 		req_size = req_sizes[i];
 		val 	 = lba + 7;
 
 		do_flash_verify(lba, req_size, val);
+		
+		perf_monitor_update(req_size);	
 	}
 
 	uart_print("done");
