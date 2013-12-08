@@ -210,6 +210,11 @@ scan_list_t;
 	/* only logs with level no less than LL_LEVEL are printed */
 	#define LL_LEVEL 	LL_DEBUG
 
+	#define __BUG_REPORT(_cond, _format, _args ...)\
+		uart_printf("%s:%d: error in function '%s' for condition '%s': "\
+			    _format "\r\n", __FILE__, __LINE__, __FUNCTION__,\
+			    #_cond, ##_args)
+
 	#define LOG(label, ...) do {\
 		uart_printf("[%s] ", label);\
 		uart_printf(__VA_ARGS__);\
@@ -242,7 +247,7 @@ scan_list_t;
 	
 	#define BUG_ON(MESSAGE, COND) do {\
 		if (COND) {\
-			ERROR("__BUG__", MESSAGE);\
+			__BUG_REPORT(COND, MESSAGE);\
 			led_blink();\
 			while(1);\
 		}\

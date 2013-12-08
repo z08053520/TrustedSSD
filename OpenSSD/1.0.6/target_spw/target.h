@@ -176,15 +176,14 @@ void enable_interrupt(void);
 void disable_interrupt(void);
 
 #if OPTION_ENABLE_ASSERT
-	#define ASSERT(X)				       \
-	{								       \
-		if (!(X))					       \
-		{                                  \
-            uart_printf("assert error <function %s, line %d, file %s>\r\n",\
-			    __FUNCTION__, __LINE__, __FILE__);    \
-            led_blink();                   \
-			while (1);				       \
-		}							       \
+	#define ASSERT(X)\
+	{\
+		if (!(X))\
+		{\
+           		__BUG_REPORT(X, "assertion failed");\
+            		led_blink();\
+			while (1);\
+		}\
 	}
 #else
 	#define ASSERT(X)
