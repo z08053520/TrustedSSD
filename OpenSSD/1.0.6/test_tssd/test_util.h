@@ -2,6 +2,13 @@
 #define __TEST_UTIL_H
 
 #include "jasmine.h"
+#include <stdlib.h>
+
+UINT32 random(UINT32 const min, UINT32 const max)
+{
+	return min + (rand() % (max-min+1));
+}
+
 
 BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 			   UINT8 offset, UINT8 num_sectors)
