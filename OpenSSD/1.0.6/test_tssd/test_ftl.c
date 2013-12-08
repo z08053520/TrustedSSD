@@ -1,6 +1,7 @@
 /* ===========================================================================
  * Unit test for FTL 
  * =========================================================================*/
+
 #include "jasmine.h"
 #if OPTION_FTL_TEST
 #include "ftl.h"
@@ -14,6 +15,11 @@
 #define MAX_NUM_REQS	1024
 
 extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
+
+
+/* ===========================================================================
+ * Performance Report 
+ * =========================================================================*/
 
 #define PERF_REPORT_THRESHOLD	(2 * 1024 * 1024) 	/* 2MB */
 static UINT32 pm_total_bytes;
@@ -47,6 +53,10 @@ static void perf_monitor_update(UINT32 const num_sectors)
 		timer_reset();
 	}
 }
+
+/* ===========================================================================
+ * Fake SATA R/W requests 
+ * =========================================================================*/
 
 static void do_flash_write(UINT32 const lba, UINT32 const req_sectors, 
 			   UINT32 const sata_val) 
@@ -111,6 +121,10 @@ static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors, UINT32 c
 		sata_buf      = RD_BUF_PTR(sata_buf_id);
 	}
 }
+
+/* ===========================================================================
+ * Tests for sequential and random R/W 
+ * =========================================================================*/
 
 #define NUM_SEQ_REQ_SIZES	5
 #define KB2SEC(N)		(N * 1024 / 512)
