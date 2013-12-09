@@ -221,14 +221,16 @@ static void bc_evict(void)
 		// remove all victim pages from hash table
 		victim_node = victim_nodes[bank];
 		if (!victim_node) continue;
+		
 		hash_table_remove(&_bc_ht, node_key(victim_node));
+		if (is_usr(victim_node))
+			cmt_unfix(node_lpn(victim_node));
 
 		// update vpn for all dirty pages
 		if (!dirty[bank]) continue;
 //		uart_printf("%d ", bank);
 		if (is_usr(victim_node)) {	/* user page buffer */
 			cmt_update(node_lpn(victim_node), vpn[bank]);
-			cmt_unfix(node_lpn(victim_node));
 //			uart_printf("(usr), ");
 		}
 		else { 				/* PMT page buffer */ 
@@ -304,7 +306,7 @@ void bc_put(UINT32 key, UINT32 *addr, bc_buf_type const type)
 
 	seg_index = key2bank(key);
 	if (segment_is_full(_bc_lru_seg[seg_index])) {
-		INFO("cache>put", "cache is full");
+		INFO("cache>put", "cache is full; do eviction");
 		bc_evict();	
 	}
 

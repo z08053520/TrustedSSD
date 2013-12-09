@@ -60,11 +60,11 @@ static void test_bc_get_put(void)
 		last_num_free_pages[bank] = gc_get_num_free_pages(bank);
 	}
 
-	uart_print("\r\nfill buffer cache until full (no eviction happens)\r\n");
+	uart_print("\r\nfill buffer cache until full (eviction may or may not happens)\r\n");
 	for(i = 0; i < NUM_BC_BUFFERS; i++) {
-		INFO("test>bc>get/put", "i=%d, lpn=%d", i, lpn);
 		// add an uncached lpn to buffer cache
 		lpns[i] = lpn = rand_add_lpn_to_bc(&buf);
+		DEBUG("test>bc>get/put", "i=%d, lpn=%d", i, lpn);
 
 		// for pages with even lpn, we modify the content of its buff
 		if (lpn % 2 == 0) {
@@ -86,13 +86,13 @@ static void test_bc_get_put(void)
 	for(i = 0; i < NUM_BC_BUFFERS; i++) {
 		// find a lpn not cached yet
 		lpn = rand_add_lpn_to_bc(&buf);
+		uart_printf("lpn %d is added\r\n", lpn);
 	}
 
 	uart_print("\r\nvalidate buffers are evicted correctly to flash\r\n");
 	for(i = 0; i < NUM_BC_BUFFERS; i++) {
-		INFO("test>bc>get/put", "i=%d, lpn=%d", i, lpn);
-
 		lpn = lpns[i];
+		DEBUG("test>bc>get/put", "i=%d, lpn=%d", i, lpn);
 		if (lpn % 2 == 1) continue;
 
 		bank = lpn2bank(lpn);
