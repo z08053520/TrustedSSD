@@ -10,6 +10,11 @@
 #include "test_util.h"
 #include <stdlib.h>
 
+
+/* ===========================================================================
+ * Generate random LPN 
+ * =========================================================================*/
+
 #define RAND_SEED	123456
 #define MAX_LPN		NUM_LPAGES
 
@@ -41,59 +46,78 @@ static UINT32 rand_add_lpn_to_bc(UINT32 *buf)
 	return lpn;
 }
 
+/* ===========================================================================
+ * DRAM buffer to store LPNs 
+ * =========================================================================*/
+
+#define LPN_BUF			TEMP_BUF_ADDR
+#define BUF_SIZE		(BYTES_PER_PAGE)
+#define MAX_BUF_ENTRIES		(BUF_SIZE / sizeof(UINT32))
+
+static void init_dram()
+{
+	mem_set_dram(LPN_BUF, 0, BUF_SIZE);
+}
+
+static UINT32 get_lpn(UINT32 const i)
+{
+	return read_dram_32(LPN_BUF + sizeof(UINT32) * i);
+}
+
+static void set_lpn(UINT32 const i, UINT32 const lpn)
+{
+	write_dram_32(LPN_BUF + sizeof(UINT32) * i, lpn);
+}
+
+/* ===========================================================================
+ * Tests 
+ * =========================================================================*/
+
+#define NUM_PUT_OPERATIONS	MAX_BUF_ENTRIES	
+/* This function determines whether the page of lpn will be made dirty.
+ * The intent of this function is to have more dirty pages than clean pages. */
+#define IS_DIRTY(lpn)		(lpn % 7 != 0)
+
 static void test_bc_get_put(void)
 {
 	uart_print("test buffer cache get/put operations");
 
 	UINT32 lpn, vpn, buf, bank, val;
-	UINT32 lpns[NUM_BC_BUFFERS];
 	UINT32 i;
-	UINT32 last_num_free_pages[NUM_BANKS];
-	UINT32 new_num_free_pages;
 
 	// try to get lpn from empty buffer cache
 	lpn = 1234;
 	bc_get(lpn, &buf, BC_BUF_TYPE_USR);
 	BUG_ON("cache hit when empty: impossible", buf != NULL);
 
-	FOR_EACH_BANK(bank) {
-		last_num_free_pages[bank] = gc_get_num_free_pages(bank);
-	}
-
-	uart_print("\r\nfill buffer cache until full (eviction may or may not happens)\r\n");
-	for(i = 0; i < NUM_BC_BUFFERS; i++) {
+	uart_print("fill buffer cache with many, many entries "
+		   "causing eviction in the process"); 
+	for(i = 0; i < NUM_PUT_OPERATIONS; i++) {
 		// add an uncached lpn to buffer cache
-		lpns[i] = lpn = rand_add_lpn_to_bc(&buf);
-		DEBUG("test>bc>get/put", "i=%d, lpn=%d", i, lpn);
+		lpn = rand_add_lpn_to_bc(&buf);
+		set_lpn(i, lpn);
 
-		// for pages with even lpn, we modify the content of its buff
-		if (lpn % 2 == 0) {
+		// make some pages dirty
+		if (IS_DIRTY(lpn)) {
 			val = lpn;
 			mem_set_dram(buf, val, BYTES_PER_PAGE);
 			bc_set_valid_sectors(lpn, 0, SECTORS_PER_PAGE, 
 					     BC_BUF_TYPE_USR);
 			bc_set_dirty(lpn, BC_BUF_TYPE_USR);
 		}
-
-		// check any changes in the # of free pages
-		bank = lpn2bank(lpn);
-		new_num_free_pages = gc_get_num_free_pages(bank);
-		if (last_num_free_pages[bank] != new_num_free_pages)
-			uart_print("evition happens");
 	}
 	
-	uart_print("\r\nfill the buffer again to evict every buffer in the last round\r\n");
+	uart_print("fill the buffer with enough entries to evict every entry "
+		   "that we have just put");
 	for(i = 0; i < NUM_BC_BUFFERS; i++) {
 		// find a lpn not cached yet
 		lpn = rand_add_lpn_to_bc(&buf);
-		uart_printf("lpn %d is added\r\n", lpn);
 	}
 
-	uart_print("\r\nvalidate buffers are evicted correctly to flash\r\n");
-	for(i = 0; i < NUM_BC_BUFFERS; i++) {
-		lpn = lpns[i];
-		DEBUG("test>bc>get/put", "i=%d, lpn=%d", i, lpn);
-		if (lpn % 2 == 1) continue;
+	uart_print("validate buffers are evicted correctly to flash");
+	for(i = 0; i < NUM_PUT_OPERATIONS; i++) {
+		lpn = get_lpn(i);
+		if (!IS_DIRTY(lpn)) continue;
 
 		bank = lpn2bank(lpn);
 		vpn  = get_vpn(lpn);
@@ -115,6 +139,8 @@ static void test_bc_fill(void)
 void ftl_test(void)
 {
 	INFO("test", "start testing buffer cache...");
+
+	init_dram();
 
 	srand(RAND_SEED);
 	test_bc_get_put();

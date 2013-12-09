@@ -5,8 +5,8 @@
 
 /* cache size is 16MB by default */
 #define BC_ADDR			DRAM_BASE 
-//#define NUM_BC_BUFFERS_PER_BANK 32	
-#define NUM_BC_BUFFERS_PER_BANK 1	
+#define NUM_BC_BUFFERS_PER_BANK 32	
+//#define NUM_BC_BUFFERS_PER_BANK 1	
 #define NUM_BC_BUFFERS		(NUM_BC_BUFFERS_PER_BANK * NUM_BANKS)
 #define BC_BYTES		(NUM_BC_BUFFERS * BYTES_PER_PAGE)
 #define BC_BUF(i)		(BC_ADDR + BYTES_PER_PAGE * i)

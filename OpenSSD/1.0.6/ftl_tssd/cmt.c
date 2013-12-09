@@ -167,9 +167,37 @@ void cmt_init(void)
 	_cmt_statistic_hit = 0;
 }
 
+#define FOR_EACH_SEG_NODE(seg, node)	\
+		for (node = to_node(seg->head->next_idx); \
+		     node != seg->tail;\
+		     node = next(node))  
+
+static void dump_segment(cmt_segment *seg)
+{
+	cmt_node *node;
+	UINT32 i = 0;
+
+	FOR_EACH_SEG_NODE(seg, node) {
+		if (i++) uart_printf(", ");
+		uart_printf("<%d -> %d>", node->hn.key, node->hn.val);
+	}
+	uart_print("");
+}
+
+static void dump_state()
+{
+	uart_print("cmt:");
+	uart_printf("LRU entries: ");
+	dump_segment(&_cmt_lru_seg);	
+	uart_printf("FIX entries: ");
+	dump_segment(&_cmt_fix_seg);
+}
+
 BOOL32 cmt_get(UINT32 const lpn, UINT32 *vpn) 
 {
 	cmt_node* node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
+
+	//dump_state();
 
 	// print debug infomation
 	_cmt_statistic_total++;
