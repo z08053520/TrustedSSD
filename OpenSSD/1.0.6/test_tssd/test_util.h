@@ -60,7 +60,7 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 				buff_entries, MU_CMD_SEARCH_MIN_DRAM);
 	UINT32 min_val  = read_dram_32(buff_addr + min_idx * sizeof(UINT32));
 	if (min_val != val) {
-		uart_printf("expect min val to be %d but was %d, at position %d\r\n", val, min_val, min_idx);
+		uart_printf("expect min val to be %u but was %u, at position %u\r\n", val, min_val, min_idx);
 		return TRUE;
 	}
     	
@@ -69,7 +69,7 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
                               	buff_entries, MU_CMD_SEARCH_MAX_DRAM);
 	UINT32 max_val  = read_dram_32(buff_addr + max_idx * sizeof(UINT32));
 	if (max_val != val) {
-		uart_printf("expect max val to be %d but was %d, at position %d\r\n", val, min_val);
+		uart_printf("expect max val to be %u but was %u, at position %u\r\n", val, min_val);
 		return TRUE;
 	}
 
