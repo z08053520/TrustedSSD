@@ -23,7 +23,7 @@ void ftl_test(void)
 	for(i = 0; i < CMT_ENTRIES; i++) {
 		res = cmt_is_full();
 		BUG_ON("actually cmt is not full", res != 0);
-		res = cmt_add(i, 3 * i);
+		res = cmt_add(i, 512 + i);
 		BUG_ON("adding failed", res != 0);
 	}
 
@@ -38,12 +38,12 @@ void ftl_test(void)
 	for(i = 0; i < CMT_ENTRIES; i++) {
 		res = cmt_get(i, &vpn);
 		BUG_ON("getting failed", res != 0);
-		BUG_ON("val incorrect", vpn != 3 * i);
+		BUG_ON("val incorrect", vpn != 512 + i);
 	}
 
 	// update odd lpn
 	for(i = 1; i < CMT_ENTRIES; i+=2) {
-		res = cmt_update(i, 4 * i);
+		res = cmt_update(i, 1024 + i);
 		BUG_ON("updating failed", res != 0);
 	}
 
@@ -56,20 +56,22 @@ void ftl_test(void)
 	cmt_fix(1);
 
 	// first evict 2, 4, 6, ...
-	for(i = 0; i < CMT_ENTRIES / 2 - 1; i++) {
+	for(i = 2; i < CMT_ENTRIES; i+=2) {
 		res = cmt_evict(&lpn, &vpn, &is_dirty);
+
 		BUG_ON("any evciting error", res != 0);
-		BUG_ON("lpn wrong", lpn != 2*(i + 1));
-		BUG_ON("vpn wrong", vpn != 3 * lpn);
+		BUG_ON("lpn wrong", lpn != i);
+		BUG_ON("vpn wrong", vpn != 512 + lpn);
 		BUG_ON("should not be dirty", is_dirty);
 	}
 
 	// then  evict 3, 5, 7, ...
-	for(i = 0; i < CMT_ENTRIES / 2 - 1; i++) {
+	for(i = 3; i < CMT_ENTRIES; i+=2) {
 		res = cmt_evict(&lpn, &vpn, &is_dirty);
+		
 		BUG_ON("any evciting error", res != 0);
-		BUG_ON("lpn wrong", lpn != 3 + 2 * i);
-		BUG_ON("vpn wrong", vpn != 4 * lpn);
+		BUG_ON("lpn wrong", lpn != i);
+		BUG_ON("vpn wrong", vpn != 1024 + lpn);
 		BUG_ON("should be dirty", !is_dirty);
 	}
 

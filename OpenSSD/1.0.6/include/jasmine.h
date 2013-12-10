@@ -208,7 +208,7 @@ scan_list_t;
 	#define LL_WARNING 	2	
 	#define LL_ERROR	3	
 	/* only logs with level no less than LL_LEVEL are printed */
-	#define LL_LEVEL 	LL_DEBUG
+	#define LL_LEVEL 	LL_DEBUG	
 
 	#define __BUG_REPORT(_cond, _format, _args ...)\
 		uart_printf("%s:%d: error in function '%s' for condition '%s': "\

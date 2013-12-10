@@ -48,6 +48,7 @@ static void set_vpn(UINT32 const i, UINT32 const vpn)
 void ftl_test()
 {
 	UINT32 i;
+	UINT32 j, repeats = 128, sample_size;
 	UINT32 lpn, vpn, expected_vpn;
 
 	uart_print("Running unit test for PMT... ");
@@ -55,38 +56,42 @@ void ftl_test()
 
 	srand(RAND_SEED);
 	init_dram();
-/*  	
+  	
 	uart_print("\tsample lpn to check vpn is set to 0 by default");
 	for(i = 0; i < SAMPLE_SIZE; i++) {
 		lpn = rand() % MAX_LPN;
 		pmt_fetch(lpn, &vpn);
 		BUG_ON("vpn of an unused lpn is not 0", vpn != 0);
 	}
-*/
-	uart_print("\tupdate lpns");
-	for(i = 0; i < SAMPLE_SIZE; i++) {
-		lpn = rand() % MAX_LPN;
-		//vpn = gc_allocate_new_vpn(lpn2bank(lpn));
-		vpn = 32 + rand() % 123456;
 
-		set_lpn(i, lpn);
-		set_vpn(i, vpn);
+	lpn = 0;
+	for(j = 0; j < repeats; j++) {
+		sample_size = rand() % SAMPLE_SIZE+ 1;
 
-		pmt_update(lpn, vpn);
-		//uart_printf("%d: set lpn = %d, vpn = %d\r\n", i, lpn, vpn);
-	}
-	
-	uart_print("\tverify lpn->vpn");
-	for(i = 0; i < SAMPLE_SIZE; i++) {
-		lpn = get_lpn(i);
-		expected_vpn = get_vpn(i);
+		uart_print("\tupdate lpns");
+		for(i = 0; i < sample_size; i++) {
+			//vpn = gc_allocate_new_vpn(lpn2bank(lpn));
+			vpn = 32 + rand() % 123456;
 
-		pmt_fetch(lpn, &vpn);
-		//uart_printf("%d: get lpn = %d, vpn = %d, expected_vpn = %d\r\n", 
-				//i, lpn, vpn, expected_vpn);
-		BUG_ON("vpn is not as expected", vpn != expected_vpn);
-	}
-	
+			set_lpn(i, lpn);
+			set_vpn(i, vpn);
+
+			pmt_update(lpn, vpn);
+			lpn++;
+			//uart_printf("%d: set lpn = %d, vpn = %d\r\n", i, lpn, vpn);
+		}
+		
+		uart_print("\tverify lpn->vpn");
+		for(i = 0; i < sample_size; i++) {
+			lpn = get_lpn(i);
+			expected_vpn = get_vpn(i);
+
+			pmt_fetch(lpn, &vpn);
+			//uart_printf("%d: get lpn = %d, vpn = %d, expected_vpn = %d\r\n", 
+					//i, lpn, vpn, expected_vpn);
+			BUG_ON("vpn is not as expected", vpn != expected_vpn);
+		}
+	}	
 	uart_print("PMT passed the unit test ^_^");
 }
 

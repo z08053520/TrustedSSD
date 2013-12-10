@@ -245,6 +245,8 @@ BOOL32 valid_sectors_include(UINT32 const valid_sectors_mask,
 			     UINT32 const offset, 
 			     UINT32 const num_sectors)
 {
+	BUG_ON("out of bound", offset + num_sectors > SECTORS_PER_PAGE);
+	
 	if (num_sectors == SECTORS_PER_PAGE)
 		return valid_sectors_mask == 0xFFFFFFFF;
 

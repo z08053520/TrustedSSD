@@ -54,7 +54,7 @@ void ftl_test()
 					val, num_sectors * BYTES_PER_SECTOR);
 
 			// do read with mask
-			mask = num_sectors == SECTORS_PER_PAGE ? 
+			mask = (num_sectors == SECTORS_PER_PAGE) ? 
 					0xFFFFFFFF : ((1<<num_sectors)-1) << offset;
 			
 			fu_read_page(bank, vpn[bank], TEMP_BUF_ADDR, mask);

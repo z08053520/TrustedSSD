@@ -197,7 +197,7 @@ BOOL32 cmt_get(UINT32 const lpn, UINT32 *vpn)
 {
 	cmt_node* node = (cmt_node*) hash_table_get_node(&_cmt_ht, lpn);
 
-	//dump_state();
+//	dump_state();
 
 	// print debug infomation
 	_cmt_statistic_total++;

@@ -9,9 +9,9 @@
 #include "test_util.h"
 #include <stdlib.h>
 
-#define RAND_SEED	1234567
-//#define MAX_NUM_SECTORS 512
-#define MAX_NUM_SECTORS SECTORS_PER_PAGE
+#define RAND_SEED	1234
+#define MAX_NUM_SECTORS 512
+//#define MAX_NUM_SECTORS SECTORS_PER_PAGE
 #define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES
 
 extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
@@ -20,7 +20,7 @@ extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
  * Performance Report 
  * =========================================================================*/
 
-#define PERF_REPORT_THRESHOLD	(2 * 1024 * 1024) 	/* 2MB */
+#define PERF_REPORT_THRESHOLD	(16 * 1024 * 1024) 	/* 16MB */
 static UINT32 pm_total_bytes;
 
 static void perf_monitor_reset() 
@@ -32,13 +32,13 @@ static void perf_monitor_reset()
 static void perf_monitor_report()
 {
 	UINT32 time_us 	  = timer_ellapsed_us();
-	UINT32 throughput = pm_total_bytes * 976 / time_us; /* KB/s */
-/*  
+	UINT32 throughput = pm_total_bytes / time_us;
+  
 	uart_printf("Transferred %d bytes (~%dMB) in %dus (~%dms), "
-		    "throughput %dKB/s (~%dMB/s)\r\n",
+		    "throughput %dMB/s\r\n",
 		    pm_total_bytes, pm_total_bytes / 1024 /1024,
 		    time_us, time_us / 1000, 
-		    throughput, throughput / 1024); */
+		    throughput);
 }
 
 static void perf_monitor_update(UINT32 const num_sectors)
@@ -110,7 +110,7 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 	UINT32 remain_sects = req_sectors;
 	UINT32 sata_buf_id  = g_ftl_write_buf_id;
 	UINT32 sata_buf     = WR_BUF_PTR(sata_buf_id);
-	UINT32 tmp_lba;
+	UINT32 tmp_lba, sect_limit;
 
 	// prepare SATA buffer by iterating pages in the request
 	while (remain_sects) {
@@ -121,13 +121,13 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 
 		mem_set_dram(sata_buf + BYTES_PER_SECTOR * sect_offset,
 			     sata_val,  BYTES_PER_SECTOR * num_sectors);
-		
+	
 		if (use_val_buf) {
-			for (tmp_lba = lpn * SECTORS_PER_PAGE + sect_offset;
-			     sect_offset < num_sectors; 
-			     sect_offset++, tmp_lba++) {
+			for (tmp_lba = lpn * SECTORS_PER_PAGE + sect_offset,
+			     sect_limit = sect_offset + num_sectors;
+			     sect_offset < sect_limit; 
+			     sect_offset++, tmp_lba++) 
 				set_val(tmp_lba, sata_val);
-			}
 		}
 
 		lpn++;
@@ -141,7 +141,7 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 	ftl_write(lba, req_sectors);
 }
 
-static void do_flash_verify(UINT32 lba, UINT32 const req_sectors, 
+static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors, 
 			    UINT32 sata_val,  BOOL8 const use_val_buf) 
 {
 	// read from flash 
@@ -153,8 +153,12 @@ static void do_flash_verify(UINT32 lba, UINT32 const req_sectors,
 	UINT32 remain_sects = req_sectors;
 	UINT32 num_sectors;
 	UINT32 num_bufs_rd  = COUNT_BUCKETS(req_sectors + sect_offset, SECTORS_PER_PAGE);
-	UINT32 sata_buf_id  = g_ftl_read_buf_id - num_bufs_rd;
+	UINT32 sata_buf_id  = g_ftl_read_buf_id >= num_bufs_rd ? 
+					g_ftl_read_buf_id - num_bufs_rd : 
+					NUM_RD_BUFFERS + g_ftl_read_buf_id - num_bufs_rd;	
 	UINT32 sata_buf     = RD_BUF_PTR(sata_buf_id);
+	UINT32 tmp_lba, sect_limit;
+	
 	
 	// verify data by iterating each page in the SATA buffer 
 	while (remain_sects) {
@@ -170,10 +174,13 @@ static void do_flash_verify(UINT32 lba, UINT32 const req_sectors,
 					      sect_offset, num_sectors));
 		}
 		else {
-			for (lba = lpn * SECTORS_PER_PAGE + sect_offset;
-			     sect_offset < num_sectors; 
-			     sect_offset++, lba++) {
-				sata_val = get_val(lba);
+			for (tmp_lba = lpn * SECTORS_PER_PAGE + sect_offset, 
+			     sect_limit = sect_offset + num_sectors;
+			     sect_offset < sect_limit; 
+			     sect_offset++, tmp_lba++) 
+			{
+				sata_val = get_val(tmp_lba);
+				
 				BUG_ON("data in read buffer is not as expected (2)", 
 					is_buff_wrong(sata_buf, sata_val, 
 						      sect_offset, 1));
@@ -199,8 +206,8 @@ static void seq_rw_test()
 {
 	uart_print("sequential read/write test");
 
-	//UINT32 num_requests	= MAX_NUM_REQS;
-	UINT32 num_requests	= NUM_BC_BUFFERS;
+	UINT32 num_requests	= MAX_NUM_REQS;
+	//UINT32 num_requests	= NUM_BC_BUFFERS;
 	/* 512B -> 4KB -> 7KB -> 17KB -> 32KB  */
 	UINT32 req_sizes[NUM_SEQ_REQ_SIZES] = {
 		1, KB2SEC(4), KB2SEC(7), KB2SEC(17), KB2SEC(32)
@@ -218,7 +225,7 @@ static void seq_rw_test()
 			do_flash_write(lba, req_sectors, val, FALSE);
 
 			lba += req_sectors;
-			perf_monitor_update(req_sectors);	
+			perf_monitor_update(req_sectors);
 		}
 	}
 
@@ -227,9 +234,7 @@ static void seq_rw_test()
 	lba = 0;
 	for (j = 0; j < NUM_SEQ_REQ_SIZES; j++) {
 		req_sectors = req_sizes[j];
-		uart_printf("req_size = %d\r\n", req_sectors);
 		for (i = 0; i < num_requests; i++) {
-			uart_printf("i = %d, lba = %d\r\n", i, lba);
 			val 	= lba;
 			do_flash_verify(lba, req_sectors, val, FALSE);
 
@@ -245,11 +250,13 @@ static void rnd_rw_test()
 {
 	uart_print("random read/write test");
 	
-	UINT32 num_requests = 64;//MAX_NUM_REQS;
+	UINT32 num_requests = MAX_NUM_REQS;
 	UINT32 lba, req_size, val;
 	UINT32 i;
 
 	BUG_ON("too many requests to run", num_requests > MAX_NUM_REQS);
+
+	uart_printf("max lba limited by val buf = %u\r\n", MAX_LBA_LIMIT_BY_VAL_BUF);
 
 	uart_print("random write");
 	perf_monitor_reset();
@@ -260,8 +267,6 @@ static void rnd_rw_test()
 		if (lba + req_size > MAX_LBA_LIMIT_BY_VAL_BUF)
 			req_size = MAX_LBA_LIMIT_BY_VAL_BUF - lba + 1;
 
-		//uart_printf("i = %u, lba = %u, bank = %u, req_size = %u\r\n", i, lba, lpn2bank(lba/SECTORS_PER_PAGE), req_size);
-		
 		do_flash_write(lba, req_size, val, TRUE);
 
 		set_lba(i, lba);
@@ -275,8 +280,6 @@ static void rnd_rw_test()
 	for (i = 0; i < num_requests; i++) {
 		lba	 = get_lba(i);
 		req_size = get_req_size(i);
-
-		uart_printf("i = %u, lba = %u, bank = %u, req_size = %u\r\n", i, lba, lpn2bank(lba/SECTORS_PER_PAGE), req_size);
 
 		do_flash_verify(lba, req_size, 0, TRUE);
 		

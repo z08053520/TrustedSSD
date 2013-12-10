@@ -20,7 +20,7 @@ void ftl_test()
 	BOOL32 res;
 	hash_node* node;
 
-	INFO("test", "start testing hash table..");
+	uart_print("start testing hash table..");
 
 	// init
 	hash_table_init(ht, capacity, 
@@ -85,7 +85,7 @@ void ftl_test()
 
 	BUG_ON("hash table is not empty", ht->size != 0);
 
-	INFO("test", "hash table passes the unit test ^_^");
+	uart_print("hash table passes the unit test ^_^");
 }
 
 #endif
