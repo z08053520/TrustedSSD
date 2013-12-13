@@ -180,6 +180,9 @@ void ftl_read(UINT32 const lba, UINT32 const total_sectors)
 	UINT32 sect_offset 		= lba % SECTORS_PER_PAGE;	// sector offset within the page
 	UINT32 sectors_remain	= total_sectors;
 
+	uart_printf("[ftl_read] g_ftl_read_buf_id=%d, SATA_RBUF_PTR=%d, BM_READ_LIMIT=%d\r\n", 
+			g_ftl_read_buf_id, GETREG(SATA_RBUF_PTR), GETREG(BM_READ_LIMIT));
+
 	while (sectors_remain != 0)	// one page per iteration
 	{
 		if (sect_offset + sectors_remain < SECTORS_PER_PAGE)
@@ -274,6 +277,9 @@ void ftl_write(UINT32 const lba, UINT32 const total_sectors)
 	UINT32 lpage_addr	= lba / SECTORS_PER_PAGE;
 	UINT32 sect_offset	= lba % SECTORS_PER_PAGE;
 	UINT32 remain_sectors = total_sectors;
+
+	uart_printf("[ftl_write] g_ftl_write_buf_id=%d, SATA_WBUF_PTR=%d, BM_WRITE_LIMIT=%d\r\n", 
+			g_ftl_write_buf_id, GETREG(SATA_WBUF_PTR), GETREG(BM_WRITE_LIMIT));
 
 	while (remain_sectors != 0)
 	{

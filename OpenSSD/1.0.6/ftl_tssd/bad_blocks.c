@@ -18,10 +18,6 @@ void bb_init()
 	mem_set_dram(BAD_BLK_BMP_ADDR, 0, BAD_BLK_BMP_BYTES);
 	mem_set_sram(_bad_blcks_cnt, 0, NUM_BANKS);
 
-	disable_irq();
-
-	flash_clear_irq();
-
 	FOR_EACH_BANK(bank)	
 	{
 		SETREG(FCP_CMD, FC_COL_ROW_READ_OUT);
@@ -68,8 +64,6 @@ void bb_init()
 		}
 		uart_print("");
 	}
-	
-	enable_irq();
 }
 
 BOOL32 bb_is_bad(UINT32 const bank, UINT32 const blk)

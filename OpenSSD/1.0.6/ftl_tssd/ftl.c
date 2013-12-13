@@ -39,6 +39,11 @@ static void sanity_check(void)
 
 	BUG_ON("DRAM is over-utilized", dram_requirement >= DRAM_SIZE);
 	BUG_ON("ftl_metadata is too larget", sizeof(ftl_metadata) > BYTES_PER_PAGE);
+	BUG_ON("Address of SATA buffers must be a integer multiple of " 
+	       "SATA_BUF_PAGE_SIZE, which is set as BYTES_PER_PAGE when started", 
+			RD_BUF_ADDR   % BYTES_PER_PAGE != 0 || 
+			WR_BUF_ADDR   % BYTES_PER_PAGE != 0 || 
+			COPY_BUF_ADDR % BYTES_PER_PAGE != 0);
 }
 
 /* this private function is used by unit test so it is not declared as static */
@@ -74,9 +79,7 @@ static void read_page  (UINT32 const lpn,
 
 	INFO("ftl>read>input", "read %d sectors at logical page %d with offset %d", 
 			num_sectors_to_read, lpn, sect_offset);
-	INFO("ftl>read>flow control", "g_ftl_read_buf_id=%d, SATA_RBUF_PTR=%d, BM_READ_LIMIT=%d", 
-			g_ftl_read_buf_id, GETREG(SATA_RBUF_PTR), GETREG(BM_READ_LIMIT));
-
+  
 	// try to read from cache
 	bc_get(lpn, &page_buff, BC_BUF_TYPE_USR);
 	if (page_buff) {
@@ -103,7 +106,6 @@ static void read_page  (UINT32 const lpn,
 	if (vpn != NULL)
 	{
 		bank = lpn2bank(lpn);
-
 		INFO("ftl>read>logic", "read from flash, bank = %d, vpn = %d", bank, vpn);
 		nand_page_ptread_to_host(bank,
 					 vpn / PAGES_PER_BLK,
@@ -150,8 +152,6 @@ static void write_page (UINT32 const lpn,
 
 	INFO("ftl>write>input", "write %d sectors at logical page %d with offset %d", 
 			num_sectors_to_write, lpn, sect_offset);
-	INFO("ftl>read>flow control", "g_ftl_write_buf_id=%d, SATA_WBUF_PTR=%d, BM_WRITE_LIMIT=%d", 
-			g_ftl_write_buf_id, GETREG(SATA_WBUF_PTR), GETREG(BM_WRITE_LIMIT));
 
 	bc_get(lpn, &buff_addr, BC_BUF_TYPE_USR);
 	if (buff_addr == NULL) {
@@ -230,6 +230,9 @@ void ftl_open(void) {
 	led(0);
     	sanity_check();
 
+	disable_irq();
+	flash_clear_irq();
+
 	/* the initialization order indicates the dependencies between modules */
 	bb_init();
 	cmt_init();
@@ -243,6 +246,13 @@ void ftl_open(void) {
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
 
+	flash_clear_irq();
+	// This example FTL can handle runtime bad block interrupts and read fail (uncorrectable bit errors) interrupts
+	SETREG(INTR_MASK, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);
+	SETREG(FCONF_PAUSE, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);
+
+	enable_irq();
+
 	uart_print("ftl_open done\r\n");
 }
 
@@ -254,6 +264,9 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
     	lpn          = lba / SECTORS_PER_PAGE;
     	sect_offset  = lba % SECTORS_PER_PAGE;
     	remain_sects = num_sectors;
+
+/*  	uart_printf("ftl read: g_ftl_read_buf_id=%d, SATA_RBUF_PTR=%d, BM_READ_LIMIT=%d\r\n", 
+			g_ftl_read_buf_id, GETREG(SATA_RBUF_PTR), GETREG(BM_READ_LIMIT)); */
 
 	while (remain_sects != 0)
 	{
@@ -279,6 +292,9 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
 	sect_offset  = lba % SECTORS_PER_PAGE;
  	remain_sects = num_sectors;
 
+	/*  uart_printf("ftl write: g_ftl_write_buf_id=%d, SATA_WBUF_PTR=%d, BM_WRITE_LIMIT=%d\r\n", 
+			g_ftl_write_buf_id, GETREG(SATA_WBUF_PTR), GETREG(BM_WRITE_LIMIT));*/
+
     	while (remain_sects != 0)
     	{
 		if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
@@ -303,6 +319,47 @@ void ftl_flush(void) {
 }
 
 void ftl_isr(void) {
-	/* TODO: add BSP interrupt handler */
-	INFO("ftl", "ftl_isr is called");
+	// interrupt service routine for flash interrupts
+	UINT32 bank;
+	UINT32 bsp_intr_flag;
+
+	for (bank = 0; bank < NUM_BANKS; bank++)
+	{
+		while (BSP_FSM(bank) != BANK_IDLE);
+
+		bsp_intr_flag = BSP_INTR(bank);
+
+		if (bsp_intr_flag == 0)
+		{
+			continue;
+		}
+
+		UINT32 fc = GETREG(BSP_CMD(bank));
+
+		CLR_BSP_INTR(bank, bsp_intr_flag);
+
+		if (bsp_intr_flag & FIRQ_DATA_CORRUPT)
+		{
+//			g_read_fail_count++;
+			WARNING("warning", "flash read failure");
+		}
+
+		if (bsp_intr_flag & (FIRQ_BADBLK_H | FIRQ_BADBLK_L))
+		{
+			if (fc == FC_COL_ROW_IN_PROG || fc == FC_IN_PROG || fc == FC_PROG)
+			{
+//				g_program_fail_count++;
+				WARNING("warning", "flash program failure");
+			}
+			else
+			{
+				ASSERT(fc == FC_ERASE);
+//				g_erase_fail_count++;
+				WARNING("warning", "flash erase failure");
+			}
+		}
+	}
+
+	// clear the flash interrupt flag at the interrupt controller
+	SETREG(APB_INT_STS, INTR_FLASH);
 }

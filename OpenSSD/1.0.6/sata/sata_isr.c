@@ -104,6 +104,7 @@ static __inline void handle_got_cfis(void)
 	fis_d1 = GETREG(SATA_FIS_H2D_1);
 	fis_d3 = GETREG(SATA_FIS_H2D_3);
 
+	// Get session key
 	session_key = GETREG(SATA_FIS_H2D_4);
 	if(session_key) {
 		uart_print("session_key:");
