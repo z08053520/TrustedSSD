@@ -289,6 +289,57 @@ static void rnd_rw_test()
 	uart_print("done");
 }
 
+static void long_seq_rw_test() 
+{
+	uart_print("long sequential read/write test");
+
+	const UINT32 req_size_pattern[] = {
+		//1, 7, 15, 6, 23, 125, 67,	/* in sectors */
+		32,
+		0 /* end */
+	};
+	const UINT32 total_bytes = 256 * 1024 * 1024; /* 1GB */
+
+	UINT32 lba, req_sectors, val;
+	UINT32 pattern_i;
+	UINT32 num_bytes_so_far;
+
+	uart_print("long sequential write");
+	perf_monitor_reset();
+	lba = 0;
+	pattern_i = 0;
+	num_bytes_so_far = 0;
+	while (num_bytes_so_far < total_bytes) {
+		req_sectors 	  = req_size_pattern[pattern_i];
+		val		  = lba;
+		do_flash_write(lba, req_sectors, val, FALSE);
+
+		lba 		 += req_sectors;
+		pattern_i 	  = req_size_pattern[pattern_i+1] > 0 ? 
+					pattern_i + 1 : 0;
+		num_bytes_so_far += req_sectors * BYTES_PER_SECTOR;
+	}
+	perf_monitor_update(num_bytes_so_far / BYTES_PER_SECTOR);
+
+	uart_print("long seqential read and verify");
+	perf_monitor_reset();
+	lba = 0;
+	pattern_i = 0;
+	num_bytes_so_far = 0;
+	while (num_bytes_so_far < total_bytes) {
+		req_sectors 	  = req_size_pattern[pattern_i];
+		val		  = lba;
+		do_flash_verify(lba, req_sectors, val, FALSE);
+
+		lba 		 += req_sectors;
+		pattern_i 	  = req_size_pattern[pattern_i+1] > 0 ? 
+					pattern_i + 1 : 0;
+		num_bytes_so_far += req_sectors * BYTES_PER_SECTOR;
+	}
+	perf_monitor_update(num_bytes_so_far / BYTES_PER_SECTOR);
+	uart_print("done");
+}
+
 void ftl_test()
 {
 	uart_print("Start testing FTL unit test");
@@ -296,8 +347,12 @@ void ftl_test()
 	init_dram();
 
 	srand(RAND_SEED);
+
 	seq_rw_test();
 	rnd_rw_test();
+	
+	long_seq_rw_test();	
+	long_seq_rw_test();
 
 	uart_print("FTL passed unit test ^_^");
 }
