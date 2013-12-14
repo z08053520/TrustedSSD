@@ -17,43 +17,6 @@
 extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
 
 /* ===========================================================================
- * Performance Report 
- * =========================================================================*/
-
-#define PERF_REPORT_THRESHOLD	(16 * 1024 * 1024) 	/* 16MB */
-static UINT32 pm_total_bytes;
-
-static void perf_monitor_reset() 
-{
-	pm_total_bytes = 0;
-	timer_reset();
-}
-
-static void perf_monitor_report()
-{
-	UINT32 time_us 	  = timer_ellapsed_us();
-	UINT32 throughput = pm_total_bytes / time_us;
-  
-	uart_printf("Transferred %d bytes (~%dMB) in %dus (~%dms), "
-		    "throughput %dMB/s\r\n",
-		    pm_total_bytes, pm_total_bytes / 1024 /1024,
-		    time_us, time_us / 1000, 
-		    throughput);
-}
-
-static void perf_monitor_update(UINT32 const num_sectors)
-{
-	pm_total_bytes += BYTES_PER_SECTOR * num_sectors;
-	
-	if (pm_total_bytes >= PERF_REPORT_THRESHOLD) {
-		perf_monitor_report();
-
-		pm_total_bytes = 0;
-		timer_reset();
-	}
-}
-
-/* ===========================================================================
  * DRAM buffer to store lbas and req_sizes 
  * =========================================================================*/
 

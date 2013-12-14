@@ -19,6 +19,7 @@ RM	= rm
 #TEST = gtd
 #TEST = hash_table
 #TEST = pmt
+TEST = perf
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size
@@ -41,7 +42,7 @@ TARGETBIN = $(TARGET).bin
 ifdef TEST
 CFLAGS += -D OPTION_FTL_TEST
 VPATH  += :../test_tssd
-SRCS   += test_${TEST}.c
+SRCS   += test_${TEST}.c test_util.c
 endif
 
 $(TARGETBIN): $(TARGETELF)
