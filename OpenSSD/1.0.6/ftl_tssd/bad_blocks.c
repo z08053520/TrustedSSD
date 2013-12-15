@@ -57,8 +57,8 @@ void bb_init()
 			_bb_set_bmp(bank, pblk_offset / 2);
 #else
 			_bb_set_bmp(bank, pblk_offset);
-#endif
 			BUG_ON("should be bad but not tested", !bb_is_bad(bank, pblk_offset));
+#endif
 			
 			_bad_blcks_cnt[bank]++;
 		}

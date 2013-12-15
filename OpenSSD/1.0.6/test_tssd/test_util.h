@@ -15,7 +15,7 @@ void perf_monitor_update(UINT32 const num_sectors);
 UINT32 random(UINT32 const min, UINT32 const max);
 
 BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
-		    UINT8 offset, UINT8 num_sectors)
+		    UINT8 offset, UINT8 num_sectors);
 
 #endif
 #endif

@@ -15,10 +15,10 @@ static void sram_perf_test()
 	uart_print("SRAM performance test begins...");
 
 	UINT32 sram_begin = SRAM_BASE,
-	       sram_end   = SRAM_BASE + SRAM_SIZE;
+	       sram_end   = SRAM_BASE + 4096;
 	UINT32 sram_addr  = sram_begin;
 	
-	UINT32 total_operations = 1024 * 1024 * 1024;
+	UINT32 total_operations = 64 * 1024;
 	UINT32 num_operations   = 0;
 
 	UINT32 sum = 0;
@@ -32,11 +32,9 @@ static void sram_perf_test()
 		num_operations ++;
 	}
 	UINT32 time_us = timer_ellapsed_us();
-	uart_printf("SRAM throughput = %uMB/s, latency = %dus/s\r\n",
-		    total_operations / 1000 / time_us * sizeof(UINT32),
-		    1.0 * time_us / total_operations);
-
-	uart_print("Done");
+	uart_printf("SRAM throughput = %uMB/s, latency = %uns\r\n",
+		    total_operations * sizeof(UINT32) / time_us,
+		    1000 * time_us / total_operations);
 }
 
 static void dram_perf_test()
@@ -48,7 +46,7 @@ static void dram_perf_test()
 
 	uart_print("First, test throughput");
 
-	UINT32 num_bytes_to_copy = 1024 * 1024 * 1024; // 1GB
+	UINT32 num_bytes_to_copy = 2 << 30; // 2GB
 	UINT32 num_pages_to_copy = num_bytes_to_copy / BYTES_PER_PAGE;
 	UINT32 num_pages_copied  = 0;
 	bank = 0;
@@ -60,13 +58,13 @@ static void dram_perf_test()
 		num_pages_copied++;
 	}
 	time_us = timer_ellapsed_us();
-	uart_printf("DRAM copy throughput = %uMB/s (time = %ums)\r\n", 
-		    num_bytes_to_copy / time_us, time_us / 1000);
+	uart_printf("DRAM copy throughput = %uMB/s (latency = %uus)\r\n", 
+		    num_bytes_to_copy / time_us, time_us / num_pages_copied);
 
 	uart_print("Next, test latency");
 	UINT32 total_mem_operations = 1024 * 1024;
-	UINT32 addr_begin = BUFS_ADDR, addr_end = HIL_BUF_ADDR;
-	UINT32 addr = addr_begin;
+	UINT32 begin_addr = BUFS_ADDR, end_addr = HIL_BUF_ADDR;
+	UINT32 addr = begin_addr;
 	UINT32 num_mem_operations  = 0;
 	timer_reset();
 	while (num_mem_operations < total_mem_operations) {
@@ -79,8 +77,8 @@ static void dram_perf_test()
 		num_mem_operations += 2;	// read + write
 	}
 	time_us = timer_ellapsed_us();
-	uart_printf("DRAM access latency = %dus\r\n", 
-		    1.0 * time_us / total_mem_operations);
+	uart_printf("DRAM access latency = %uns\r\n", 
+		    1000 * time_us / total_mem_operations);
 
 	uart_print("Done");
 }
@@ -94,20 +92,20 @@ static void flash_perf_test()
 
 	uart_print("First, test throughput");
 
-	UINT32 total_mb_thr		= 256;
+	UINT32 total_mb_thr		= 512;
 	UINT32 total_sectors_thr	= total_mb_thr * 1024 * 1024 / BYTES_PER_SECTOR;
 	UINT32 num_sectors_so_far;
 	
 	uart_printf("Write %uMB data parallelly into all banks\r\n", total_mb_thr);
 	num_sectors_so_far = 0;
 	perf_monitor_reset();
-	while (num_sectors_so_far > total_sectors_thr) {
+	while (num_sectors_so_far < total_sectors_thr) {
 		FOR_EACH_BANK(bank) {
 			vpn = gc_allocate_new_vpn(bank);	
 
 			nand_page_program_from_host(bank, 
 						    vpn / PAGES_PER_VBLK, 
-						    vpn % PAGES_PER_VBLK)
+						    vpn % PAGES_PER_VBLK);
 
 			num_sectors_so_far += SECTORS_PER_PAGE;
 		}
@@ -132,17 +130,19 @@ static void flash_perf_test()
 					       vpn % PAGES_PER_VBLK); 
 
 			vpns[bank]++;
+			num_sectors_so_far += SECTORS_PER_PAGE;
 		}
 	}
 	perf_monitor_update(num_sectors_so_far);
 
 	uart_print("Next, test latency");
 
-	UINT32 total_pages = 64 * 1024, num_pages_so_far;
+	UINT32 total_pages = 12 * 1024, num_pages_so_far;
 	UINT32 time_us;
 	UINT32 i;
 	UINT32 sectors[] = {1, SECTORS_PER_PAGE}; // 1 sector, 1 page
 
+	// Measure latency for one sector and one page, respectively
 	for(i = 0; i < 2; i++) {
 		uart_printf("Synchronously write individual %s one by one to a bank\r\n",
 			   i == 0 ? "sector" : "page");
@@ -179,7 +179,8 @@ static void flash_perf_test()
 			while (vpn % PAGES_PER_VBLK == 0 && 
 			       bb_is_bad(bank, vpn / PAGES_PER_VBLK)) {
 				vpn += PAGES_PER_VBLK;
-		
+			}
+
 			// only read one sector
 			nand_page_ptread_to_host(bank, 
 						 vpn / PAGES_PER_VBLK, 
@@ -192,6 +193,7 @@ static void flash_perf_test()
 			while (BSP_FSM(bank) != BANK_IDLE);
 
 			num_pages_so_far ++;
+			vpn ++;
 		}
 		time_us = timer_ellapsed_us();
 		uart_printf("Flash read latency = %uus (total time = %ums)\r\n", 
@@ -206,7 +208,7 @@ static void ftl_perf_test(UINT32 const num_sectors)
 	uart_printf("FTL performance test (unit = %u bytes) begins...\r\n", 
 		    num_sectors * BYTES_PER_SECTOR);
 
-	UINT32 total_mb		= 256;
+	UINT32 total_mb		= 128;
 	UINT32 total_sectors 	= total_mb * 1024 * 1024 / BYTES_PER_SECTOR;
 
 	UINT32 lba, end_lba = total_sectors;
@@ -223,7 +225,8 @@ static void ftl_perf_test(UINT32 const num_sectors)
 
 			lba += num_sectors;
 		}
-		perf_monitor_udpate(total_sectors);
+		perf_monitor_update(total_sectors);
+
 		// write
 		uart_printf("Write sequentially %uMB of data", total_mb);
 		lba = 0;
@@ -233,7 +236,7 @@ static void ftl_perf_test(UINT32 const num_sectors)
 		
 			lba += num_sectors;
 		}
-		perf_monitor_udpate(total_sectors);
+		perf_monitor_update(total_sectors);
 	}
 
 	uart_print("Done");
@@ -241,10 +244,17 @@ static void ftl_perf_test(UINT32 const num_sectors)
 
 void ftl_test()
 {
-	ftl_perf_test();	
-	flash_perf_test();
-	dram_perf_test();
-	sram_perf_test();
+	uart_print("Performance test begins...");
+	uart_print("------------------------ SRAM ---------------------------");
+		sram_perf_test();
+	uart_print("------------------------ DRAM ---------------------------");
+		dram_perf_test();
+	uart_print("---------------------- Raw Flash ------------------------");
+		flash_perf_test();
+	uart_print("------------------------ FTL ----------------------------");
+		ftl_perf_test(8);	// granularity -- 4KB
+	uart_print("--------------------------------------------------------");
+	uart_print("Performance test is done ^_^");
 }
 
 #endif
