@@ -17,7 +17,7 @@ void ftl_test()
 	UINT32 val;
 	UINT8  offset, num_sectors;
 	BOOL8  wrong;
-	UINT32 mask;
+	sectors_mask_t mask;
 
 	UINT32 i, repeats = 128;
 
@@ -55,7 +55,7 @@ void ftl_test()
 
 			// do read with mask
 			mask = (num_sectors == SECTORS_PER_PAGE) ? 
-					0xFFFFFFFF : ((1<<num_sectors)-1) << offset;
+					FULL_MASK : ((1ULL<<num_sectors)-1) << offset;
 			
 			fu_read_page(bank, vpn[bank], TEMP_BUF_ADDR, mask);
 

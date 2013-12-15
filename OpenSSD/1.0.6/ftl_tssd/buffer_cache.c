@@ -14,10 +14,10 @@
  * ========================================================================*/
 
 typedef struct _bc_node {
-	hash_node hn;
-	UINT16 next_idx;
-	UINT16 pre_idx;
-	UINT32 mask;
+	hash_node 	hn;
+	UINT16		next_idx;
+	UINT16 		pre_idx;
+	sectors_mask_t 	mask;
 } bc_node;
 
 #define KEY_PMT_BIT		(1 << (HT_KEY_LEN-1))
@@ -163,13 +163,13 @@ static bc_node* segment_drop(UINT8 const seg_index)
 
 static void bc_evict(void)
 {
-	int bank;
-	bc_node* victim_node;
-	bc_node* victim_nodes[NUM_BANKS];
-	UINT32 vpn[NUM_BANKS];
-	UINT32 buff_addr[NUM_BANKS];
-	UINT32 valid_sectors_mask[NUM_BANKS];
-	BOOL8  dirty[NUM_BANKS];
+	int 		bank;
+	bc_node* 	victim_node;
+	bc_node* 	victim_nodes[NUM_BANKS];
+	UINT32 		vpn[NUM_BANKS];
+	UINT32 		buff_addr[NUM_BANKS];
+	sectors_mask_t 	valid_sectors_mask[NUM_BANKS];
+	BOOL8  		dirty[NUM_BANKS];
 
 	/* to leverage the inner parallelism between banks in flash, we do 
 	 * eviction in a batch fashion */
@@ -241,16 +241,16 @@ static void bc_evict(void)
 //	uart_print("");
 }
 
-BOOL32 valid_sectors_include(UINT32 const valid_sectors_mask, 
-			     UINT32 const offset, 
-			     UINT32 const num_sectors)
+static BOOL32 valid_sectors_include(sectors_mask_t const valid_sectors_mask, 
+			     	    UINT32 const offset, 
+			     	    UINT32 const num_sectors)
 {
 	BUG_ON("out of bound", offset + num_sectors > SECTORS_PER_PAGE);
 	
 	if (num_sectors == SECTORS_PER_PAGE)
-		return valid_sectors_mask == 0xFFFFFFFF;
+		return valid_sectors_mask == FULL_MASK;
 
-	UINT32 test_sectors_mask = ((1 << num_sectors) - 1) << offset;
+	UINT32 test_sectors_mask = ((1ULL << num_sectors) - 1) << offset;
 	return (valid_sectors_mask & test_sectors_mask) == test_sectors_mask;
 }
 
@@ -262,8 +262,6 @@ void bc_init(void)
 {
 	UINT32 bank;
 	bc_node* head_tail_buf = (bc_node*)(_bc_ht_buffer + BC_HT_BUFFER_SIZE);
-
-	BUG_ON("page size larger than 16KB", BYTES_PER_PAGE > 16 * 1024);
 
 	INFO("bc>init", "# of cache buffers = %d, size of buffer cache ~= %dMB", 
 				NUM_BC_BUFFERS, BC_BYTES / 1024 / 1024);
@@ -344,7 +342,8 @@ void bc_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
 	bc_node* node = (bc_node*) hash_table_get_node(
 						&_bc_ht, 
 						real_key(key, type));
-	UINT32 bank, vpn, buff_addr, mask;
+	UINT32 bank, vpn, buff_addr;
+	sectors_mask_t mask;
 
 	BUG_ON("node doesn't exist", node == NULL);
 
@@ -381,9 +380,9 @@ void bc_set_valid_sectors(UINT32 key, UINT8 offset, UINT8 const num_sectors,
 	BUG_ON("out of bounds", offset + num_sectors > SECTORS_PER_PAGE);
 
 	if (num_sectors == SECTORS_PER_PAGE)
-		node_mask(node) = 0xFFFFFFFF;
+		node_mask(node) = FULL_MASK;
 	else
-		node_mask(node) |= (((1 << num_sectors) - 1) << offset);
+		node_mask(node) |= (((1ULL << num_sectors) - 1) << offset);
 }
 
 void bc_set_dirty(UINT32 key, bc_buf_type const type)

@@ -25,7 +25,6 @@
 #define	BANK_BMP		0x00330033
 #define	CLOCK_SPEED		175000000
 
-#define	OPTION_2_PLANE			0	// 1 = 2-plane mode, 0 = 1-plane mode
 #define OPTION_ENABLE_ASSERT		1	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
 #define OPTION_UART_DEBUG		1	// 1 = enable UART message output, 0 = disable
 #define OPTION_SLOW_SATA		0	// 1 = SATA 1.5Gbps, 0 = 3Gbps
@@ -41,6 +40,14 @@
  * To run unit tests, you have to specify which test case to run in the
  * Makefile, which will automatically define OPTION_FTL_TEST.
  * */
+
+/* About macro OPTION_2_PLANE
+ * 
+ * Flash performance profiling result shows that flash throughput is
+ * remarkably larger when the page size is 32KB. Thus, it is better to enable 
+ * OPTION_2_PLANE. TSSD FTL can work with a page size of either 16KB or 32KB. 
+ * */
+#define	OPTION_2_PLANE			1	// 1 = 2-plane mode, 0 = 1-plane mode
 
 #define CHN_WIDTH			2 	// 2 = 16bit IO
 #define NUM_CHNLS_MAX		4
@@ -155,6 +162,15 @@ typedef	unsigned char		UINT8;
 typedef	unsigned short		UINT16;
 typedef	unsigned int		UINT32;
 typedef unsigned long long	UINT64;
+
+#if OPTION_2_PLANE
+	typedef UINT64		sectors_mask_t;
+	#define FULL_MASK	0xFFFFFFFFFFFFFFFFULL		
+#else
+	typedef UINT32		sectors_mask_t;
+	#define FULL_MASK	0xFFFFFFFFUL
+#endif
+#define MAX_ULL			
 
 #define MIN(X, Y)				((X) > (Y) ? (Y) : (X))
 #define MAX(X, Y)				((X) > (Y) ? (X) : (Y))

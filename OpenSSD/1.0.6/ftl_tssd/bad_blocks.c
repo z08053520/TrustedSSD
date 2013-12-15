@@ -42,7 +42,7 @@ void bb_init()
 
 		INFO("bb>init", "bank %d: # of bad blocks = %d", bank, num_entries);
 
-		uart_printf("\tbank %d: ", bank);
+		uart_printf("\tbank %d (%u bad blocks): ", bank, num_entries);
 		for (i = 0; i < num_entries; i++)
 		{
 			UINT16 entry = read_dram_16(scan_list->list + i);
@@ -55,6 +55,7 @@ void bb_init()
 			uart_printf(i ? ", %d" : "%d", pblk_offset);
 #if OPTION_2_PLANE
 			_bb_set_bmp(bank, pblk_offset / 2);
+			BUG_ON("should be bad but not tested", !bb_is_bad(bank, pblk_offset/2));
 #else
 			_bb_set_bmp(bank, pblk_offset);
 			BUG_ON("should be bad but not tested", !bb_is_bad(bank, pblk_offset));

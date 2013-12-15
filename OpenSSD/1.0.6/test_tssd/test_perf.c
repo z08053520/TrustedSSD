@@ -217,7 +217,7 @@ static void ftl_perf_test(UINT32 const num_sectors)
 		uart_printf("Round %u\r\n", i);
 
 		// read
-		uart_printf("Read sequentially %uMB of data", total_mb);
+		uart_printf("Read sequentially %uMB of data\r\n", total_mb);
 		lba = 0;
 		perf_monitor_reset();
 		while (lba < end_lba) {
@@ -228,7 +228,7 @@ static void ftl_perf_test(UINT32 const num_sectors)
 		perf_monitor_update(total_sectors);
 
 		// write
-		uart_printf("Write sequentially %uMB of data", total_mb);
+		uart_printf("Write sequentially %uMB of data\r\n", total_mb);
 		lba = 0;
 		perf_monitor_reset();
 		while (lba < end_lba) {

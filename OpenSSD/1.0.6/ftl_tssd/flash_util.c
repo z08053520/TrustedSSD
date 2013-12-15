@@ -8,7 +8,7 @@
 #define is_sector_valid(i, mask) 	(((mask >> i) & 1) == 1)
 
 static void merge_buff(UINT32 const target_buf_addr, 
-		       UINT32 const valid_sectors_mask, 
+		       sectors_mask_t const valid_sectors_mask, 
 		       UINT32 const src_buf_addr)
 {
 	UINT8 begin = 0, end = 0; 
@@ -42,7 +42,7 @@ static void merge_buff(UINT32 const target_buf_addr,
 static BOOL32 read_page_with_mask(UINT32 const bank, 
 				UINT32 const vpn,
 		      		UINT32 const buff_addr, 
-				UINT32 const valid_sectors_mask,
+				sectors_mask_t const valid_sectors_mask,
 		      		UINT32 const sync)
 {
 	UINT8 valid_sectors = __builtin_popcount(valid_sectors_mask);
@@ -125,7 +125,7 @@ void fu_format(UINT32 const from_vblk)
 }
 
 void fu_read_page(UINT32 const bank, UINT32 const vpn, 
-		    	    UINT32 const buff_addr, UINT32 const valid_sectors_mask)
+		    	    UINT32 const buff_addr, sectors_mask_t const valid_sectors_mask)
 {
 	read_page_with_mask(bank, vpn, buff_addr, 
 			    valid_sectors_mask, RETURN_WHEN_DONE);	
@@ -135,7 +135,7 @@ void fu_read_page(UINT32 const bank, UINT32 const vpn,
 
 void fu_read_pages_in_parallel( UINT32 vpn[], 
 				UINT32 buff_addr[],
-				UINT32 valid_sectors_mask[])
+				sectors_mask_t valid_sectors_mask[])
 {
 	UINT32 bank;
 	BOOL32 need_merge[NUM_BANKS];
