@@ -201,6 +201,13 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 	uart_print("Done");
 }
 
+#define FTL_REQ_UNALIGNED
+#ifdef  FTL_REQ_UNALIGNED
+	#define LBA_BEGIN	3
+#else
+	#define LBA_BEGIN	0 
+#endif
+
 static void ftl_perf_test(UINT32 const num_sectors, UINT32 const total_mb)
 {
 	uart_printf("FTL performance test (unit = %u bytes) begins...\r\n", 
@@ -212,7 +219,7 @@ static void ftl_perf_test(UINT32 const num_sectors, UINT32 const total_mb)
 		
 	// write
 	uart_printf("Write sequentially %uMB of data\r\n", total_mb);
-	lba = 0;
+	lba = LBA_BEGIN;
 	perf_monitor_reset();
 	while (lba < end_lba) {
 		ftl_write(lba, num_sectors);
@@ -223,7 +230,7 @@ static void ftl_perf_test(UINT32 const num_sectors, UINT32 const total_mb)
 
 	// read
 	uart_printf("Read sequentially %uMB of data\r\n", total_mb);
-	lba = 0;
+	lba = LBA_BEGIN;
 	perf_monitor_reset();
 	while (lba < end_lba) {
 		ftl_read(lba, num_sectors);
@@ -246,8 +253,9 @@ void ftl_test()
 		//UINT32 total_mb_thr = 512;
 		//flash_perf_test(total_mb_thr);
 	uart_print("------------------------ FTL ----------------------------");
-		UINT32 total_mb     = 512;
-		//ftl_perf_test(8, total_mb);	// granularity -- 4KB
+		UINT32 total_mb     = 256;
+		ftl_perf_test(8, total_mb);	// granularity -- 4KB
+		ftl_perf_test(32, total_mb);	// granularity -- 16KB
 		ftl_perf_test(64, total_mb);	// granularity -- 32KB
 	uart_print("--------------------------------------------------------");
 	uart_print("Performance test is done ^_^");
