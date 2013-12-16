@@ -22,7 +22,9 @@
 
 #define	FLASH_TYPE		K9LCG08U1M
 #define	DRAM_SIZE		65075200
-#define	BANK_BMP		0x00330033
+// Default flash modules configuration
+//#define	BANK_BMP		0x00330033
+#define	BANK_BMP		0x00FF00FF
 #define	CLOCK_SPEED		175000000
 
 #define OPTION_ENABLE_ASSERT		0	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()

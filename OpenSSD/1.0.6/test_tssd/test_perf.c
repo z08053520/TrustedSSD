@@ -201,7 +201,7 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 	uart_print("Done");
 }
 
-#define FTL_REQ_UNALIGNED
+//#define FTL_REQ_UNALIGNED
 #ifdef  FTL_REQ_UNALIGNED
 	#define LBA_BEGIN	3
 #else
