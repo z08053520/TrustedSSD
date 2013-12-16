@@ -252,7 +252,8 @@ void ftl_test()
 	uart_print("---------------------- Raw Flash ------------------------");
 		flash_perf_test();
 	uart_print("------------------------ FTL ----------------------------");
-		ftl_perf_test(8);	// granularity -- 4KB
+		//ftl_perf_test(8);	// granularity -- 4KB
+		ftl_perf_test(64);	// granularity -- 32KB
 	uart_print("--------------------------------------------------------");
 	uart_print("Performance test is done ^_^");
 }
