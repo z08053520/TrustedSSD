@@ -34,6 +34,10 @@ void nand_page_read(UINT32 const bank, UINT32 const vblock, UINT32 const page_nu
     ASSERT(vblock < VBLKS_PER_BANK);
     ASSERT(page_num < PAGES_PER_BLK);
 
+#if OPTION_PERF_TUNING 
+	g_flash_read_count++;	
+#endif
+
     // row means ppn
     row = (vblock * PAGES_PER_BLK) + page_num;
 
@@ -59,6 +63,10 @@ void nand_page_ptread(UINT32 const bank, UINT32 const vblock, UINT32 const page_
     ASSERT(vblock < VBLKS_PER_BANK);
     ASSERT(page_num < PAGES_PER_BLK);
 
+#if OPTION_PERF_TUNING 
+	g_flash_read_count++;	
+#endif
+
     // row means ppn
     row = (vblock * PAGES_PER_BLK) + page_num;
 
@@ -82,6 +90,10 @@ void nand_page_read_to_host(UINT32 const bank, UINT32 const vblock, UINT32 const
     ASSERT(bank < NUM_BANKS);
     ASSERT(vblock < VBLKS_PER_BANK);
     ASSERT(page_num < PAGES_PER_BLK);
+
+#if OPTION_PERF_TUNING 
+	g_flash_read_count++;	
+#endif
 
     row = (vblock * PAGES_PER_BLK) + page_num;
 
@@ -114,6 +126,10 @@ void nand_page_ptread_to_host(UINT32 const bank, UINT32 const vblock, UINT32 con
     ASSERT(vblock < VBLKS_PER_BANK);
     ASSERT(page_num < PAGES_PER_BLK);
 
+#if OPTION_PERF_TUNING 
+	g_flash_read_count++;	
+#endif
+
     row = (vblock * PAGES_PER_BLK) + page_num;
 
     SETREG(FCP_CMD, FC_COL_ROW_READ_OUT);
@@ -144,6 +160,10 @@ void nand_page_program(UINT32 const bank, UINT32 const vblock, UINT32 const page
     ASSERT(vblock < VBLKS_PER_BANK);
     ASSERT(page_num < PAGES_PER_BLK);
 
+#if OPTION_PERF_TUNING 
+	g_flash_write_count++;	
+#endif
+
     row = (vblock * PAGES_PER_BLK) + page_num;
 
     SETREG(FCP_CMD, FC_COL_ROW_IN_PROG);
@@ -164,6 +184,10 @@ void nand_page_ptprogram(UINT32 const bank, UINT32 const vblock, UINT32 const pa
     ASSERT(vblock < VBLKS_PER_BANK);
     ASSERT(page_num < PAGES_PER_BLK);
 
+#if OPTION_PERF_TUNING 
+	g_flash_write_count++;	
+#endif
+
     row = (vblock * PAGES_PER_BLK) + page_num;
 
     SETREG(FCP_CMD, FC_COL_ROW_IN_PROG);
@@ -183,6 +207,10 @@ void nand_page_program_from_host(UINT32 const bank, UINT32 const vblock, UINT32 
     ASSERT(bank < NUM_BANKS);
     ASSERT(vblock < VBLKS_PER_BANK);
     ASSERT(page_num < PAGES_PER_BLK);
+
+#if OPTION_PERF_TUNING 
+	g_flash_write_count++;	
+#endif
 
     row = (vblock * PAGES_PER_BLK) + page_num;
 
@@ -210,6 +238,10 @@ void nand_page_ptprogram_from_host(UINT32 const bank, UINT32 const vblock, UINT3
     ASSERT(bank < NUM_BANKS);
     ASSERT(vblock < VBLKS_PER_BANK);
     ASSERT(page_num < PAGES_PER_BLK);
+
+#if OPTION_PERF_TUNING 
+	g_flash_write_count++;	
+#endif
 
     row = (vblock * PAGES_PER_BLK) + page_num;
 
