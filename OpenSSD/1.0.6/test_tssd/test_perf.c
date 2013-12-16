@@ -83,7 +83,7 @@ static void dram_perf_test()
 	uart_print("Done");
 }
 
-static void flash_perf_test()
+static void flash_perf_test(UINT32 const total_mb_thr)
 {
 	uart_print("Raw flash operation performance test begins...");
 
@@ -92,7 +92,6 @@ static void flash_perf_test()
 
 	uart_print("First, test throughput");
 
-	UINT32 total_mb_thr		= 512;
 	UINT32 total_sectors_thr	= total_mb_thr * 1024 * 1024 / BYTES_PER_SECTOR;
 	UINT32 num_sectors_so_far;
 	
@@ -203,41 +202,37 @@ static void flash_perf_test()
 	uart_print("Done");
 }
 
-static void ftl_perf_test(UINT32 const num_sectors)
+static void ftl_perf_test(UINT32 const num_sectors, UINT32 const total_mb)
 {
 	uart_printf("FTL performance test (unit = %u bytes) begins...\r\n", 
 		    num_sectors * BYTES_PER_SECTOR);
 
-	UINT32 total_mb		= 128;
 	UINT32 total_sectors 	= total_mb * 1024 * 1024 / BYTES_PER_SECTOR;
 
 	UINT32 lba, end_lba = total_sectors;
 	UINT32 i;
-	for(i = 0; i < 2; i++) {
-		uart_printf("Round %u\r\n", i);
-
-		// read
-		uart_printf("Read sequentially %uMB of data\r\n", total_mb);
-		lba = 0;
-		perf_monitor_reset();
-		while (lba < end_lba) {
-			ftl_read(lba, num_sectors);
-
-			lba += num_sectors;
-		}
-		perf_monitor_update(total_sectors);
-
-		// write
-		uart_printf("Write sequentially %uMB of data\r\n", total_mb);
-		lba = 0;
-		perf_monitor_reset();
-		while (lba < end_lba) {
-			ftl_write(lba, num_sectors);
 		
-			lba += num_sectors;
-		}
-		perf_monitor_update(total_sectors);
+	// write
+	uart_printf("Write sequentially %uMB of data", total_mb);
+	lba = 0;
+	perf_monitor_reset();
+	while (lba < end_lba) {
+		ftl_write(lba, num_sectors);
+	
+		lba += num_sectors;
 	}
+	perf_monitor_update(total_sectors);
+
+	// read
+	uart_printf("Read sequentially %uMB of data", total_mb);
+	lba = 0;
+	perf_monitor_reset();
+	while (lba < end_lba) {
+		ftl_read(lba, num_sectors);
+
+		lba += num_sectors;
+	}
+	perf_monitor_update(total_sectors);
 
 	uart_print("Done");
 }
@@ -250,9 +245,12 @@ void ftl_test()
 	uart_print("------------------------ DRAM ---------------------------");
 		dram_perf_test();
 	uart_print("---------------------- Raw Flash ------------------------");
-		flash_perf_test();
+		UINT32 total_mb_thr = 256;
+		flash_perf_test(total_mb_thr);
 	uart_print("------------------------ FTL ----------------------------");
-		ftl_perf_test(8);	// granularity -- 4KB
+		UINT32 total_mb     = 256;
+		//ftl_perf_test(8, total_mb);	// granularity -- 4KB
+		ftl_perf_test(64, total_mb);	// granularity -- 32KB
 	uart_print("--------------------------------------------------------");
 	uart_print("Performance test is done ^_^");
 }

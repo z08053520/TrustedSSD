@@ -143,9 +143,30 @@ mem_xfer_done:
 	g_ftl_read_buf_id = next_read_buf_id;
 }
 
-static void write_page (UINT32 const lpn, 
-			UINT32 const sect_offset, 
-			UINT32 const num_sectors_to_write)
+static void write_full_page_to_flash (UINT32 const lpn)
+{
+	UINT32 bank 	= lpn2bank(lpn);
+	UINT32 new_vpn  = gc_allocate_new_vpn(bank);
+
+	// Update lpn->vpn in CMT
+	get_vpn(lpn); cmt_update(lpn, new_vpn);
+
+	// FIXME: this waiting may not be necessary
+	// wait for SATA transfer completion
+	#if OPTION_FTL_TEST == 0
+	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
+	#endif
+
+	nand_page_ptprogram_from_host(bank,
+                                      vpn / PAGES_PER_VBLK,
+                                      vpn % PAGES_PER_VBLK,
+                                      0,
+				      SECTORS_PER_PAGE);
+}
+
+static void write_partial_page_to_cache (UINT32 const lpn, 
+				 	 UINT32 const sect_offset, 
+				 	 UINT32 const num_sectors_to_write)
 {
 	UINT32 buff_addr;
 	UINT32 target_addr, src_addr, num_bytes; 
@@ -179,6 +200,7 @@ static void write_page (UINT32 const lpn,
 
 	INFO("ftl>read>logic", "write to buff cache %d", BC_BUF_IDX(buff_addr));
 
+	// FIXME: this waiting may not be necessary
 	// wait for SATA transfer completion
 	#if OPTION_FTL_TEST == 0
 	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
@@ -302,7 +324,10 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
 		else
 			num_sectors_to_write = SECTORS_PER_PAGE - sect_offset;
 		
-		write_page(lpn, sect_offset, num_sectors_to_write);
+		if (num_sectors_to_write < SECTORS_PER_PAGE)
+			write_partial_page_to_cache(lpn, sect_offset, num_sectors_to_write);
+		else
+			write_full_page_to_flash(lpn);
 
 		sect_offset   = 0;
 		remain_sects -= num_sectors_to_write;

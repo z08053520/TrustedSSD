@@ -31,6 +31,8 @@
 #define OPTION_SUPPORT_NCQ		0	// 1 = support SATA NCQ (=FPDMA) for AHCI hosts, 0 = support only DMA mode
 #define OPTION_REDUCED_CAPACITY		0	// reduce the number of blocks per bank for testing purpose
 
+#define OPTION_PERF_TUNING		1
+
 /* About macro OPTION_FTL_TEST 
  *
  * This macro can be defined in Makefile. If it is defined, then the firmware 
