@@ -1,7 +1,6 @@
 #include "test_util.h"
 
 #if OPTION_FTL_TEST
-#include <flash.h>
 #include <stdlib.h>
 
 /* ===========================================================================
@@ -36,7 +35,7 @@ void perf_monitor_reset()
 {
 	_pm_total_bytes = 0;
 #if OPTION_PERF_TUNING
-	g_flash_read_counter = g_flash_write_counter = 0;
+	g_flash_read_count = g_flash_write_count = 0;
 #endif
 	timer_reset();
 }
@@ -57,10 +56,10 @@ void perf_monitor_report()
 		    time_us, time_us / 1000, 
 		    throughput);
 
-#if OPTION_PER_TUNING
-	if (g_flash_read_counter || g_flash_write_counter)
+#if OPTION_PERF_TUNING
+	if (g_flash_read_count || g_flash_write_count)
 		uart_printf("Total of %u flash reads and %u flash writes\r\n",
-			    g_flash_read_counter, g_flash_write_counter);
+			    g_flash_read_count, g_flash_write_count);
 #endif	
 }
 

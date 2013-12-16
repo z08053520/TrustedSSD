@@ -410,12 +410,10 @@ typedef struct tag_bsp
 #define FIRQ_ECC_FAIL		0x80
 #define FIRQ_DATA_CORRUPT	0x82
 
-#if	OPTION_PERF_TUNING
-	#warning Flash performance tuning is enabled
-
+#if	OPTION_PERF_TUNING == TRUE
 	// statistics about flash operations
-	UINT32 g_flash_read_count = 0;
-	UITN32 g_flash_write_count = 0;
+	UINT32 g_flash_read_count;
+	UINT32 g_flash_write_count;
 #endif
 
 //////////////////////////////

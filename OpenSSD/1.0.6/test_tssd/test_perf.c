@@ -3,7 +3,6 @@
  * =========================================================================*/
 
 #include "jasmine.h"
-#include "flash.h"
 #include "bad_blocks.h"
 #include "gc.h"
 #include "test_util.h"
@@ -210,10 +209,9 @@ static void ftl_perf_test(UINT32 const num_sectors, UINT32 const total_mb)
 	UINT32 total_sectors 	= total_mb * 1024 * 1024 / BYTES_PER_SECTOR;
 
 	UINT32 lba, end_lba = total_sectors;
-	UINT32 i;
 		
 	// write
-	uart_printf("Write sequentially %uMB of data", total_mb);
+	uart_printf("Write sequentially %uMB of data\r\n", total_mb);
 	lba = 0;
 	perf_monitor_reset();
 	while (lba < end_lba) {
@@ -224,7 +222,7 @@ static void ftl_perf_test(UINT32 const num_sectors, UINT32 const total_mb)
 	perf_monitor_update(total_sectors);
 
 	// read
-	uart_printf("Read sequentially %uMB of data", total_mb);
+	uart_printf("Read sequentially %uMB of data\r\n", total_mb);
 	lba = 0;
 	perf_monitor_reset();
 	while (lba < end_lba) {
@@ -241,14 +239,14 @@ void ftl_test()
 {
 	uart_print("Performance test begins...");
 	uart_print("------------------------ SRAM ---------------------------");
-		sram_perf_test();
+//		sram_perf_test();
 	uart_print("------------------------ DRAM ---------------------------");
-		dram_perf_test();
+//		dram_perf_test();
 	uart_print("---------------------- Raw Flash ------------------------");
-		UINT32 total_mb_thr = 256;
-		flash_perf_test(total_mb_thr);
+		//UINT32 total_mb_thr = 512;
+		//flash_perf_test(total_mb_thr);
 	uart_print("------------------------ FTL ----------------------------");
-		UINT32 total_mb     = 256;
+		UINT32 total_mb     = 512;
 		//ftl_perf_test(8, total_mb);	// granularity -- 4KB
 		ftl_perf_test(64, total_mb);	// granularity -- 32KB
 	uart_print("--------------------------------------------------------");

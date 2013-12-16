@@ -25,6 +25,12 @@
 extern UINT32 g_ftl_read_buf_id;
 extern UINT32 g_ftl_write_buf_id;
 
+#if	OPTION_PERF_TUNING
+	// statistics about flash operations
+	UINT32 g_flash_read_count	= 0;
+	UINT32 g_flash_write_count	= 0;
+#endif
+
 // synchronous one full page read
 void nand_page_read(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const buf_addr)
 {

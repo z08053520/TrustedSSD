@@ -146,10 +146,12 @@ mem_xfer_done:
 static void write_full_page_to_flash (UINT32 const lpn)
 {
 	UINT32 bank 	= lpn2bank(lpn);
-	UINT32 new_vpn  = gc_allocate_new_vpn(bank);
+	UINT32 old_vpn  = get_vpn(lpn);
+	UINT32 new_vpn  = old_vpn ? gc_replace_old_vpn(bank, old_vpn) :
+				    gc_allocate_new_vpn(bank) ;
 
 	// Update lpn->vpn in CMT
-	get_vpn(lpn); cmt_update(lpn, new_vpn);
+	cmt_update(lpn, new_vpn);
 
 	// FIXME: this waiting may not be necessary
 	// wait for SATA transfer completion
@@ -158,8 +160,8 @@ static void write_full_page_to_flash (UINT32 const lpn)
 	#endif
 
 	nand_page_ptprogram_from_host(bank,
-                                      vpn / PAGES_PER_VBLK,
-                                      vpn % PAGES_PER_VBLK,
+                                      new_vpn / PAGES_PER_VBLK,
+                                      new_vpn % PAGES_PER_VBLK,
                                       0,
 				      SECTORS_PER_PAGE);
 }
@@ -323,11 +325,12 @@ void ftl_write(UINT32 const lba, UINT32 const num_sectors)
 			num_sectors_to_write = remain_sects;
 		else
 			num_sectors_to_write = SECTORS_PER_PAGE - sect_offset;
-		
-		if (num_sectors_to_write < SECTORS_PER_PAGE)
+	
+#warning ftl_write debug
+		//if (num_sectors_to_write < SECTORS_PER_PAGE)
 			write_partial_page_to_cache(lpn, sect_offset, num_sectors_to_write);
-		else
-			write_full_page_to_flash(lpn);
+		//else
+	//		write_full_page_to_flash(lpn);
 
 		sect_offset   = 0;
 		remain_sects -= num_sectors_to_write;
