@@ -5,7 +5,7 @@
 
 /* the number of fixed entries must be less than half of capacity */
 #define CMT_MAX_FIX_ENTRIES		NUM_BC_BUFFERS
-#define CMT_MIN_EVICTABLE_ENTRIES	128
+#define CMT_MIN_EVICTABLE_ENTRIES	64	
 //#define CMT_MIN_EVICTABLE_ENTRIES	1
 #define CMT_ENTRIES			(CMT_MAX_FIX_ENTRIES + CMT_MIN_EVICTABLE_ENTRIES)	
 

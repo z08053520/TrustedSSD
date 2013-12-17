@@ -19,7 +19,7 @@ RM	= rm
 #TEST = gtd
 #TEST = hash_table
 #TEST = pmt
-TEST = perf
+#TEST = perf
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size

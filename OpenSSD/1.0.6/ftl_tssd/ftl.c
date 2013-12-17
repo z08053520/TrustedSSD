@@ -86,7 +86,7 @@ static void read_page  (UINT32 const lpn,
 	// heuristic to optimize small reads: 
 	// load uncached page into cache if its previous page or itself was 
 	// visited lately
-	if (!page_buff && num_sectors_to_read < SECTORS_PER_PAGE && 
+	if (!page_buff && num_sectors_to_read < SECTORS_PER_PAGE / 2 && 
 	    (cmt_get(lpn, &vpn) == 0 || cmt_get(lpn-1, &vpn) == 0)) {
 		get_vpn(lpn);
 		bc_put(lpn, &page_buff, BC_BUF_TYPE_USR);
@@ -95,17 +95,12 @@ static void read_page  (UINT32 const lpn,
 	
 	// read from cache if possible 
 	if (page_buff) {
-		INFO("ftl>read>logic", "read from buff cache %d", BC_BUF_IDX(page_buff));
-
 		// wait for the next buffer to get SATA transfer done
 		#if OPTION_FTL_TEST == 0
 		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
 		#endif
 
 		bc_fill(lpn, sect_offset, num_sectors_to_read, BC_BUF_TYPE_USR);
-		INFO("ftl>read_page", 
-	     	     "page_buff = %d, sect_offset = %d, num_sectors_to_read = %d", 
-	             page_buff, sect_offset, num_sectors_to_read);
 		mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
 			 page_buff + BYTES_PER_SECTOR * sect_offset,
 			 BYTES_PER_SECTOR * num_sectors_to_read);
@@ -118,7 +113,6 @@ static void read_page  (UINT32 const lpn,
 	if (vpn != NULL)
 	{
 		bank = lpn2bank(lpn);
-		INFO("ftl>read>logic", "read from flash, bank = %d, vpn = %d", bank, vpn);
 		nand_page_ptread_to_host(bank,
 					 vpn / PAGES_PER_BLK,
 					 vpn % PAGES_PER_BLK,
@@ -134,7 +128,6 @@ static void read_page  (UINT32 const lpn,
 		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
 		#endif
 
-		INFO("ftl>read>logic", "read non-existing page");
             	// Send 0xFF...FF to host when the host request to read the 
 		// sector that has never been written.
 		mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) 
@@ -198,25 +191,7 @@ static void write_page(UINT32 const lpn,
 		// this is a requirement of putting a lpn into buffer cache 
 		get_vpn(lpn);
 		bc_put(lpn, &buff_addr, BC_BUF_TYPE_USR);
-
-		INFO("ftl>read>logic", "cache miss");
-		/* init buffer */ 
-		/* this init code should not be necessary
-		target_addr = buff_addr;
-		num_bytes   = sect_offset * BYTES_PER_SECTOR;
-		mem_set_dram(target_addr, 0xFFFFFFFF, num_bytes);
-
-		target_addr = buff_addr + (sect_offset + 
-				num_sectors_to_write) * BYTES_PER_SECTOR;
-		num_bytes   = (SECTORS_PER_PAGE - sect_offset - 
-				num_sectors_to_write) * BYTES_PER_SECTOR;
-		mem_set_dram(target_addr, 0xFFFFFFFF, num_bytes);
-		*/
 	}
-	else
-		INFO("ftl>read>logic", "cache hit");
-
-	INFO("ftl>read>logic", "write to buff cache %d", BC_BUF_IDX(buff_addr));
 
 	// FIXME: this waiting may not be necessary
 	// wait for SATA transfer completion
@@ -229,9 +204,6 @@ static void write_page(UINT32 const lpn,
 	src_addr    = WR_BUF_PTR(g_ftl_write_buf_id) + sect_offset * BYTES_PER_SECTOR;
 	num_bytes   = num_sectors_to_write * BYTES_PER_SECTOR;
 
-	INFO("ftl>write_page", 
-	     "targe_addr = %d, src_addr = %d, sect_offset = %d, num_sectors_to_write = %d, num_bytes = %d", 
-	     target_addr, src_addr, sect_offset, num_sectors_to_write, num_bytes);
 	mem_copy(target_addr, src_addr, num_bytes);
 
 	bc_set_valid_sectors(lpn, sect_offset, num_sectors_to_write, BC_BUF_TYPE_USR);
