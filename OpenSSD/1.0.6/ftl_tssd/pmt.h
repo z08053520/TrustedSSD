@@ -6,7 +6,8 @@
  * PMT = page-level mapping table
  *
  *   Let's do some simple math to calculate the number of entries in PMT.
- * For a 64GB flash with 16KB page, PMT_ENTRIES = 64GB / 16KB = 4 millions. 
+ * For a 64GB flash with 32KB page, there are 64GB / 32KB = 2M PMT entries, in
+ * 2M / (32KB / sizeof(UINT32)) = 256 pages.
  * */
 #define PMT_ENTRIES		(PAGES_PER_BANK * NUM_BANKS)
 #define PMT_ENTRIES_PER_PAGE	(BYTES_PER_PAGE / sizeof(UINT32))

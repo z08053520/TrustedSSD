@@ -15,10 +15,13 @@
 typedef enum _bc_buf_type {
 	/* Cache for page mapping table (PMT). 
 	 * For this type of entries, the key is pmt_index. */
-	BC_BUF_TYPE_PMT,	
+	BC_BUF_TYPE_PMT	
 	/* Cache for user pages.
 	 * For this type of entries, the key is lpn. */
-	BC_BUF_TYPE_USR	
+	,BC_BUF_TYPE_USR
+#if OPTION_ACL
+	,BC_BUF_TYPE_SOT
+#endif
 } bc_buf_type;
 
 void bc_init(void);

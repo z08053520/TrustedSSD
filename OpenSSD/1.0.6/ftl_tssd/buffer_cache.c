@@ -20,37 +20,66 @@ typedef struct _bc_node {
 	sectors_mask_t 	mask;
 } bc_node;
 
-#define KEY_PMT_BIT		(1 << (HT_KEY_LEN-1))
-#define KEY_PMT_MASK		(KEY_PMT_BIT - 1) 
+/* * 
+ * Bit arragement for key of different page types 
+ *	Type	    23  22  21 ... 0	(24 bits for key)
+ *	-----------------------------
+ * 	USR	--  0   0    [any]
+ * 	PMT	--  1   0    [any]
+ * 	SOT	--  1   1    [any]
+ * */
+#define KEY_PMT_BASE		(1 << (HT_KEY_LEN-1))
 
 #define node_key(node)		((node)->hn.key)
 #define node_val(node)		((node)->hn.val)
 #define node_lpn(node)		node_key(node)	
-#define node_pmt_idx(node)	(node_key(node) & KEY_PMT_MASK)
+#define node_pmt_idx(node)	(node_key(node) - KEY_PMT_BASE)
 #define node_buf_id(node)	node_val(node)	
 #define node_buf(node)		(BC_BUF(node_buf_id(node)))
 #define node_mask(node)		((node)->mask)
+#define node_type(node)		(node_key(node) < KEY_PMT_BASE ? BC_BUF_TYPE_USR : BC_BUF_TYPE_PMT)
 
-#define node_type(node)		(node_key(node) & KEY_PMT_BIT ? \
-					BC_BUF_TYPE_PMT : \
-					BC_BUF_TYPE_USR)
-#define is_pmt(node)		(node_type(node) == BC_BUF_TYPE_PMT)
-#define is_usr(node)		(node_type(node) == BC_BUF_TYPE_USR)
+#define real_key(key, type)	(type == BC_BUF_TYPE_USR ? key : (key + KEY_PMT_BASE))
+#define key2bank(key)		lpn2bank(key)
+
+#if OPTION_ACL
+#define KEY_SOT_BASE		(KEY_PMT_BASE + (1 << (HT_KEY_LEN-2)))
+#define node_sot_idx(node)	(node_key(node) - KEY_SOT_BASE)
+
+#undef  node_type
+#define node_type(node)		(node_key(node) < KEY_PMT_BASE ? BC_BUF_TYPE_USR : \
+					(node_key(node) < KEY_SOT_BASE ? BC_BUF_TYPE_PMT : BC_BUF_TYPE_SOT))
+
+#undef real_key
+#define real_key(key, type)	(type == BC_BUF_TYPE_USR ? key :     \
+					(type == BC_BUF_TYPE_PMT ?   \
+					 	key | KEY_PMT_BASE : \
+					 	key | KEY_SOT_BASE))
+#endif
 
 UINT32 node_vpn(bc_node* node) {
 	UINT32 vpn;
 	BOOL32 res;
-	if (is_usr(node)) { 
+	bc_buf_type type = node_type(node);
+
+	switch(type) {
+	case BC_BUF_TYPE_USR:
 		res = cmt_get(node_lpn(node), &vpn);
 		BUG_ON("lpn->vpn should have been cached", res);
+		break;
+	case BC_BUF_TYPE_PMT:
+		vpn = gtd_get_vpn(node_pmt_idx(node), GTD_ZONE_TYPE_PMT);
+		break;
+#if OPTION_ACL
+	case BC_BUF_TYPE_SOT:
+		vpn = gtd_get_vpn(node_sot_idx(node), GTD_ZONE_TYPE_SOT);
+		break;
+#endif
+	default:
+		BUG_ON("impossible type", 1);
 	}
-	else
-		vpn = gtd_get_vpn(node_pmt_idx(node));
 	return vpn;
 }
-
-#define real_key(key, type)	(type == BC_BUF_TYPE_USR ? key : (key | KEY_PMT_BIT))
-#define key2bank(key)		lpn2bank(key)
 
 #define BC_HT_CAPACITY		NUM_BC_BUFFERS
 #define BC_HT_BUFFER_SIZE	(BC_HT_CAPACITY * sizeof(bc_node))
@@ -170,12 +199,12 @@ static void bc_evict(void)
 	UINT32 		buff_addr[NUM_BANKS];
 	sectors_mask_t 	valid_sectors_mask[NUM_BANKS];
 	BOOL8  		dirty[NUM_BANKS];
+	bc_buf_type	type;
 
 	/* to leverage the inner parallelism between banks in flash, we do 
 	 * eviction in a batch fashion */
 	INFO("bc", "eviction happens");
 
-//	uart_printf("banks that have buff evicted: ");
 	/* gather the information of victim pages */
 	FOR_EACH_BANK(bank) {
 		vpn[bank] = 0;
@@ -186,7 +215,6 @@ static void bc_evict(void)
 
 		if (_bc_lru_seg[bank].size < SEGMENT_HIGH_WATER_MARK)
 			continue;
-//		uart_printf("%d, ", bank);
 
 		victim_node = victim_nodes[bank] = segment_drop(bank);
 		if (!is_dirty(victim_node))
@@ -197,7 +225,6 @@ static void bc_evict(void)
 		buff_addr[bank] = node_buf(victim_node);
 		valid_sectors_mask[bank] = node_mask(victim_node);
 	}
-//	uart_print("");
 
 	/* read miss sectors in victim pages */
 	fu_read_pages_in_parallel(vpn, buff_addr, valid_sectors_mask);
@@ -216,29 +243,35 @@ static void bc_evict(void)
 	fu_write_pages_in_parallel(vpn, buff_addr);
 
 	/* remove all victim nodes */
-//	uart_printf("banks that have dirty buff evicted: ");
 	FOR_EACH_BANK(bank) {
 		// remove all victim pages from hash table
 		victim_node = victim_nodes[bank];
 		if (!victim_node) continue;
-		
+
 		hash_table_remove(&_bc_ht, node_key(victim_node));
-		if (is_usr(victim_node))
+
+		type = node_type(victim_node);
+		if (type == BC_BUF_TYPE_USR)
 			cmt_unfix(node_lpn(victim_node));
 
 		// update vpn for all dirty pages
 		if (!dirty[bank]) continue;
-//		uart_printf("%d ", bank);
-		if (is_usr(victim_node)) {	/* user page buffer */
+		switch(type) {
+		case BC_BUF_TYPE_USR:
 			cmt_update(node_lpn(victim_node), vpn[bank]);
-//			uart_printf("(usr), ");
-		}
-		else { 				/* PMT page buffer */ 
-			gtd_set_vpn(node_pmt_idx(victim_node), vpn[bank]);
-//			uart_printf("(pmt), ");
+		     	break;
+		case BC_BUF_TYPE_PMT:
+			gtd_set_vpn(node_pmt_idx(victim_node), vpn[bank], GTD_ZONE_TYPE_PMT);
+			break;
+#if OPTION_ACL
+		case BC_BUF_TYPE_SOT:
+			gtd_set_vpn(node_pmt_idx(victim_node), vpn[bank], GTD_ZONE_TYPE_SOT);
+			break;
+#endif
+		default:
+			BUG_ON("impossible type value", 1);
 		}
 	}
-//	uart_print("");
 }
 
 static BOOL32 valid_sectors_include(sectors_mask_t const valid_sectors_mask, 
@@ -284,13 +317,9 @@ void bc_get(UINT32 key, UINT32 *addr, bc_buf_type const type)
 						real_key(key, type));
 	if (node == NULL) {
 		*addr = NULL;
-		INFO("cache>get", "cache miss for %s = %d", 
-				type == BC_BUF_TYPE_USR ? "lpn" : "pmt", key);
 		return;
 	}
 	*addr = node_buf(node);
-	INFO("cache>get", "cache hit for %s = %d", 
-			type == BC_BUF_TYPE_USR ? "lpn" : "pmt", key);
 
 	segment_forward(node);
 }
@@ -310,10 +339,6 @@ void bc_put(UINT32 key, UINT32 *addr, bc_buf_type const type)
 		bc_evict();	
 	}
 
-	INFO("cache>put", "put a new page (%s = %d) into cache",
-				type == BC_BUF_TYPE_USR ? "lpn" : "pmt", 
-				key);
-
 	res = hash_table_insert(&_bc_ht, key, 0);
 	BUG_ON("insertion to hash table failed", res);
 
@@ -321,7 +346,7 @@ void bc_put(UINT32 key, UINT32 *addr, bc_buf_type const type)
 	node->pre_idx = node->next_idx = HT_NULL_IDX;
 	node->mask = 0;
 	/* Make sure lpn->vpn mapping for user page is kept in CMT.
-	 * This is not necessary for PMT page since the vpn of them are 
+	 * This is not necessary for PMT/SOT page since the vpn of them are 
 	 * maintained by GTD. */
 	if (type == BC_BUF_TYPE_USR) {
 		res = cmt_fix(node_lpn(node));
@@ -356,7 +381,7 @@ void bc_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
 	buff_addr = node_buf(node);
 
 	/* If PMT page is not in flash yet, write all 0's instead of 1's */
-	if (type == BC_BUF_TYPE_PMT && !vpn)
+	if (type != BC_BUF_TYPE_USR && !vpn)
 		mem_set_dram(buff_addr, 0, BYTES_PER_PAGE);
 	else
 		fu_read_page(bank, vpn, buff_addr, mask);

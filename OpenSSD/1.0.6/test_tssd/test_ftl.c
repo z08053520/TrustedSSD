@@ -20,22 +20,6 @@ extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
  * DRAM buffer to store lbas and req_sizes 
  * =========================================================================*/
 
-#define SETUP_BUF(name, addr, sectors)	\
-		const UINT32 __BUF_##name##_BYTES = (BYTES_PER_SECTOR * sectors);\
-		static void init_##name##_buf() {\
-			mem_set_dram(addr, 0, __BUF_##name##_BYTES);\
-		}\
-		static UINT32 get_##name(UINT32 const i) {\
-			UINT32 offset = sizeof(UINT32) * i;\
-			BUG_ON("out of bound", offset >= __BUF_##name##_BYTES);\
-			return read_dram_32(addr + offset);\
-		}\
-		static void set_##name(UINT32 const i, UINT32 const val) {\
-			UINT32 offset = sizeof(UINT32) * i;\
-			BUG_ON("out of bound", offset >= __BUF_##name##_BYTES);\
-			write_dram_32(addr + offset, val);\
-		}
-
 #define LBA_BUF_ADDR		TEMP_BUF_ADDR
 #define LBA_BUF_SECTORS		(SECTORS_PER_PAGE / 2)
 #define MAX_LBA_BUF_ENTRIES	(LBA_BUF_SECTORS * BYTES_PER_SECTOR / sizeof(UINT32))

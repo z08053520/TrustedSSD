@@ -53,6 +53,14 @@
  * */
 #define	OPTION_2_PLANE			1	// 1 = 2-plane mode, 0 = 1-plane mode
 
+/* About macro OPTION_ACL 
+ *
+ * Access Control Layer (ACL) implements the core feature-- fine-grained
+ * access control--- of TrustedSSD, which makes the latter unique to all SSD.
+ * Use macro OPTION_ACL to enable ACL.
+ * */
+#define OPTION_ACL			1
+
 #define CHN_WIDTH			2 	// 2 = 16bit IO
 #define NUM_CHNLS_MAX		4
 #define BANKS_PER_CHN_MAX	8
@@ -280,6 +288,10 @@ scan_list_t;
 	#define WARNING(label, ...)
 	#define ERROR(label, ...)
 	#define BUG_ON(MESSAGE, COND)
+#endif
+
+#if	OPTOIN_ACL
+typedef UINT16		uid_t;
 #endif
 
 #endif	// JASMINE_H

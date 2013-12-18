@@ -4,7 +4,6 @@
 #include "jasmine.h"
 #if OPTION_FTL_TEST
 #include "pmt.h"
-#include "gc.h"
 #include "mem_util.h"
 #include <stdlib.h>
 
@@ -70,7 +69,6 @@ void ftl_test()
 
 		uart_print("\tupdate lpns");
 		for(i = 0; i < sample_size; i++) {
-			//vpn = gc_allocate_new_vpn(lpn2bank(lpn));
 			vpn = 32 + rand() % 123456;
 
 			set_lpn(i, lpn);
