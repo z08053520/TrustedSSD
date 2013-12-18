@@ -10,8 +10,7 @@
  * 2M / (32KB / sizeof(UINT32)) = 256 pages.
  * */
 #define PMT_ENTRIES		(PAGES_PER_BANK * NUM_BANKS)
-//#define PMT_ENTRIES_PER_PAGE	(BYTES_PER_PAGE / sizeof(UINT32))
-#define PMT_ENTRIES_PER_PAGE	(BYTES_PER_PAGE / 4)
+#define PMT_ENTRIES_PER_PAGE	(BYTES_PER_PAGE / sizeof(UINT32))
 #define PMT_PAGES		COUNT_BUCKETS(PMT_ENTRIES, PMT_ENTRIES_PER_PAGE)
 
 void pmt_init(void);

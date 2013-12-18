@@ -57,7 +57,7 @@ void sot_fetch(UINT32 const lba, uid_t *uid)
 	UINT32 offset 	= sot_get_offset(lba);
 	UINT32 buff	= load_sot_buffer(index);
 	
-	uid = read_uid(buff, offset);
+	*uid = read_uid(buff, offset);
 }
 
 void sot_update(UINT32 const lba, uid_t const uid)

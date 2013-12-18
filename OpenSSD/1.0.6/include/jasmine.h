@@ -183,10 +183,6 @@ typedef unsigned long long	UINT64;
 	#define FULL_MASK	0xFFFFFFFFUL
 #endif
 
-#if	OPTION_ACL
-	typedef UINT16		uid_t;
-#endif
-
 #define COUNT_BUCKETS(TOTAL, BUCKET_SIZE) \
 	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )
 

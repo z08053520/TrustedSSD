@@ -17,6 +17,7 @@
 // If not, see <http://www.gnu.org/licenses/>.
 
 #include "jasmine.h"
+#include "ftl.h"
 
 void led(BOOL32 on)
 {

@@ -9,10 +9,9 @@
 #endif
 
 #include "sot.h"
+#include "ftl.h"
 #include "test_util.h"
 #include <stdlib.h>
-
-#define MAX_LBA		NUM_LSECTORS
 
 #define LBA_BUF_ADDR	TEMP_BUF_ADDR
 #define LBA_BUF_SIZE	SECTORS_PER_PAGE
@@ -24,11 +23,7 @@ SETUP_BUF(uid, UID_BUF_ADDR, UID_BUF_SIZE);
 
 #define MAX_NUM_UIDS	(BYTES_PER_PAGE / sizeof(uid_t))
 #define MAX_NUM_LBAS	(BYTES_PER_PAGE / sizeof(UINT32))
-#if	MAX_NUM_UIDS <= MAX_NUM_LBAS
-	#define SAMPLE_SIZE	MAX_NUM_UIDS
-#else
-	#define SAMPLE_SIZE	MAX_NUM_LBAS
-#endif
+#define SAMPLE_SIZE	MAX_NUM_LBAS
 
 #define RAND_SEED	123456
 
@@ -49,7 +44,7 @@ void ftl_test()
 	uart_print("Randomly check SOT initial state");
 	for (i = 0; i < SAMPLE_SIZE; i++) {
 		lba = random(0, MAX_LBA);
-		sot_get(lba, &uid);
+		sot_fetch(lba, &uid);
 		BUG_ON("SOT entries is not initialized as zeros", uid != 0);
 	}
 
@@ -58,16 +53,16 @@ void ftl_test()
 		for (i = 0; i < SAMPLE_SIZE; i++) {
 			lba = random(0, MAX_LBA);
 			uid = rand();
-			sot_udpate(lba, uid);
+			sot_update(lba, uid);
 
 			set_lba(i, lba);
 			set_uid(i, uid);
 		}
 
-		uart_print("Verify the udpate SOT entries");
+		uart_print("Verify the update SOT entries");
 		for (i = 0; i < SAMPLE_SIZE; i++) {
 			lba = get_lba(i);
-			sot_get(lba, &uid);
+			sot_fetch(lba, &uid);
 			BUG_ON("SOT entry is not as expected", uid != get_uid(i));
 		}
 	}
