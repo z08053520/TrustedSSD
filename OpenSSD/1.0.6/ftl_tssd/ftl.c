@@ -259,6 +259,9 @@ void ftl_open(void) {
 	bc_init();
 
 	pmt_init();
+#if OPTION_ACL
+	sot_init();
+#endif
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
 

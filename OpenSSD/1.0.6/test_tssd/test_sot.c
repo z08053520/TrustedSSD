@@ -21,11 +21,11 @@
 SETUP_BUF(lba, LBA_BUF_ADDR, LBA_BUF_SIZE);
 SETUP_BUF(uid, UID_BUF_ADDR, UID_BUF_SIZE);
 
-#define MAX_NUM_UIDS	(BYTES_PER_PAGE / sizeof(uid_t))
-#define MAX_NUM_LBAS	(BYTES_PER_PAGE / sizeof(UINT32))
-#define SAMPLE_SIZE	MAX_NUM_LBAS
+#define SAMPLE_SIZE 	(BYTES_PER_PAGE / sizeof(UINT32))
 
 #define RAND_SEED	123456
+
+#define MAX_UID		0xFFFF
 
 void ftl_test()
 {
@@ -34,7 +34,7 @@ void ftl_test()
 	UINT32 lba;
 	uid_t  uid;
 	UINT32 i;
-	UINT32 j, repeats = 8;
+	UINT32 j, repeats = 4;
 
 	srand(RAND_SEED);
 
@@ -52,7 +52,7 @@ void ftl_test()
 		uart_print("Randomly update SOT entries");
 		for (i = 0; i < SAMPLE_SIZE; i++) {
 			lba = random(0, MAX_LBA);
-			uid = rand();
+			uid = random(0, MAX_UID);
 			sot_update(lba, uid);
 
 			set_lba(i, lba);
@@ -63,6 +63,7 @@ void ftl_test()
 		for (i = 0; i < SAMPLE_SIZE; i++) {
 			lba = get_lba(i);
 			sot_fetch(lba, &uid);
+//			uart_printf("actual uid = %u, expected uid = %u", uid, get_uid(i));
 			BUG_ON("SOT entry is not as expected", uid != get_uid(i));
 		}
 	}

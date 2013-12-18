@@ -12,11 +12,12 @@
  * 128M * 2B / 32KB = 8K pages. 
  * */
 
-typedef UINT16		uid_t;
 
 /* ===========================================================================
- * Macro Definition 
+ * Type and Macro Definitions
  * =========================================================================*/
+
+typedef UINT16		uid_t;
 
 #define SOT_ENTRIES		(SECTORS_PER_BANK * NUM_BANKS)
 #define SOT_ENTRIES_PER_PAGE	(BYTES_PER_PAGE / sizeof(uid_t))

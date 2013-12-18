@@ -67,6 +67,8 @@ void sot_update(UINT32 const lba, uid_t const uid)
 	UINT32 buff	= load_sot_buffer(index);
 	
 	write_uid(buff, offset, uid);
+	
+	bc_set_dirty(index, BC_BUF_TYPE_SOT);
 }
 
 #endif

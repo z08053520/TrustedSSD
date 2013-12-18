@@ -265,7 +265,7 @@ static void bc_evict(void)
 			break;
 #if OPTION_ACL
 		case BC_BUF_TYPE_SOT:
-			gtd_set_vpn(node_pmt_idx(victim_node), vpn[bank], GTD_ZONE_TYPE_SOT);
+			gtd_set_vpn(node_sot_idx(victim_node), vpn[bank], GTD_ZONE_TYPE_SOT);
 			break;
 #endif
 		default:
@@ -381,7 +381,7 @@ void bc_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
 	buff_addr = node_buf(node);
 
 	/* If PMT page is not in flash yet, write all 0's instead of 1's */
-	if (type != BC_BUF_TYPE_USR && !vpn)
+	if (type != BC_BUF_TYPE_USR && vpn == NULL)
 		mem_set_dram(buff_addr, 0, BYTES_PER_PAGE);
 	else
 		fu_read_page(bank, vpn, buff_addr, mask);
