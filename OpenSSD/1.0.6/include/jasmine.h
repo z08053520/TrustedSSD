@@ -182,6 +182,14 @@ typedef unsigned long long	UINT64;
 	typedef UINT32		sectors_mask_t;
 	#define FULL_MASK	0xFFFFFFFFUL
 #endif
+
+#if	OPTION_ACL
+	typedef UINT16		uid_t;
+#endif
+
+#define COUNT_BUCKETS(TOTAL, BUCKET_SIZE) \
+	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )
+
 #define MAX_ULL			
 
 #define MIN(X, Y)				((X) > (Y) ? (Y) : (X))
@@ -196,7 +204,6 @@ void delay(UINT32 const count);
 #include "mem_util.h"
 #include "target.h"
 #include "bank.h"
-
 
 //////////////
 // scan list
@@ -214,7 +221,6 @@ scan_list_t;
 
 #define NUM_LSECTORS	(21168 + ((NUM_PSECTORS) / 2097152 * 1953504)) // 125045424 ~= 59GiB
 
-#include "ftl.h"
 #include "misc.h"
 
 #ifndef PROGRAM_INSTALLER
@@ -225,9 +231,6 @@ scan_list_t;
 
 // page-level striping technique (I/O parallelism)
 #define lpn2bank(lpn)             ((lpn) % NUM_BANKS)
-
-#define COUNT_BUCKETS(TOTAL, BUCKET_SIZE) \
-	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )
 
 #if OPTION_UART_DEBUG
 	/* log levels */
@@ -288,10 +291,6 @@ scan_list_t;
 	#define WARNING(label, ...)
 	#define ERROR(label, ...)
 	#define BUG_ON(MESSAGE, COND)
-#endif
-
-#if	OPTOIN_ACL
-typedef UINT16		uid_t;
 #endif
 
 #endif	// JASMINE_H

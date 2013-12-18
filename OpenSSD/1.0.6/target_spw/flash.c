@@ -18,6 +18,7 @@
 
 
 #include "jasmine.h"
+#include "ftl.h"
 
 const UINT8 c_bank_map[] = BANK_MAP;
 UINT8 c_bank_rmap[] = BANK_RMAP;

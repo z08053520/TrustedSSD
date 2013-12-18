@@ -18,6 +18,7 @@
 
 
 #include "jasmine.h"
+#include "ftl.h"
 
 sata_context_t		g_sata_context;
 sata_ncq_t			g_sata_ncq;

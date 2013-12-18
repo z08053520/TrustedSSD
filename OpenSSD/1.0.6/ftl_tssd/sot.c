@@ -1,6 +1,7 @@
 #include "sot.h"
 #if OPTION_ACL
 #include "mem_util.h"
+#include "buffer_cache.h"
 
 /* ===========================================================================
  * Private Functions 
@@ -23,7 +24,7 @@ static UINT32 load_sot_buffer(UINT32 const sot_index)
 
 static uid_t read_uid(UINT32 const buff, UINT32 const offset)
 {
-	if (sizeof(UITN32) == sizeof(uid_t))
+	if (sizeof(UINT32) == sizeof(uid_t))
 		return read_dram_32(buff + sizeof(uid_t) * offset);
 	else
 		return read_dram_16(buff + sizeof(uid_t) * offset);
@@ -31,7 +32,7 @@ static uid_t read_uid(UINT32 const buff, UINT32 const offset)
 
 static void write_uid(UINT32 const buff, UINT32 const offset, uid_t const uid)
 {
-	if (sizeof(UITN32) == sizeof(uid_t))
+	if (sizeof(UINT32) == sizeof(uid_t))
 		return write_dram_32(buff + sizeof(uid_t) * offset, uid);
 	else
 		return write_dram_16(buff + sizeof(uid_t) * offset, uid);
@@ -54,7 +55,7 @@ void sot_fetch(UINT32 const lba, uid_t *uid)
 {
 	UINT32 index 	= sot_get_index(lba);
 	UINT32 offset 	= sot_get_offset(lba);
-	UINT32 buff	= load_sot_buffer(sot_index);
+	UINT32 buff	= load_sot_buffer(index);
 	
 	uid = read_uid(buff, offset);
 }
@@ -63,9 +64,9 @@ void sot_update(UINT32 const lba, uid_t const uid)
 {
 	UINT32 index 	= sot_get_index(lba);
 	UINT32 offset 	= sot_get_offset(lba);
-	UINT32 buff	= load_sot_buffer(sot_index);
+	UINT32 buff	= load_sot_buffer(index);
 	
-	write_uid(buff, offset, write);
+	write_uid(buff, offset, uid);
 }
 
 #endif

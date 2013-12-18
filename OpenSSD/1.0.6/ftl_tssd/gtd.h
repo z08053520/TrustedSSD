@@ -1,5 +1,5 @@
 #ifndef __GTD_H
-#define __GTD_h
+#define __GTD_H
 #include "pmt.h"
 
 /* *
@@ -20,24 +20,24 @@
  * =========================================================================*/
 
 #if OPTION_ACL
-#include "sot.h"
-#define ZONE_LIST			\
-		ENTRY(PMT),		\
-		ENTRY(SOT)
+	#include "sot.h"
+	#define ZONE_LIST			\
+			ENTRY(PMT)		\
+			ENTRY(SOT)
 #else
-#define ZONE_LIST			\
-		ENTRY(PMT)
+	#define ZONE_LIST			\
+			ENTRY(PMT)
 #endif
 
 typedef enum {
 #define ENTRY(zone_name)	GTD_ZONE_TYPE_##zone_name,
-	ZONE_LIST,
+	ZONE_LIST
 #undef ENTRY
 	NUM_GTD_ZONE_TYPES
 } gtd_zone_type_t;
 
 typedef struct {
-#define ENTRY(zone_name)	UINT32 zone_name[zone_name##_PAGES],
+#define ENTRY(zone_name)	UINT32 zone_name[zone_name##_PAGES];
 	ZONE_LIST
 #undef ENTRY
 } gtd_zone_t; 

@@ -1,6 +1,5 @@
 #include "ftl.h"
 #include "cmt.h"
-#include "gtd.h"
 #include "pmt.h"
 #include "gc.h"
 #include "buffer_cache.h"
