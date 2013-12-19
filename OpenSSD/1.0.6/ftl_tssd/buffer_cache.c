@@ -361,7 +361,7 @@ void bc_put(UINT32 key, UINT32 *addr, bc_buf_type const type)
 }
 
 /* fill the page */
-void bc_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
+void bc_fill(UINT32 const key, UINT32 const offset, UINT32 const num_sectors,
 		bc_buf_type const type)
 {
 	bc_node* node = (bc_node*) hash_table_get_node(
@@ -375,7 +375,6 @@ void bc_fill(UINT32 key, UINT32 const offset, UINT32 const num_sectors,
 	mask = node_mask(node);
 	if (valid_sectors_include(mask, offset, num_sectors)) return;
 
-	key  = real_key(key, type);
 	bank = key2bank(key);
 	vpn  = node_vpn(node);
 	buff_addr = node_buf(node);

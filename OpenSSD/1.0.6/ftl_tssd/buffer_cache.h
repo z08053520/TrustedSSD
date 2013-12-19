@@ -32,7 +32,7 @@ void bc_get(UINT32 key, UINT32 *addr, bc_buf_type const type);
 void bc_put(UINT32 key, UINT32 *addr, bc_buf_type const type);
 
 /* fill the page */
-void bc_fill(UINT32 key, UINT32 const offset, 
+void bc_fill(UINT32 const key, UINT32 const offset, 
 		UINT32 const num_sectors, bc_buf_type const type);
 void bc_fill_full_page(UINT32 key, bc_buf_type const type);
 

@@ -109,7 +109,7 @@ static BOOL8 try_read_from_cache (UINT32 const lpn,
 				  UINT32 const num_sectors_to_read)
 {
 	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
-	UINT32 page_buff;
+	UINT32 page_buff = NULL;
 	UINT32 vpn;
 	
 	// is page in cache?
