@@ -115,27 +115,31 @@ static BOOL8 try_read_from_cache (UINT32 const lpn,
 	// is page in cache?
 	bc_get(lpn, &page_buff, BC_BUF_TYPE_USR);
 
-	// heuristic to optimize small reads: 
-	// load uncached page into cache if its previous page or itself was 
-	// visited lately
-	if (!page_buff && num_sectors_to_read < SECTORS_PER_PAGE / 2 && 
-	    (cmt_get(lpn, &vpn) == 0 || cmt_get(lpn-1, &vpn) == 0)) {
+	if (page_buff) {
+		bc_fill(lpn, sect_offset, num_sectors_to_read, BC_BUF_TYPE_USR);
+	}
+	else { 
+		if (num_sectors_to_read > SECTORS_PER_PAGE / 2 || 
+	    		(cmt_get(lpn, &vpn) != 0 && cmt_get(lpn-1, &vpn) != 0))
+			return FALSE;
+
+		// heuristic to optimize small reads: 
+		// load uncached page into cache if its previous page or itself was 
+		// visited lately
 		get_vpn(lpn);
 		bc_put(lpn, &page_buff, BC_BUF_TYPE_USR);
 		bc_fill_full_page(lpn, BC_BUF_TYPE_USR);
 	}
-	
-	if (!page_buff) return FALSE;
 	
 	// wait for the next buffer to get SATA transfer done
 	#if OPTION_FTL_TEST == 0
 	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
 	#endif
 
-	bc_fill(lpn, sect_offset, num_sectors_to_read, BC_BUF_TYPE_USR);
 	mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
 		 page_buff + BYTES_PER_SECTOR * sect_offset,
 		 BYTES_PER_SECTOR * num_sectors_to_read);
+	
 	mem_read_done(next_read_buf_id);
 	return TRUE;
 }
