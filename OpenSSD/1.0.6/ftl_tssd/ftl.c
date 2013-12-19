@@ -68,17 +68,43 @@ UINT32 get_vpn(UINT32 const lpn)
 	return vpn;
 }
 
-static void read_page  (UINT32 const lpn, 
-			UINT32 const sect_offset, 
-			UINT32 const num_sectors_to_read)
+static void mem_read_done()
 {
-    	UINT32 bank, vpn;
-	UINT32 page_buff = NULL;
-	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+	// wait for flash finish to avoid race condition when updating
+	// BM_READ_LIMIT
+	flash_finish();
 
-	INFO("ftl>read>input", "read %d sectors at logical page %d with offset %d", 
-			num_sectors_to_read, lpn, sect_offset);
- 
+	// read buffer is ready for SATA transfer
+	SETREG(BM_STACK_RDSET, next_read_buf_id);
+	SETREG(BM_STACK_RESET, 0x02);
+
+	g_ftl_read_buf_id = next_read_buf_id;
+}
+
+static void read_empty_page (UINT32 const sect_offset, 
+			     UINT32 const num_sectors_to_read)
+{
+	// wait for the next buffer to get SATA transfer done
+	#if OPTION_FTL_TEST == 0
+	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+	#endif
+
+	// Send 0xFF...FF to host when the host request to read the 
+	// sector that has never been written.
+	mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) 
+			+ sect_offset * BYTES_PER_SECTOR,
+			0xFFFFFFFF, 
+			num_sectors_to_read * BYTES_PER_SECTOR);
+
+	mem_read_done();
+}
+
+static BOOL8 try_read_from_cache (UINT32 const lpn,
+				  UINT32 const sect_offset,
+				  UINT32 const num_sectors_to_read)
+{
+	UINT32 page_buff;
+	
 	// is page in cache?
 	bc_get(lpn, &page_buff, BC_BUF_TYPE_USR);
 
@@ -92,59 +118,49 @@ static void read_page  (UINT32 const lpn,
 		bc_fill_full_page(lpn, BC_BUF_TYPE_USR);
 	}
 	
-	// read from cache if possible 
-	if (page_buff) {
-		// wait for the next buffer to get SATA transfer done
-		#if OPTION_FTL_TEST == 0
-		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
-		#endif
+	if (!page_buff) return FALSE;
+	
+	// wait for the next buffer to get SATA transfer done
+	#if OPTION_FTL_TEST == 0
+	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+	#endif
 
-		bc_fill(lpn, sect_offset, num_sectors_to_read, BC_BUF_TYPE_USR);
-		mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
-			 page_buff + BYTES_PER_SECTOR * sect_offset,
-			 BYTES_PER_SECTOR * num_sectors_to_read);
-		goto mem_xfer_done;
-	}
+	bc_fill(lpn, sect_offset, num_sectors_to_read, BC_BUF_TYPE_USR);
+	mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
+		 page_buff + BYTES_PER_SECTOR * sect_offset,
+		 BYTES_PER_SECTOR * num_sectors_to_read);
+	mem_read_done();
+	return TRUE;
+}
+
+static void read_page  (UINT32 const lpn, 
+			UINT32 const sect_offset, 
+			UINT32 const num_sectors_to_read)
+{
+    	UINT32 bank, vpn;
+	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+
+	INFO("ftl>read>input", "read %d sectors at logical page %d with offset %d", 
+			num_sectors_to_read, lpn, sect_offset);
+
+	// if page in cache
+	if (try_read_from_cache(lpn, sect_offset, num_sectors))
+		return;
 	
 	vpn  = get_vpn(lpn);
-			
-	// read from flash
-	if (vpn != NULL)
-	{
-		bank = lpn2bank(lpn);
-		nand_page_ptread_to_host(bank,
-					 vpn / PAGES_PER_BLK,
-					 vpn % PAGES_PER_BLK,
-					 sect_offset,
-					 num_sectors_to_read);
+	// if page is empty
+	if (vpn == NULL)  {
+		read_empty_page(sect_offset, num_sectors);
 		return;
 	}
-	// the logical page has never been written to 
-	else
-	{
-		// wait for the next buffer to get SATA transfer done
-		#if OPTION_FTL_TEST == 0
-		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
-		#endif
 
-            	// Send 0xFF...FF to host when the host request to read the 
-		// sector that has never been written.
-		mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) 
-				+ sect_offset * BYTES_PER_SECTOR,
-				0xFFFFFFFF, 
-				num_sectors_to_read * BYTES_PER_SECTOR);
-	}
-
-mem_xfer_done:
-	// wait for flash finish to avoid race condition when updating
-	// BM_READ_LIMIT
-	flash_finish();
-
-	// read buffer is ready for SATA transfer
-	SETREG(BM_STACK_RDSET, next_read_buf_id);
-	SETREG(BM_STACK_RESET, 0x02);
-
-	g_ftl_read_buf_id = next_read_buf_id;
+	// if page is in flash
+	bank = lpn2bank(lpn);
+	nand_page_ptread_to_host(bank,
+				 vpn / PAGES_PER_BLK,
+				 vpn % PAGES_PER_BLK,
+				 sect_offset,
+				 num_sectors_to_read);
 }
 
 static void write_full_page_to_flash (UINT32 const lpn)
@@ -275,10 +291,17 @@ void ftl_open(void) {
 	uart_print("ftl_open done\r\n");
 }
 
-void ftl_read(UINT32 const lba, UINT32 const num_sectors) 
+#if OPTION_ACL
+void ftl_read(UINT32 const lba, UINT32 const num_sectors, UINT32 const skey)
+#else
+void ftl_read(UINT32 const lba, UINT32 const num_sectors)
+#endif
 {
 	UINT32 remain_sects, num_sectors_to_read;
     	UINT32 lpn, sect_offset;
+#if OPTION_ACL
+	BOOL8  acces_granted = acl_verify(lba, num_sectors, skey);
+#endif
 
     	lpn          = lba / SECTORS_PER_PAGE;
     	sect_offset  = lba % SECTORS_PER_PAGE;
@@ -286,7 +309,6 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 
 /*    	uart_printf("ftl read: g_ftl_read_buf_id=%d, SATA_RBUF_PTR=%d, BM_READ_LIMIT=%d\r\n", 
 			g_ftl_read_buf_id, GETREG(SATA_RBUF_PTR), GETREG(BM_READ_LIMIT));*/
-
 	while (remain_sects != 0)
 	{
         	if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
@@ -294,7 +316,14 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
         	else
             		num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
 
+#if OPTION_ACL
+		if (access_granted) 
+			read_page(lpn, sect_offset, num_sectors_to_read);
+		else	/* fake page read */
+			read_empty_page(lpn, sect_offset, num_sectors_to_read)
+#else
 		read_page(lpn, sect_offset, num_sectors_to_read);
+#endif
 
 		sect_offset   = 0;
 		remain_sects -= num_sectors_to_read;
@@ -302,17 +331,25 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
     	}
 }
 
-void ftl_write(UINT32 const lba, UINT32 const num_sectors) 
+#if OPTION_ACL
+void ftl_write(UINT32 const lba, UINT32 const num_sectors, UINT32 const skey)
+#else
+void ftl_write(UINT32 const lba, UINT32 const num_sectors)
+#endif
 {
 	UINT32 remain_sects, num_sectors_to_write;
     	UINT32 lpn, sect_offset;
 
+/*  	uart_printf("ftl write: g_ftl_write_buf_id=%d, SATA_WBUF_PTR=%d, BM_WRITE_LIMIT=%d\r\n", 
+			g_ftl_write_buf_id, GETREG(SATA_WBUF_PTR), GETREG(BM_WRITE_LIMIT));*/
+
+#if OPTION_ACL
+	acl_authorize(lba, num_sectors, skey);	
+#endif
+
 	lpn          = lba / SECTORS_PER_PAGE;
 	sect_offset  = lba % SECTORS_PER_PAGE;
  	remain_sects = num_sectors;
-
-/*  	uart_printf("ftl write: g_ftl_write_buf_id=%d, SATA_WBUF_PTR=%d, BM_WRITE_LIMIT=%d\r\n", 
-			g_ftl_write_buf_id, GETREG(SATA_WBUF_PTR), GETREG(BM_WRITE_LIMIT));*/
 
     	while (remain_sects != 0)
     	{

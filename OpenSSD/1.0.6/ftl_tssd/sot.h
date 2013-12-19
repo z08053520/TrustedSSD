@@ -29,8 +29,13 @@ typedef UINT16		uid_t;
 
 void sot_init();
 
+/* for individual sector  */
 void sot_fetch(UINT32 const lba, uid_t *uid);
 void sot_update(UINT32 const lba, uid_t const uid);
+
+/* for consecutive sectors */
+BOOL8 sot_check(UINT32 const lba_begin, UINT32 const num_sectors, uid_t const uid);
+void sot_set(UINT32 const lba_begin, UINT32 const num_sectors, uid_t const uid);
 
 #endif
 #endif

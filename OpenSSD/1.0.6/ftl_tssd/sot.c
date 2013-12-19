@@ -71,4 +71,31 @@ void sot_update(UINT32 const lba, uid_t const uid)
 	bc_set_dirty(index, BC_BUF_TYPE_SOT);
 }
 
+BOOL8 sot_check(UINT32 const lba_begin, UINT32 const num_sectors, 
+		uid_t const expected_uid)
+{
+	UINT32 lba = lba_begin, lba_end = lba_begin + num_sectors;
+	uid_t actual_uid;
+
+	while (lba < lba_end) {
+		sot_fetch(lba, &actual_uid);
+		if (actual_uid != expected_uid) return FALSE;
+
+		lba ++;
+	}
+	return TRUE; 
+}
+
+void sot_set(UINT32 const lba_begin, UINT32 const num_sectors, 
+	     uid_t const new_uid)
+{
+	UINT32 lba = lba_begin, lba_end = lba_begin + num_sectors;
+
+	while (lba < lba_end) {
+		sot_update(lba, new_uid);
+
+		lba++;
+	}
+}
+
 #endif
