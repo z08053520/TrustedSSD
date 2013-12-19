@@ -61,6 +61,9 @@ typedef struct
 	UINT32	lba;
 	UINT32	sector_count;
 	UINT32	cmd_type;
+#if OPTION_ACL
+	UINT32  session_key;
+#endif
 } CMD_T;
 
 // slow_cmd_t status

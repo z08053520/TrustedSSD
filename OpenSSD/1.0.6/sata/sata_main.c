@@ -46,6 +46,10 @@ static void eventq_get(CMD_T* cmd)
 	cmd->lba			= EQReadData1 & 0x3FFFFFFF;
 	cmd->sector_count	= EQReadData0 >> 16;
 	cmd->cmd_type		= EQReadData1 >> 31;
+#if OPTION_ACL
+	// FIXME: read real session_key from queue	
+	cmd->session_key	= cmd->lba;
+#endif
 
 	if(cmd->sector_count == 0)
 		cmd->sector_count = 0x10000;
@@ -90,11 +94,20 @@ void Main(void)
 
 			if (cmd.cmd_type == READ)
 			{
+#if OPTION_ACL
+				ftl_read(cmd.lba, cmd.sector_count, cmd.session_key);
+#else
 				ftl_read(cmd.lba, cmd.sector_count);
+#endif
+
 			}
 			else
 			{
+#if OPTION_ACL
+				ftl_write(cmd.lba, cmd.sector_count, cmd.session_key);
+#else
 				ftl_write(cmd.lba, cmd.sector_count);
+#endif
 			}
 		}
 		else if (g_sata_context.slow_cmd.status == SLOW_CMD_STATUS_PENDING)

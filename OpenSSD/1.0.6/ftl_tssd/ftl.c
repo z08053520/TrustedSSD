@@ -3,6 +3,9 @@
 #include "pmt.h"
 #include "gc.h"
 #include "buffer_cache.h"
+#if OPTION_ACL
+#include "acl.h"
+#endif
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
@@ -68,7 +71,7 @@ UINT32 get_vpn(UINT32 const lpn)
 	return vpn;
 }
 
-static void mem_read_done()
+static void mem_read_done(UINT32 const next_read_buf_id)
 {
 	// wait for flash finish to avoid race condition when updating
 	// BM_READ_LIMIT
@@ -84,6 +87,8 @@ static void mem_read_done()
 static void read_empty_page (UINT32 const sect_offset, 
 			     UINT32 const num_sectors_to_read)
 {
+	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+
 	// wait for the next buffer to get SATA transfer done
 	#if OPTION_FTL_TEST == 0
 	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
@@ -96,14 +101,16 @@ static void read_empty_page (UINT32 const sect_offset,
 			0xFFFFFFFF, 
 			num_sectors_to_read * BYTES_PER_SECTOR);
 
-	mem_read_done();
+	mem_read_done(next_read_buf_id);
 }
 
 static BOOL8 try_read_from_cache (UINT32 const lpn,
 				  UINT32 const sect_offset,
 				  UINT32 const num_sectors_to_read)
 {
+	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 	UINT32 page_buff;
+	UINT32 vpn;
 	
 	// is page in cache?
 	bc_get(lpn, &page_buff, BC_BUF_TYPE_USR);
@@ -129,7 +136,7 @@ static BOOL8 try_read_from_cache (UINT32 const lpn,
 	mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
 		 page_buff + BYTES_PER_SECTOR * sect_offset,
 		 BYTES_PER_SECTOR * num_sectors_to_read);
-	mem_read_done();
+	mem_read_done(next_read_buf_id);
 	return TRUE;
 }
 
@@ -138,19 +145,18 @@ static void read_page  (UINT32 const lpn,
 			UINT32 const num_sectors_to_read)
 {
     	UINT32 bank, vpn;
-	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
 
 	INFO("ftl>read>input", "read %d sectors at logical page %d with offset %d", 
 			num_sectors_to_read, lpn, sect_offset);
 
 	// if page in cache
-	if (try_read_from_cache(lpn, sect_offset, num_sectors))
+	if (try_read_from_cache(lpn, sect_offset, num_sectors_to_read))
 		return;
 	
 	vpn  = get_vpn(lpn);
 	// if page is empty
 	if (vpn == NULL)  {
-		read_empty_page(sect_offset, num_sectors);
+		read_empty_page(sect_offset, num_sectors_to_read);
 		return;
 	}
 
@@ -300,7 +306,9 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 	UINT32 remain_sects, num_sectors_to_read;
     	UINT32 lpn, sect_offset;
 #if OPTION_ACL
-	BOOL8  acces_granted = acl_verify(lba, num_sectors, skey);
+	BOOL8  access_granted = acl_verify(lba, num_sectors, skey);
+	// FIXME: only grant access for authorized user
+	access_granted = TRUE;
 #endif
 
     	lpn          = lba / SECTORS_PER_PAGE;
@@ -320,7 +328,7 @@ void ftl_read(UINT32 const lba, UINT32 const num_sectors)
 		if (access_granted) 
 			read_page(lpn, sect_offset, num_sectors_to_read);
 		else	/* fake page read */
-			read_empty_page(lpn, sect_offset, num_sectors_to_read)
+			read_empty_page(sect_offset, num_sectors_to_read);
 #else
 		read_page(lpn, sect_offset, num_sectors_to_read);
 #endif

@@ -79,7 +79,8 @@ BOOL8 sot_check(UINT32 const lba_begin, UINT32 const num_sectors,
 
 	while (lba < lba_end) {
 		sot_fetch(lba, &actual_uid);
-		if (actual_uid != expected_uid) return FALSE;
+		if (actual_uid != 0 && actual_uid != expected_uid) 
+			return FALSE;
 
 		lba ++;
 	}
