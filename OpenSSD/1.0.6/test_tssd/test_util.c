@@ -31,11 +31,17 @@ UINT32 timer_ellapsed_us()
 static UINT32 _pm_output_threshold = PM_DEFAULT_OUTPUT_THRESHOLD;
 static UINT32 _pm_total_bytes;
 
+#if OPTION_PERF_TUNING
+extern UINT32 g_flash_read_count, g_flash_write_count;
+extern UINT32 g_pmt_cache_miss_count;
+#endif
+
 void perf_monitor_reset() 
 {
 	_pm_total_bytes = 0;
 #if OPTION_PERF_TUNING
 	g_flash_read_count = g_flash_write_count = 0;
+	g_pmt_cache_miss_count = 0;
 #endif
 	timer_reset();
 }
@@ -50,16 +56,19 @@ void perf_monitor_report()
 	UINT32 time_us 	  = timer_ellapsed_us();
 	UINT32 throughput = _pm_total_bytes / time_us;
   
-	uart_printf("Transferred %d bytes (~%dMB) in %dus (~%dms), "
+	uart_printf("> Transferred %d bytes (~%dMB) in %dus (~%dms), "
 		    "throughput %dMB/s\r\n",
 		    _pm_total_bytes, _pm_total_bytes / 1024 /1024,
 		    time_us, time_us / 1000, 
 		    throughput);
 
 #if OPTION_PERF_TUNING
-	if (g_flash_read_count || g_flash_write_count)
-		uart_printf("Total of %u flash reads and %u flash writes\r\n",
+	if (g_flash_read_count || g_flash_write_count) {
+		uart_printf("> Total of %u flash reads and %u flash writes\r\n",
 			    g_flash_read_count, g_flash_write_count);
+		uart_printf("> Total of %u PMT cache miss count\r\n", 
+			    g_pmt_cache_miss_count);
+	}
 #endif	
 }
 
