@@ -3,6 +3,7 @@
  * =========================================================================*/
 
 #include "jasmine.h"
+#include "ftl.h"
 #include "bad_blocks.h"
 #include "gc.h"
 #include "test_util.h"
@@ -19,7 +20,9 @@ static void sram_perf_test()
 	
 	UINT32 total_operations = 64 * 1024;
 	UINT32 num_operations   = 0;
+	UINT32 bank, rbank; 
 
+	// testing SRAM access
 	UINT32 sum = 0;
 	timer_reset();
 	while (num_operations < total_operations) {
@@ -33,6 +36,22 @@ static void sram_perf_test()
 	UINT32 time_us = timer_ellapsed_us();
 	uart_printf("SRAM throughput = %uMB/s, latency = %uns\r\n",
 		    total_operations * sizeof(UINT32) / time_us,
+		    1000 * time_us / total_operations);
+
+	// testing flash register
+	flash_finish();
+	num_operations = 0;
+	timer_reset();
+	while (num_operations < total_operations) {
+		bank = 0;
+		while (rbank = REAL_BANK(bank), 
+		       bank < NUM_BANKS && _BSP_FSM(rbank) == BANK_IDLE)
+			bank++;
+
+		num_operations++;
+	}
+	time_us = timer_ellapsed_us();
+	uart_printf("Iterating flash state registers latency = %uns\r\n",
 		    1000 * time_us / total_operations);
 }
 
@@ -208,15 +227,19 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 	#define LBA_BEGIN	0 
 #endif
 
-static void ftl_perf_test(UINT32 const num_sectors, UINT32 const total_mb)
+static UINT32 g_seq_total_mb = 0;
+
+static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 {
-	uart_printf("FTL performance test (unit = %u bytes) begins...\r\n", 
+	uart_printf("FTL **sequential** read/write test (unit = %u bytes) begins...\r\n", 
 		    num_sectors * BYTES_PER_SECTOR);
 
 	UINT32 total_sectors 	= total_mb * 1024 * 1024 / BYTES_PER_SECTOR;
 
 	UINT32 lba, end_lba = total_sectors;
 		
+	g_seq_total_mb += total_mb;
+
 	// write
 	uart_printf("Write sequentially %uMB of data\r\n", total_mb);
 	lba = LBA_BEGIN;
@@ -242,6 +265,43 @@ static void ftl_perf_test(UINT32 const num_sectors, UINT32 const total_mb)
 	uart_print("Done");
 }
 
+static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
+{
+	uart_printf("FTL **random** read/write test (unit = %u bytes) begins...\r\n", 
+		    num_sectors * BYTES_PER_SECTOR);
+
+	UINT32 lba, end_lba = g_seq_total_mb * 1024 * 1024 / BYTES_PER_SECTOR; 
+	UINT32 num_sectors_so_far, total_num_sectors = total_mb * 1024 * 1024 / BYTES_PER_SECTOR;
+		
+	// write
+	uart_printf("Write randomly %uMB of data\r\n", total_mb);
+	perf_monitor_reset();
+	num_sectors_so_far = 0;
+	while (num_sectors_so_far < total_num_sectors) {
+		lba = random(0, end_lba);
+
+		ftl_write(lba, num_sectors);
+	
+		num_sectors_so_far += num_sectors;
+	}
+	perf_monitor_update(total_num_sectors);
+
+	// read
+	uart_printf("Read randomly %uMB of data\r\n", total_mb);
+	perf_monitor_reset();
+	num_sectors_so_far = 0;
+	while (num_sectors_so_far < total_num_sectors) {
+		lba = random(0, end_lba);
+
+		ftl_read(lba, num_sectors);
+
+		num_sectors_so_far += num_sectors;;
+	}
+	perf_monitor_update(total_num_sectors);
+
+	uart_print("Done");
+}
+
 void ftl_test()
 {
 	uart_print("Performance test begins...");
@@ -252,11 +312,16 @@ void ftl_test()
 	uart_print("---------------------- Raw Flash ------------------------");
 		//UINT32 total_mb_thr = 512;
 		//flash_perf_test(total_mb_thr);
-	uart_print("------------------------ FTL ----------------------------");
-		UINT32 total_mb     = 256;
-		ftl_perf_test(8, total_mb);	// granularity -- 4KB
-		ftl_perf_test(32, total_mb);	// granularity -- 16KB
-		ftl_perf_test(64, total_mb);	// granularity -- 32KB
+	uart_print("--------------------- FTL Seq R/W -----------------------");
+		UINT32 total_mb_seq = 256;
+		ftl_perf_test_seq(8,  total_mb_seq);	// req stride -- 4KB
+		ftl_perf_test_seq(32, total_mb_seq);	// req stride -- 16KB
+		ftl_perf_test_seq(64, total_mb_seq);	// req stride -- 32KB
+	uart_print("--------------------- FTL Rnd R/W -----------------------");
+		UINT32 total_mb_rnd = 64;
+		ftl_perf_test_rnd(8,  total_mb_rnd);	// req stride -- 4KB 
+		ftl_perf_test_rnd(32, total_mb_rnd);	// req stride -- 16KB
+		ftl_perf_test_rnd(64, total_mb_rnd);	// req stride -- 32KB
 	uart_print("--------------------------------------------------------");
 	uart_print("Performance test is done ^_^");
 }
