@@ -3,6 +3,8 @@
 #include "pmt.h"
 #include "gc.h"
 #include "buffer_cache.h"
+#include "write_buffer.h"
+#include "read_buffer.h"
 #if OPTION_ACL
 #include "acl.h"
 #endif
@@ -35,7 +37,7 @@ typedef struct {
 
 static void sanity_check(void)
 {
-	UINT32 dram_requirement = RD_BUF_BYTES + WR_BUF_BYTES + COPY_BUF_BYTES
+	UINT32 dram_requirement = SATA_RD_BUF_BYTES + SATA_WR_BUF_BYTES + COPY_BUF_BYTES
 		+ FTL_BUF_BYTES + HIL_BUF_BYTES + TEMP_BUF_BYTES 
 		+ BAD_BLK_BMP_BYTES + BC_BYTES;
 
@@ -43,8 +45,8 @@ static void sanity_check(void)
 	BUG_ON("ftl_metadata is too larget", sizeof(ftl_metadata) > BYTES_PER_PAGE);
 	BUG_ON("Address of SATA buffers must be a integer multiple of " 
 	       "SATA_BUF_PAGE_SIZE, which is set as BYTES_PER_PAGE when started", 
-			RD_BUF_ADDR   % BYTES_PER_PAGE != 0 || 
-			WR_BUF_ADDR   % BYTES_PER_PAGE != 0 || 
+			SATA_RD_BUF_ADDR   % BYTES_PER_PAGE != 0 || 
+			SATA_WR_BUF_ADDR   % BYTES_PER_PAGE != 0 || 
 			COPY_BUF_ADDR % BYTES_PER_PAGE != 0);
 }
 
@@ -87,7 +89,7 @@ static void mem_read_done(UINT32 const next_read_buf_id)
 static void read_empty_page (UINT32 const sect_offset, 
 			     UINT32 const num_sectors_to_read)
 {
-	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
 
 	// wait for the next buffer to get SATA transfer done
 	#if OPTION_FTL_TEST == 0
@@ -96,7 +98,7 @@ static void read_empty_page (UINT32 const sect_offset,
 
 	// Send 0xFF...FF to host when the host request to read the 
 	// sector that has never been written.
-	mem_set_dram(RD_BUF_PTR(g_ftl_read_buf_id) 
+	mem_set_dram(SATA_RD_BUF_PTR(g_ftl_read_buf_id) 
 			+ sect_offset * BYTES_PER_SECTOR,
 			0xFFFFFFFF, 
 			num_sectors_to_read * BYTES_PER_SECTOR);
@@ -108,7 +110,7 @@ static BOOL8 try_read_from_cache (UINT32 const lpn,
 				  UINT32 const sect_offset,
 				  UINT32 const num_sectors_to_read)
 {
-	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_RD_BUFFERS;
+	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
 	UINT32 page_buff = NULL;
 	UINT32 vpn;
 	
@@ -136,12 +138,113 @@ static BOOL8 try_read_from_cache (UINT32 const lpn,
 	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
 	#endif
 
-	mem_copy(RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
+	mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
 		 page_buff + BYTES_PER_SECTOR * sect_offset,
 		 BYTES_PER_SECTOR * num_sectors_to_read);
 	
 	mem_read_done(next_read_buf_id);
 	return TRUE;
+}
+
+static void read_full_page(UINT32 const lpn)
+{
+	
+}
+
+
+#define VPN_BANK_PREFIX_LEN	5	/* 5 bits are enough to represent 32 banks */
+#define vpn2bank(vpn)		(vpn >> (sizeof(UINT32) - BANK_PREFIX_LEN))
+
+/* segment is contiguous sub pages that are stored in the same page */
+typedef struct _segment {
+	UINT32 vpn;
+	UINT8  sector_offset;
+	UINT8  num_sectors;
+} segment_t;
+
+/* align LBA to the boundary of sub pages */
+#define align_lba_to_sp(lba) (lba / SECTORS_PER_SUB_PAGE * SECTORS_PER_SUB_PAGE)
+
+static void read_page_4KB(UINT32 const lpn, 
+			  UINT32 const sect_offset, 
+			  UINT32 const num_sectors_to_read)
+{	
+	segment_t segment[SUB_PAGES_PER_PAGE];
+	UINT8   num_segments = 0;
+
+	UINT32  sector_begin	= align_lba_to_sp(sect_offset),
+		sector_end	= align_lba_to_sp(sect_offset + num_sectors_to_read);
+	
+	#if OPTION_FTL_TEST == 0
+	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+	#endif
+
+	UINT32	vpn, buff;
+	UINT32 	lspn 		= lpn * SUB_PAGES_PER_PAGE + sector_begin / SECTORS_PER_SUB_PAGE;
+	UINT32  sector_i  	= sector_begin;
+	// iterate sub pages
+	while (sector_i < sector_end) {
+		merge_buffer_get(lspn, &buff);
+		if (!buff) {
+			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id), 
+				 buff, BYTES_PER_SUB_PAGE);
+			continue;
+		}
+
+		vpn = get_vpn(lspn);
+		// read buffer can handle vpn == 0 case
+		read_buffer_get(vpn, &buff);
+		if (!buff) {
+			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id),
+				 buff + BYTES_PER_SECTOR * SECTORS_PER_SUB_PAGE * (lspn % SUB_PAGES_PER_PAGE),
+				 BYTES_PER_SUB_PAGE);
+			continue;
+		}	
+
+		if (num_segments == 0 || segment[num_segments-1].vpn != vpn) {
+			segment[num_segments].vpn = vpn;
+			segment[num_segments].sector_offset = sector_i;
+			segment[num_segments].num_sectors = 0;
+			num_segments++;
+		}
+		segment[num_segments-1].num_sectors += SECTORS_PER_SUB_PAGE;
+
+		lspn ++;
+		sector_i += SECTORS_PER_SUB_PAGE;
+	}
+
+	// if no need to do any flash read
+	if (num_segments == 0) {
+		mem_read_done();
+		return;
+	}
+
+	segment_t* seg;
+	if (num_segments > 1) {
+		buff = SATA_RD_BUF_PTR(g_ftl_read_buf_id);
+
+		UINT8 segment_i;
+		for (segment_i = 0; segment_i < num_segments - 1; segment_i++) {
+			seg = & segment[segment_i];
+			vpn = seg->vpn;
+			nand_page_ptread(vpn2bank(vpn),
+					 vpn / PAGES_PER_VBLK,
+					 vpn % PAGES_PER_VBLK,
+					 seg->sector_offset,
+					 seg->num_sectors,
+					 buff,
+					 RETURN_ON_ISSUE);
+		}
+		flash_finish();
+	}
+
+	seg = & segment[num_segments-1];
+	vpn = seg->vpn;
+	nand_page_ptread_to_host(vpn2bank(vpn),
+				 vpn / PAGES_PER_VBLK,
+				 vpn % PAGES_PER_VBLK,
+				 seg->sector_offset,
+				 seg->num_sectors);
 }
 
 static void read_page  (UINT32 const lpn, 
@@ -194,6 +297,13 @@ static void write_full_page_to_flash (UINT32 const lpn)
 	cmt_update(lpn, new_vpn);
 }
 
+static void write_page_4KB(UINT32 const lpn, 
+		       	   UINT32 const sect_offset, 
+		           UINT32 const num_sectors_to_write)
+{
+	write_buffer_push(lpn, sect_offset, num_sectors_to_write);
+}
+
 static void write_page(UINT32 const lpn, 
 		       UINT32 const sect_offset, 
 		       UINT32 const num_sectors_to_write)
@@ -226,7 +336,7 @@ static void write_page(UINT32 const lpn,
 
 	// copy from SATA circular buffer to buffer cache 
 	target_addr = buff_addr + sect_offset * BYTES_PER_SECTOR;
-	src_addr    = WR_BUF_PTR(g_ftl_write_buf_id) + sect_offset * BYTES_PER_SECTOR;
+	src_addr    = SATA_WR_BUF_PTR(g_ftl_write_buf_id) + sect_offset * BYTES_PER_SECTOR;
 	num_bytes   = num_sectors_to_write * BYTES_PER_SECTOR;
 
 	mem_copy(target_addr, src_addr, num_bytes);
@@ -234,7 +344,7 @@ static void write_page(UINT32 const lpn,
 	bc_set_valid_sectors(lpn, sect_offset, num_sectors_to_write, BC_BUF_TYPE_USR);
 	bc_set_dirty(lpn, BC_BUF_TYPE_USR);
 
-	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_WR_BUFFERS;	
+	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_SATA_WR_BUFFERS;	
 
 	// wait for flash finish to avoid race condition when updating
 	// BM_WRITE_LIMIT
@@ -254,10 +364,10 @@ static void print_info(void)
 	PRINT_SIZE("cache", 	BC_BYTES);
 	PRINT_SIZE("bad block bitmap",	BAD_BLK_BMP_BYTES); 
 	PRINT_SIZE("non R/W buffers", 	NON_RW_BUF_BYTES);
-	uart_printf("# of read buffers == %d\r\n", NUM_RD_BUFFERS);
-	PRINT_SIZE("read buffers", 	RD_BUF_BYTES);
-	uart_printf("# of write buffers == %d\r\n", NUM_WR_BUFFERS);
-	PRINT_SIZE("write buffers", 	WR_BUF_BYTES);
+	uart_printf("# of read buffers == %d\r\n", NUM_SATA_RD_BUFFERS);
+	PRINT_SIZE("read buffers", 	SATA_RD_BUF_BYTES);
+	uart_printf("# of write buffers == %d\r\n", NUM_SATA_WR_BUFFERS);
+	PRINT_SIZE("write buffers", 	SATA_WR_BUF_BYTES);
 	PRINT_SIZE("page size",		BYTES_PER_SECTOR * SECTORS_PER_PAGE);
 	uart_print("");
 }
@@ -288,6 +398,9 @@ void ftl_open(void) {
 #if OPTION_ACL
 	sot_init();
 #endif
+
+	read_buffer_init();
+	write_buffer_init();
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
 
@@ -384,6 +497,7 @@ void ftl_test_write(UINT32 const lba, UINT32 const num_sectors) {
 
 void ftl_flush(void) {
 	INFO("ftl", "ftl_flush is called");
+	write_buffer_flush();
 }
 
 void ftl_isr(void) {

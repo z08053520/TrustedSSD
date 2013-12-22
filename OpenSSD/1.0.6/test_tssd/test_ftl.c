@@ -56,7 +56,7 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 	UINT32 num_sectors;
 	UINT32 remain_sects = req_sectors;
 	UINT32 sata_buf_id  = g_ftl_write_buf_id;
-	UINT32 sata_buf     = WR_BUF_PTR(sata_buf_id);
+	UINT32 sata_buf     = SATA_WR_BUF_PTR(sata_buf_id);
 	UINT32 tmp_lba, sect_limit;
 
 	// prepare SATA buffer by iterating pages in the request
@@ -80,8 +80,8 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 		lpn++;
 		sect_offset   = 0;
 		remain_sects -= num_sectors;
-		sata_buf_id   = (sata_buf_id + 1) % NUM_WR_BUFFERS;
-		sata_buf      = WR_BUF_PTR(sata_buf_id);
+		sata_buf_id   = (sata_buf_id + 1) % NUM_SATA_WR_BUFFERS;
+		sata_buf      = SATA_WR_BUF_PTR(sata_buf_id);
 	}
 
 	// write to flash
@@ -102,8 +102,8 @@ static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors,
 	UINT32 num_bufs_rd  = COUNT_BUCKETS(req_sectors + sect_offset, SECTORS_PER_PAGE);
 	UINT32 sata_buf_id  = g_ftl_read_buf_id >= num_bufs_rd ? 
 					g_ftl_read_buf_id - num_bufs_rd : 
-					NUM_RD_BUFFERS + g_ftl_read_buf_id - num_bufs_rd;	
-	UINT32 sata_buf     = RD_BUF_PTR(sata_buf_id);
+					NUM_SATA_RD_BUFFERS + g_ftl_read_buf_id - num_bufs_rd;	
+	UINT32 sata_buf     = SATA_RD_BUF_PTR(sata_buf_id);
 	UINT32 tmp_lba, sect_limit;
 	
 	
@@ -137,8 +137,8 @@ static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors,
 		lpn++;
 		sect_offset   = 0;
 		remain_sects -= num_sectors;
-		sata_buf_id   = (sata_buf_id + 1) % NUM_RD_BUFFERS;
-		sata_buf      = RD_BUF_PTR(sata_buf_id);
+		sata_buf_id   = (sata_buf_id + 1) % NUM_SATA_RD_BUFFERS;
+		sata_buf      = SATA_RD_BUF_PTR(sata_buf_id);
 	}
 }
 

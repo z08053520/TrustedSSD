@@ -42,11 +42,6 @@ typedef struct {
 #undef ENTRY
 } gtd_zone_t; 
 
-#define GTD_SIZE		sizeof(gtd_zone_t)
-/* GTD must occupy whole pages */
-#define GTD_BYTES		(COUNT_BUCKETS(GTD_SIZE, BYTES_PER_PAGE) * BYTES_PER_PAGE)
-#define GTD_ADDR		(BAD_BLK_BMP_ADDR + BAD_BLK_BMP_BYTES)
-
 /* ===========================================================================
  * Public Interface 
  * =========================================================================*/

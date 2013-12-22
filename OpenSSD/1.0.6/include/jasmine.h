@@ -124,6 +124,10 @@
 #define ROWS_PER_PBLK			PAGES_PER_VBLK
 #define ROWS_PER_BANK			(ROWS_PER_PBLK * PBLKS_PER_BANK)
 
+/* Use 4KB sub page as the unit of page translation to improve the performance */
+#define BYTES_PER_SUB_PAGE		4096
+#define SUB_PAGES_PER_PAGE		(BYTES_PER_PAGE / BYTES_PER_SUB_PAGE)	
+#define SECTORS_PER_SUB_PAGE		(BYTES_PER_SUB_PAGE / BYTES_PER_SECTOR)
 
 ////////////////////
 // block 0

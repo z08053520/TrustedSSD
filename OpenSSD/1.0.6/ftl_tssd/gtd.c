@@ -1,3 +1,4 @@
+#include "dram.h"
 #include "gtd.h"
 #include "bad_blocks.h"
 #include "buffer_cache.h"

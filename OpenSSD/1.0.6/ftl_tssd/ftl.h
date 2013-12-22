@@ -2,58 +2,7 @@
 #define __FTL_H
 
 #include "jasmine.h"
-#include "buffer_cache.h"
-#include "bad_blocks.h"
-#include "gtd.h"
-
-/* ========================================================================= *
- * DRAM Segmentation
- * ========================================================================= */
-#define NUM_COPY_BUFFERS	NUM_BANKS_MAX
-#define NUM_FTL_BUFFERS		NUM_BANKS
-#define NUM_HIL_BUFFERS		1
-#define NUM_TEMP_BUFFERS	1
-#define NUM_NON_RW_BUFFERS	(NUM_COPY_BUFFERS + NUM_FTL_BUFFERS + NUM_HIL_BUFFERS + NUM_TEMP_BUFFERS)
-#define NON_RW_BUF_BYTES	(NUM_NON_RW_BUFFERS * BYTES_PER_PAGE)
-
-#define DRAM_BYTES_OTHER	(NON_RW_BUF_BYTES + BC_BYTES + BAD_BLK_BMP_BYTES + GTD_BYTES)
-
-#define NUM_RW_BUFFERS		((DRAM_SIZE - DRAM_BYTES_OTHER) / BYTES_PER_PAGE - 1)
-#define NUM_RD_BUFFERS		(COUNT_BUCKETS(NUM_RW_BUFFERS / 8, NUM_BANKS) * NUM_BANKS)
-#define NUM_WR_BUFFERS		(NUM_RW_BUFFERS - NUM_RD_BUFFERS)
-
-#define BUFS_ADDR		(DRAM_BASE + BC_BYTES + BAD_BLK_BMP_BYTES + GTD_BYTES)
-
-#define RD_BUF_ADDR		BUFS_ADDR	
-#define RD_BUF_BYTES            (NUM_RD_BUFFERS * BYTES_PER_PAGE)
-
-#define WR_BUF_ADDR             (RD_BUF_ADDR + RD_BUF_BYTES)
-#define WR_BUF_BYTES            (NUM_WR_BUFFERS * BYTES_PER_PAGE)
-
-#define COPY_BUF_ADDR           (WR_BUF_ADDR + WR_BUF_BYTES)
-#define COPY_BUF_BYTES          (NUM_COPY_BUFFERS * BYTES_PER_PAGE)
-
-#define FTL_BUF_ADDR            (COPY_BUF_ADDR + COPY_BUF_BYTES)
-#define FTL_BUF_BYTES           (NUM_FTL_BUFFERS * BYTES_PER_PAGE)
-
-#define HIL_BUF_ADDR            (FTL_BUF_ADDR + FTL_BUF_BYTES)
-#define HIL_BUF_BYTES           (NUM_HIL_BUFFERS * BYTES_PER_PAGE)
-
-#define TEMP_BUF_ADDR           (HIL_BUF_ADDR + HIL_BUF_BYTES)
-#define TEMP_BUF_BYTES          (NUM_TEMP_BUFFERS * BYTES_PER_PAGE)
-
-/* 
-#define VCOUNT_ADDR             (BAD_BLK_BMP_ADDR + BAD_BLK_BMP_BYTES)
-#define VCOUNT_BYTES            (COUNT_BUCKETS(NUM_VBLKS, BYTES_PER_SECTOR) * BYTES_PER_SECTOR)
-*/
-#define _COPY_BUF(RBANK)	(COPY_BUF_ADDR + (RBANK) * BYTES_PER_PAGE)
-#define COPY_BUF(BANK)		_COPY_BUF(REAL_BANK(BANK))
-#define FTL_BUF(BANK)       	(FTL_BUF_ADDR + ((BANK) * BYTES_PER_PAGE))
-
-#define WR_BUF_PTR(BUF_ID)	(WR_BUF_ADDR + ((UINT32)(BUF_ID)) * BYTES_PER_PAGE)
-#define WR_BUF_ID(BUF_PTR)	((((UINT32)BUF_PTR) - WR_BUF_ADDR) / BYTES_PER_PAGE)
-#define RD_BUF_PTR(BUF_ID)	(RD_BUF_ADDR + ((UINT32)(BUF_ID)) * BYTES_PER_PAGE)
-#define RD_BUF_ID(BUF_PTR)	((((UINT32)BUF_PTR) - RD_BUF_ADDR) / BYTES_PER_PAGE)
+#include "dram.h"
 
 /* ========================================================================= *
  * Public API 
