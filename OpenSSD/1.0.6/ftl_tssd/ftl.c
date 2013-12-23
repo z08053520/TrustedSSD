@@ -1,8 +1,7 @@
 #include "ftl.h"
-#include "cmt.h"
 #include "pmt.h"
 #include "gc.h"
-#include "buffer_cache.h"
+#include "page_cache.h"
 #include "write_buffer.h"
 #include "read_buffer.h"
 #if OPTION_ACL
@@ -387,20 +386,18 @@ void ftl_open(void) {
 
 	/* the initialization order indicates the dependencies between modules */
 	bb_init();
-	cmt_init();
 	gtd_init();
 
 	gc_init();
 
-	bc_init();
+	page_cache_init();
+	read_buffer_init();
+	write_buffer_init();
 
 	pmt_init();
 #if OPTION_ACL
 	sot_init();
 #endif
-
-	read_buffer_init();
-	write_buffer_init();
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
 

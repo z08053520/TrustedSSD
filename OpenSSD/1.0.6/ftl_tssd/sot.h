@@ -6,10 +6,12 @@
 
 /* *
  * SOT = Sector Ownership Table 
- *
+ *	
+ *	LBA (logical block/sector number) --> UID (user id)		
+ *	
  *   Let's do some simple math to calculate the number of entries in SOT.
- * For a 64GB flash, there are 64GB / 512B = 128M entries, occupying 
- * 128M * 2B / 32KB = 8K pages. 
+ *   For a 64GB flash, there are 64GB / 512B = 128M entries, occupying 
+ *   128M * 2B / 32KB = 8K pages. 
  * */
 
 
@@ -19,9 +21,13 @@
 
 typedef UINT16		uid_t;
 
-#define SOT_ENTRIES		(SECTORS_PER_BANK * NUM_BANKS)
-#define SOT_ENTRIES_PER_PAGE	(BYTES_PER_PAGE / sizeof(uid_t))
-#define SOT_PAGES		COUNT_BUCKETS(SOT_ENTRIES, SOT_ENTRIES_PER_PAGE)
+#define SOT_ENTRIES			(SECTORS_PER_BANK * NUM_BANKS)
+
+#define SOT_ENTRIES_PER_SUB_PAGE	(BYTES_PER_SUB_PAGE / sizeof(uid_t))
+#define SOT_SUB_PAGES			COUNT_BUCKETS(SOT_ENTRIES, SOT_ENTRIES_PER_SUB_PAGE)
+// TODO: remove?
+#define SOT_ENTRIES_PER_PAGE		(BYTES_PER_PAGE / sizeof(uid_t))
+#define SOT_PAGES			COUNT_BUCKETS(SOT_ENTRIES, SOT_ENTRIES_PER_PAGE)
 
 /* ===========================================================================
  * Public Interface 

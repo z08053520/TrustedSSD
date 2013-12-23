@@ -1,36 +1,12 @@
 #include "pmt.h"
-#include "buffer_cache.h"
+#include "page_cache.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
  * ========================================================================= */
 
-#define pmt_get_index(lpn)	(lpn / PMT_ENTRIES_PER_PAGE)
-#define pmt_get_offset(lpn)	(lpn % PMT_ENTRIES_PER_PAGE)
-
-#if	OPTION_PERF_TUNING
-	UINT32 g_pmt_cache_miss_count = 0;
-#endif
-
-/* ========================================================================= *
- * Private Functions 
- * ========================================================================= */
-
-static UINT32 load_pmt_buffer(UINT32 const pmt_index)
-{
-	UINT32 pmt_buff;
-
-	bc_get(pmt_index, &pmt_buff, BC_BUF_TYPE_PMT);
-	if (pmt_buff == NULL) {
-		bc_put(pmt_index, &pmt_buff, BC_BUF_TYPE_PMT);
-		bc_fill_full_page(pmt_index, BC_BUF_TYPE_PMT);
-
-#if	OPTION_PERF_TUNING
-		g_pmt_cache_miss_count++;
-#endif
-	}
-	return pmt_buff;
-}
+#define pmt_get_index(lspn)	(lspn / PMT_ENTRIES_PER_SUB_PAGE)
+#define pmt_get_offset(lspn)	(lspn % PMT_ENTRIES_PER_SUB_PAGE)
 
 /* ========================================================================= *
  * Public API 
@@ -42,24 +18,24 @@ void pmt_init(void)
 			PMT_ENTRIES, PMT_PAGES);
 }
 
-void pmt_fetch(UINT32 const lpn, UINT32 *vpn)
+void pmt_fetch(UINT32 const lspn, UINT32 *vpn)
 {
-	UINT32 pmt_index  = pmt_get_index(lpn);
-	UINT32 pmt_offset = pmt_get_offset(lpn);
-	UINT32 pmt_buff = load_pmt_buffer(pmt_index);	
+	UINT32 pmt_index  = pmt_get_index(lspn);
+	UINT32 pmt_offset = pmt_get_offset(lspn);
+	UINT32 pmt_buff;
+	page_cache_load(pmt_index, &pmt_buff, PC_BUF_TYPE_PMT, FALSE);
+	BUG_ON("buffer is empty", pmt_buff == NULL);
 
 	*vpn = read_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset);
-	INFO("pmt>fetch", "lpn = %d (vpn = %d, pmt_idx = %d)", lpn, *vpn, pmt_index);
 }
 
-void pmt_update(UINT32 const lpn, UINT32 const vpn)
+void pmt_update(UINT32 const lspn, UINT32 const vpn)
 {
-	UINT32 pmt_index  = pmt_get_index(lpn);
-	UINT32 pmt_offset = pmt_get_offset(lpn);
-	UINT32 pmt_buff = load_pmt_buffer(pmt_index);
+	UINT32 pmt_index  = pmt_get_index(lspn);
+	UINT32 pmt_offset = pmt_get_offset(lspn);
+	UINT32 pmt_buff;
+	page_cache_load(pmt_index, &pmt_buff, PC_BUF_TYPE_PMT, TRUE);
+	BUG_ON("buffer is empty", pmt_buff == NULL);
 
 	write_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset, vpn);
-	INFO("pmt>update", "lpn = %d (new vpn = %d, pmt_idx = %d)", lpn, vpn, pmt_index);
-
-	bc_set_dirty(pmt_index, BC_BUF_TYPE_PMT);
 }

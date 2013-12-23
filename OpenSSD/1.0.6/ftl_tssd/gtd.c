@@ -1,7 +1,5 @@
-#include "dram.h"
 #include "gtd.h"
 #include "bad_blocks.h"
-#include "buffer_cache.h"
 #include "mem_util.h"
 
 static UINT32 gtd_zone_addr[NUM_GTD_ZONE_TYPES + 1] = {
@@ -27,13 +25,13 @@ void gtd_flush(void)
 	// TODO: flush GTD to flash
 }
 
-UINT32 gtd_get_vpn(UINT32 const index, gtd_zone_type_t const zone_type)
+UINT32 gtd_get_vspn(UINT32 const index, gtd_zone_type_t const zone_type)
 {
 	return read_dram_32(GTD_ENTRY_ADDR(index, zone_type));
 }
 
-void   gtd_set_vpn(UINT32 const index, UINT32 const vpn, gtd_zone_type_t const zone_type)
+void   gtd_set_vspn(UINT32 const index, UINT32 const vspn, gtd_zone_type_t const zone_type)
 {
-	BUG_ON("set vpn = 0 ", vpn == 0);
-	write_dram_32(GTD_ENTRY_ADDR(index, zone_type), vpn);
+	BUG_ON("set vspn in vpn #0 ", vspn < SUB_PAGES_PER_PAGE);
+	write_dram_32(GTD_ENTRY_ADDR(index, zone_type), vspn);
 }

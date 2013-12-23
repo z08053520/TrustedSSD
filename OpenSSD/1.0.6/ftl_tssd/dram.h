@@ -7,13 +7,25 @@
 #include "target.h"
 
 /* ========================================================================= *
+ * Page Cache  
+ * ========================================================================= */
+
+#define PC_ADDR			DRAM_BASE
+#define PC_END			(PC_ADDR + PC_BYTES)
+#define NUM_PC_BUFFERS		16
+#define NUM_PC_SUB_PAGES	((NUM_PC_BUFFERS-1) * SUB_PAGES_PER_PAGE)
+#define PC_BYTES		(NUM_PC_BUFFERS * BYTES_PER_PAGE)
+#define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * i)
+#define PC_MERGE_BUF		(PC_ADDR + BYTES_PER_PAGE * (NUM_PC_BUFFERS-1))
+
+/* ========================================================================= *
  * Buffer Cache  
  * ========================================================================= */
 
-#define BC_ADDR			DRAM_BASE
+#define BC_ADDR			PC_END	
 #define BC_END			(BC_ADDR + BC_BYTES)
-#define NUM_BC_BUFFERS_PER_BANK 16 
-//#define NUM_BC_BUFFERS_PER_BANK 1	
+//#define NUM_BC_BUFFERS_PER_BANK 16 
+#define NUM_BC_BUFFERS_PER_BANK 1	
 #define NUM_BC_BUFFERS		(NUM_BC_BUFFERS_PER_BANK * NUM_BANKS)
 #define BC_BYTES		(NUM_BC_BUFFERS * BYTES_PER_PAGE)
 #define BC_BUF(i)		(BC_ADDR + BYTES_PER_PAGE * i)
@@ -101,7 +113,7 @@
 				 NUM_HIL_BUFFERS + NUM_TEMP_BUFFERS + \
 				 NUM_READ_BUFFERS + NUM_WRITE_BUFFERS)
 #define NON_SATA_BUF_BYTES	(NUM_NON_SATA_BUFFERS * BYTES_PER_PAGE)
-#define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + BC_BYTES + BAD_BLK_BMP_BYTES + GTD_BYTES)
+#define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + PC_BYTES + BC_BYTES + BAD_BLK_BMP_BYTES + GTD_BYTES)
 
 #define NUM_SATA_RW_BUFFERS	((DRAM_SIZE - DRAM_BYTES_OTHER) / BYTES_PER_PAGE - 1)
 #define NUM_SATA_RD_BUFFERS	(COUNT_BUCKETS(NUM_SATA_RW_BUFFERS / 8, NUM_BANKS) * NUM_BANKS)

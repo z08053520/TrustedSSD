@@ -1,26 +1,13 @@
 #include "sot.h"
 #if OPTION_ACL
 #include "mem_util.h"
-#include "buffer_cache.h"
 
 /* ===========================================================================
  * Private Functions 
  * =========================================================================*/
 
-#define sot_get_index(lba)	(lba / SOT_ENTRIES_PER_PAGE)
-#define sot_get_offset(lba)	(lba % SOT_ENTRIES_PER_PAGE)
-
-static UINT32 load_sot_buffer(UINT32 const sot_index)
-{
-	UINT32 sot_buff;
-
-	bc_get(sot_index, &sot_buff, BC_BUF_TYPE_SOT);
-	if (sot_buff == NULL) {
-		bc_put(sot_index, &sot_buff, BC_BUF_TYPE_SOT);
-		bc_fill_full_page(sot_index, BC_BUF_TYPE_SOT);
-	}
-	return sot_buff;
-}
+#define sot_get_index(lba)	(lba / SOT_ENTRIES_PER_SUB_PAGE)
+#define sot_get_offset(lba)	(lba % SOT_ENTRIES_PER_SUB_PAGE)
 
 static uid_t read_uid(UINT32 const buff, UINT32 const offset)
 {
@@ -55,8 +42,9 @@ void sot_fetch(UINT32 const lba, uid_t *uid)
 {
 	UINT32 index 	= sot_get_index(lba);
 	UINT32 offset 	= sot_get_offset(lba);
-	UINT32 buff	= load_sot_buffer(index);
-	
+	UINT32 buff;
+	page_cache_load(index, &buff, PC_BUF_TYPE_SOT, FALSE);
+
 	*uid = read_uid(buff, offset);
 }
 
@@ -64,11 +52,10 @@ void sot_update(UINT32 const lba, uid_t const uid)
 {
 	UINT32 index 	= sot_get_index(lba);
 	UINT32 offset 	= sot_get_offset(lba);
-	UINT32 buff	= load_sot_buffer(index);
+	UINT32 buff;
+	page_cache_load(index, &buff, PC_BUF_TYPE_SOT, TRUE);
 	
 	write_uid(buff, offset, uid);
-	
-	bc_set_dirty(index, BC_BUF_TYPE_SOT);
 }
 
 BOOL8 sot_check(UINT32 const lba_begin, UINT32 const num_sectors, 
