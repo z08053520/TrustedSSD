@@ -50,10 +50,6 @@ void gc_init(void)
 	}
 }
 
-UINT32 gc_replace_old_vpn(UINT32 const bank, UINT32 const old_vpn)
-{
-	return gc_allocate_new_vpn(bank);
-}
 
 UINT32 gc_allocate_new_vpn(UINT32 const bank)
 {

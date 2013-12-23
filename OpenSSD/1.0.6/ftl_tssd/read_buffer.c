@@ -1,5 +1,6 @@
 #include "read_buffer.h"
 #include "mem_util.h"
+#include "dram.h"
 
 void read_buffer_init()
 {
@@ -7,7 +8,7 @@ void read_buffer_init()
 	mem_set_dram(READ_BUF(0), 0, BYTES_PER_PAGE);
 }
 
-void read_buffer_get(UINT32 const vpn, UINT32 *buff)
+void read_buffer_get(vp_t const vp, UINT32 *buff)
 {
-	*buff = vpn == NULL ? READ_BUF(0) : NULL;	
+	*buff = (vp.vpn == NULL ? READ_BUF(0) : NULL);	
 }

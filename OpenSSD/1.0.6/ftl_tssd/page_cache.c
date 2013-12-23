@@ -1,4 +1,7 @@
 #include "page_cache.h"
+#include "gc.h"
+#include "gtd.h"
+#include "dram.h"
 #include "flash_util.h"
 
 /* ========================================================================= *
@@ -32,7 +35,7 @@
 /* For each cached sub page, we record **key**, **timestamp** and **dirty***/
 static UINT32 cached_keys[NUM_PC_SUB_PAGES];
 static UINT32 timestamps[NUM_PC_SUB_PAGES];
-#define DIRTY_SIZE		COUNT_BUCKETS(NUM_PC_SUB_PAGES, sizeof(UITN32))
+#define DIRTY_SIZE		COUNT_BUCKETS(NUM_PC_SUB_PAGES, sizeof(UINT32))
 #define DIRTY_BYTES		(DIRTY_SIZE * sizeof(UINT32))
 static UINT32 dirty[DIRTY_SIZE];
 
@@ -75,22 +78,22 @@ static BOOL8 page_is_dirty(UINT32 const page_idx)
 	return (dirty[page_idx / sizeof(UINT32)] >> (page_idx % sizeof(UINT32))) & 1;
 }
 
-static UINT32 get_vspn(UINT32 const idx, pc_buf_type_t const type) {
-	UINT32 vspn;
+static vsp_t get_vsp(UINT32 const idx, pc_buf_type_t const type) {
+	vsp_t vsp;
 
 	switch(type) {
 	case PC_BUF_TYPE_PMT:
-		vspn = gtd_get_vspn(idx, GTD_ZONE_TYPE_PMT);
+		vsp = gtd_get_vsp(idx, GTD_ZONE_TYPE_PMT);
 		break;
 #if OPTION_ACL
 	case PC_BUF_TYPE_SOT:
-		vspn = gtd_get_vspn(idx, GTD_ZONE_TYPE_SOT);
+		vsp = gtd_get_vsp(idx, GTD_ZONE_TYPE_SOT);
 		break;
 #endif
 	default:
 		BUG_ON("invalid type", 1);
 	}
-	return vspn;
+	return vsp;
 }
 
 static void flush_merge_buffer()
@@ -98,37 +101,40 @@ static void flush_merge_buffer()
 	BUG_ON("merge buffer is not full", merge_buf_size != SUB_PAGES_PER_PAGE);
 
 	// TODO: don't need to specify bank
-	UINT32 vpn  = gc_allocate_new_vpn(0);
+	UINT8  bank = fu_get_idle_bank();
+	UINT32 vpn  = gc_allocate_new_vpn(bank);
+	vp_t   vp   = {.bank = bank, .vpn  = vpn};
 	UINT32 vspn = vpn * SUB_PAGES_PER_PAGE;
+	vsp_t  vsp  = {.bank = bank, .vspn = vspn};
 
 	// Update GTD
 	UINT8  i;
 	UINT32 idx;
 	pc_buf_type_t type;
-	for (i = 0; i < SUB_PAGES_PER_PAGE; i++, vspn++) {
+	for (i = 0; i < SUB_PAGES_PER_PAGE; i++, vsp.vspn++) {
 		idx  = merge_buf[i].index;
 		type = merge_buf[i].type;
 
 		switch(type) {
 		case PC_BUF_TYPE_PMT:
-			gtd_set_vspn(idx, GTD_ZONE_TYPE_PMT, vspn);
+			gtd_set_vsp(idx, vsp, GTD_ZONE_TYPE_PMT);
 			break;
 #if OPTION_ACL
 		case PC_BUF_TYPE_SOT:
-			gtd_set_vspn(idx, GTD_ZONE_TYPE_SOT, vspn);
+			gtd_set_vsp(idx, vsp, GTD_ZONE_TYPE_SOT);
 			break;
 #endif
-		defeault:
+		case PC_BUF_TYPE_NUL:
 			BUG_ON("impossible type", 1);
 		}
 	}
 
 	// Write to flash
-	fu_write_page(vpn, PC_MERGE_BUF);
+	fu_write_page(vp, PC_MERGE_BUF);
 	merge_buf_size = 0;
 }
 
-static void evict_page()
+static UINT32 evict_page()
 {
 	// The LRU page is victim
 	UINT32 lru_page_idx = mem_search_min_max(timestamps, 
@@ -143,9 +149,9 @@ static void evict_page()
 		UINT32 key  	    		= cached_keys[lru_page_idx];
 		merge_buf[merge_buf_size].index = key2idx(key);
 		merge_buf[merge_buf_size].type  = key2type(key);
-		mem_copy_copy(PC_MERGE_BUF + merge_buf_size * BYTES_PER_SUB_PAGES,
-			      PC_SUB_PAGE(lru_page_idx),
-			      BYTES_PER_SUB_PAGE);
+		mem_copy(PC_MERGE_BUF + merge_buf_size * BYTES_PER_SUB_PAGE,
+			 PC_SUB_PAGE(lru_page_idx),
+			 BYTES_PER_SUB_PAGE);
 		merge_buf_size++;
 	}
 
@@ -163,15 +169,18 @@ static UINT32 load_page(UINT32 const idx, pc_buf_type_t const type)
 	// find a free page
 	UINT32 free_page_idx = num_free_sub_pages == 0 ?
 					evict_page() :
-					mem_search_equ(cached_keys, sizeof(UINT32), 0);
+					mem_search_equ_sram(cached_keys, 
+							    sizeof(UINT32),
+							    NUM_PC_SUB_PAGES,
+							    0);
 	BUG_ON("free page not found after evicting", free_page_idx >= NUM_PC_SUB_PAGES);
 
 	cached_keys[free_page_idx] = idx2key(idx, type);
 	num_free_sub_pages--;
 
-	UINT32 vspn = get_vspn(idx, type);
-	if (vspn)
-		fu_read_sub_page(vspn, PC_SUB_PAGE(free_page_idx));
+	vsp_t vsp = get_vsp(idx, type);
+	if (vsp.vspn)
+		fu_read_sub_page(vsp, PC_SUB_PAGE(free_page_idx));
 	else
 		mem_set_dram(PC_SUB_PAGE(free_page_idx), 0, BYTES_PER_SUB_PAGE);
 	return free_page_idx;
@@ -225,5 +234,6 @@ void page_cache_load(UINT32 const idx, UINT32 *addr,
 		mem_set_sram(timestamps, 0, sizeof(UINT32) * NUM_PC_SUB_PAGES);	
 	}
 	if (will_modify) page_set_dirty(page_idx);
-	return PC_SUB_PAGE(page_idx);
+	
+	*addr = PC_SUB_PAGE(page_idx);
 }

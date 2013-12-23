@@ -24,7 +24,7 @@
 
 void pmt_init(void);
 
-void pmt_update(UINT32 const lspn, UINT32 const vpn);
-void pmt_fetch(UINT32 const lspn, UINT32 *vpn);
+void pmt_update(UINT32 const lspn, vp_t const vp);
+void pmt_fetch(UINT32 const lspn,  vp_t* vp);
 
 #endif /* __PMT_H */

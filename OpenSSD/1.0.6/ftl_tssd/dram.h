@@ -3,7 +3,7 @@
 
 /* This header file defines the DRAM userage for all components */
 
-#include "banks.h"
+#include "bank.h"
 #include "target.h"
 
 /* ========================================================================= *

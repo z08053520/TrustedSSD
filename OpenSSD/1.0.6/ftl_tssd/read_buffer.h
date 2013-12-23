@@ -4,6 +4,6 @@
 #include "jasmine.h"
 
 void read_buffer_init();
-void read_buffer_get(UINT32 const vpn, UINT32 *buff);
+void read_buffer_get(vp_t const vp, UINT32 *buff);
 
 #endif

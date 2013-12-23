@@ -187,10 +187,44 @@ typedef unsigned long long	UINT64;
 	#define FULL_MASK	0xFFFFFFFFUL
 #endif
 
+/* virtual page */
+typedef union _vp_t {
+	UINT32	bank  :5;
+	UINT32	vpn   :27; 
+} vp_t; 
+
+#define vp_equal(vp0, vp1)	( ((vp0).bank == (vp1).bank) && \
+				  ((vp0).vpn  == (vp1).vpn ) )
+#define vp_not_equal(vp0, vp1)	( ((vp0).bank != (vp1).bank) || \
+				  ((vp0).vpn  != (vp1).vpn ) )
+
+/* conversion betwen VP and UINT32 */
+typedef union {
+	vp_t    as_vp;
+	UINT32	as_int;
+} vp_or_int;
+
+/* virtual sub-page */
+typedef struct _vsp_t {
+	UINT32	bank  :5;
+	UINT32	vspn  :27; 
+} vsp_t; 
+
+#define vsp_is_equal(vsp0, vsp1)	( ((vsp0).bank == (vsp1).bank) && \
+				  	  ((vsp0).vspn == (vsp1).vspn) )
+
+#define vsp_not_equal(vsp0, vsp1)	( ((vsp0).bank != (vsp1).bank) || \
+				  	  ((vsp0).vspn != (vsp1).vspn) )
+
+/* conversion betwen VSP and UINT32 */
+typedef union {
+	vsp_t   as_vsp;
+	UINT32	as_int;
+} vsp_or_int;
+
+
 #define COUNT_BUCKETS(TOTAL, BUCKET_SIZE) \
 	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )
-
-#define MAX_ULL			
 
 #define MIN(X, Y)				((X) > (Y) ? (Y) : (X))
 #define MAX(X, Y)				((X) > (Y) ? (X) : (Y))
@@ -292,6 +326,8 @@ scan_list_t;
 	#define ERROR(label, ...)
 	#define BUG_ON(MESSAGE, COND)
 #endif
+
+#define unlikely(x)	(__builtin_expect(!!(x), 0))
 
 #endif	// JASMINE_H
 

@@ -1,6 +1,7 @@
 #ifndef __GTD_H
 #define __GTD_H
 #include "jasmine.h"
+#include "pmt.h"
 
 /* *
  * GTD = global translation table
@@ -54,7 +55,7 @@ typedef struct {
 void gtd_init(void);
 void gtd_flush(void);
 
-UINT32 gtd_get_vspn(UINT32 const index, gtd_zone_type_t const zone_type);
-void   gtd_set_vspn(UINT32 const index, UINT32 const vspn, gtd_zone_type_t const zone_type); 
+vsp_t  gtd_get_vsp(UINT32 const index, gtd_zone_type_t const zone_type);
+void   gtd_set_vsp(UINT32 const index, vsp_t const vsp, gtd_zone_type_t const zone_type); 
 
 #endif /* __GTD_H */

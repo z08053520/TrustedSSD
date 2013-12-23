@@ -18,7 +18,7 @@ void pmt_init(void)
 			PMT_ENTRIES, PMT_PAGES);
 }
 
-void pmt_fetch(UINT32 const lspn, UINT32 *vpn)
+void pmt_fetch(UINT32 const lspn, vp_t *vp)
 {
 	UINT32 pmt_index  = pmt_get_index(lspn);
 	UINT32 pmt_offset = pmt_get_offset(lspn);
@@ -26,10 +26,13 @@ void pmt_fetch(UINT32 const lspn, UINT32 *vpn)
 	page_cache_load(pmt_index, &pmt_buff, PC_BUF_TYPE_PMT, FALSE);
 	BUG_ON("buffer is empty", pmt_buff == NULL);
 
-	*vpn = read_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset);
+	vp_or_int res = {
+		.as_int = read_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset)
+	};
+	*vp = res.as_vp;
 }
 
-void pmt_update(UINT32 const lspn, UINT32 const vpn)
+void pmt_update(UINT32 const lspn, vp_t const vp)
 {
 	UINT32 pmt_index  = pmt_get_index(lspn);
 	UINT32 pmt_offset = pmt_get_offset(lspn);
@@ -37,5 +40,6 @@ void pmt_update(UINT32 const lspn, UINT32 const vpn)
 	page_cache_load(pmt_index, &pmt_buff, PC_BUF_TYPE_PMT, TRUE);
 	BUG_ON("buffer is empty", pmt_buff == NULL);
 
-	write_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset, vpn);
+	vp_or_int val = {.as_vp = vp};
+	write_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset, val.as_int);
 }

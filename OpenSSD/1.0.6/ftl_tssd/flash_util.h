@@ -5,12 +5,9 @@
 
 void fu_format(UINT32 const from_vblk);
 
-void fu_read_page (UINT32 const bank, UINT32 const vpn, UINT32 const buff_addr, 
-		   sectors_mask_t const valid_sectors_mask);
-void fu_write_page(UINT32 const bank, UINT32 const vpn, UINT32 const buff_addr);
+UINT8 fu_get_idle_bank();
 
-void fu_read_pages_in_parallel (UINT32 vpn[], UINT32 buff_addr[],
-				sectors_mask_t valid_sectors_mask[]);
-void fu_write_pages_in_parallel(UINT32 vpn[], UINT32 buff_addr[]);
+void fu_write_page	(const vp_t  vp,  const UINT32 buff_addr);
+void fu_read_sub_page	(const vsp_t vsp, const UINT32 buff_addr);
 
 #endif
