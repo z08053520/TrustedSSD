@@ -179,6 +179,7 @@ typedef	unsigned short		UINT16;
 typedef	unsigned int		UINT32;
 typedef unsigned long long	UINT64;
 
+/* sector mask */
 #if OPTION_2_PLANE
 	typedef UINT64		sectors_mask_t;
 	#define FULL_MASK	0xFFFFFFFFFFFFFFFFULL		
@@ -186,9 +187,12 @@ typedef unsigned long long	UINT64;
 	typedef UINT32		sectors_mask_t;
 	#define FULL_MASK	0xFFFFFFFFUL
 #endif
+#define count_sectors(mask)		__builtin_popcount(mask) 
+#define begin_sector(mask)		__builtin_ctz(mask)
+#define end_sector(mask)		((sizeof(sectors_mask_t) << 3) - __builtin_clz(mask))
 
 /* virtual page */
-typedef union _vp_t {
+typedef struct _vp_t {
 	UINT32	bank  :5;
 	UINT32	vpn   :27; 
 } vp_t; 
