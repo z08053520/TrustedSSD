@@ -3,6 +3,8 @@
 #include "mem_util.h"
 #include "flash_util.h"
 
+extern UINT32 g_ftl_write_buf_id;
+
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
  * ========================================================================= */
@@ -29,7 +31,7 @@ static UINT8	buf_sizes[NUM_WRITE_BUFFERS];
  * Private Functions 
  * ========================================================================= */
 
-static UINT32 find_lpn_idx(UINT32 const lpn)
+static UINT32 find_index_of_lpn(UINT32 const lpn)
 {
 	return mem_search_equ_sram(lpns, sizeof(UINT32), MAX_NUM_LPNS, lpn);
 }
@@ -52,7 +54,7 @@ static void remove_lpn_by_index(UINT32 const lpn_idx)
 
 static void try_to_remove_lpn(UINT32 const lpn)
 {
-	UINT32 lpn_idx = find_lpn_idx(lpn);
+	UINT32 lpn_idx = find_index_of_lpn(lpn);
 	if (lpn_idx >= MAX_NUM_LPNS) return;
 
 	remove_lpn_by_index(lpn_idx);	
@@ -90,7 +92,6 @@ static void fill_whole_sub_page(UINT32 const lspn, UINT8 const lsp_mask, UINT32 
 		// find the last missing sector
 		while (i < SECTORS_PER_SUB_PAGE &&
 		       (((lsp_mask >> i) & 1) == 0)) i++;
-		if (i == SECTORS_PER_SUB_PAGE) break;
 		UINT8 end_i   = i++;
 
 		mem_copy(buff + begin_i * BYTES_PER_SECTOR,
@@ -163,6 +164,89 @@ static void flush_buffer()
 	remove_buffer(victim_buf_id);
 }
 
+static UINT8 find_available_buffer_for(sectors_mask_t const mask)
+{
+	UINT8 new_buf_id = head_buf_id;
+	do {
+		if ((buf_masks[new_buf_id] & mask) == 0)
+			return new_buf_id;
+		new_buf_id = next_buf_id(new_buf_id);
+	} while (new_buf_id != head_buf_id);
+	return NULL_BID;	
+}
+
+static void copy_to_buffer(UINT32 const target_buf, UINT32 const src_buf, 
+			   sectors_mask_t const mask)
+{
+	UINT8 sector_i = 0;
+	while (sector_i < SECTORS_PER_PAGE) {
+		// find the first sector to copy
+		while (sector_i < SECTORS_PER_PAGE && 
+		       ((mask >> sector_i) & 1) == 0) sector_i++;
+		if (sector_i == SECTORS_PER_PAGE) break;
+		UINT8 begin_sector = sector_i++;
+
+		// find the last sector to copy
+		while (sector_i < SECTORS_PER_PAGE && 
+		       ((mask >> sector_i) & 1) == 1) sector_i++;
+		UINT8 end_sector = sector_i++;
+
+		mem_copy(target_buf + begin_sector * BYTES_PER_SECTOR,
+			 src_buf    + begin_sector * BYTES_PER_SECTOR,
+			 (end_sector - begin_sector) * BYTES_PER_SECTOR);
+	}
+}
+
+static void insert_and_merge_lpn(UINT32 const lpn, UINT8 const sector_offset, 
+				 UINT8  const num_sectors)
+{
+	sectors_mask_t  lp_new_mask = init_mask(sector_offset, num_sectors);
+	UINT8		new_buf_id  = NULL_BID;	
+	
+	// Try to merge with the same lpn in the buffer 
+	UINT32 lp_old_idx = find_index_of_lpn(lpn); 
+	if (lp_old_idx < MAX_NUM_LPNS) {
+		sectors_mask_t lp_old_mask  = lp_masks[lp_old_idx];
+		UINT8	       old_buf_id   = buf_ids[lp_old_idx];
+		sectors_mask_t old_buf_mask = buf_masks[old_buf_id];
+
+		// Use old buffer if it has enough room
+		if (((old_buf_mask & ~lp_old_mask) & lp_new_mask) == 0) {
+			new_buf_id = old_buf_id;
+			goto do_insertion;
+		}
+
+		// if old buffer doesn't have more room for new data from the
+		// same lpn, then we need to find another buffer that fits both 
+		// old & new data
+		sectors_mask_t merged_mask = lp_old_mask | lp_new_mask;
+		new_buf_id = find_available_buffer_for(merged_mask);
+		BUG_ON("No available buffer", new_buf_id == NULL_BID);	
+
+		// move useful part of old data to new buffer 
+		sectors_mask_t old_useful_mask = 
+			lp_old_mask & ~(lp_old_mask & lp_new_mask);
+		copy_to_buffer(WRITE_BUF(new_buf_id),
+			       WRITE_BUF(old_buf_id),
+			       old_useful_mask);
+
+		
+		remove_lpn_by_index(lp_old_idx);
+	}
+do_insertion:
+	if (new_buf_id == NULL_BID) {
+		new_buf_id = find_available_buffer_for(lp_new_mask);
+		
+		// find a new LPN slot...
+	}
+
+	copy_to_buffer(WRITE_BUF(new_buf_id),
+		       SATA_WR_BUF_PTR(g_ftl_write_buf_id),
+		       lp_new_mask);
+	buf_masks[new_buf_id] |= lp_new_mask;
+	buf_sizes[new_buf_id]  = count_sectors(buf_masks[new_buf_id]);
+}
+
 /* ========================================================================= *
  * Public API 
  * ========================================================================= */
@@ -212,11 +296,8 @@ void write_buffer_put(UINT32 const lpn, UINT8 const sector_offset,
 		return;
 	}
 
-	if (should_flush_buffer()) flush_buffer();
+	if (should_flush_buffer()) 
+		flush_buffer();
 
-	// Try to merge with existing data from the same lpn in the buffer 
-	UINT32 lpn_idx = find_lpn_idx(lpn);
-	if (lpn_idx < MAX_NUM_LPNS) {
-						
-	}
+	insert_and_merge_lpn(lpn, sector_offset, num_sectors);
 }

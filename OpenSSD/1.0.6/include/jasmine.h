@@ -182,10 +182,20 @@ typedef unsigned long long	UINT64;
 /* sector mask */
 #if OPTION_2_PLANE
 	typedef UINT64		sectors_mask_t;
-	#define FULL_MASK	0xFFFFFFFFFFFFFFFFULL		
+	#define FULL_MASK	0xFFFFFFFFFFFFFFFFULL
+
+	#define init_mask(offset, num_sectors)				\
+			num_sectors == sizeof(UINT64) ? 		\
+				FULL_MASK :				\
+				(((1ULL << num_sectors) - 1) << offset)
 #else
 	typedef UINT32		sectors_mask_t;
 	#define FULL_MASK	0xFFFFFFFFUL
+
+	#define init_mask(offset, num_sectors)				\
+			num_sectors == sizeof(UINT32) ? 		\
+				FULL_MASK :				\
+				(((1UL << num_sectors) - 1) << offset)
 #endif
 #define count_sectors(mask)		__builtin_popcount(mask) 
 #define begin_sector(mask)		__builtin_ctz(mask)
