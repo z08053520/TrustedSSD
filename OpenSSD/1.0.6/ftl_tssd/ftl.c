@@ -164,9 +164,10 @@ static void read_page(UINT32 const lpn,
 	vp_t	vp;
 	// iterate sub pages
 	while (sector_i < sector_end) {
+		// FIXME: not right!
 		write_buffer_get(lpn, sector_i, &buff);
 		if (!buff) {
-			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id), 
+			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id) + sector_i * BYTES_PER_SECTOR, 
 				 buff, BYTES_PER_SUB_PAGE);
 			continue;
 		}
