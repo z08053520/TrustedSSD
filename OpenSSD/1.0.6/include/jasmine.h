@@ -343,5 +343,13 @@ scan_list_t;
 
 #define unlikely(x)	(__builtin_expect(!!(x), 0))
 
+/* Simulate lamba by using the nested function feature of GCC */
+#define lambda(return_type, ...)			\
+		__extension__				\
+		({					\
+			return_type __fn__ __VA_ARGS__	\
+			__fn__;				\
+		})
+
 #endif	// JASMINE_H
 

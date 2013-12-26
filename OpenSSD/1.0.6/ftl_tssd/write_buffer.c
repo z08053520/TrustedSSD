@@ -23,13 +23,13 @@ static UINT8		buf_sizes[NUM_WRITE_BUFFERS];
 
 /* For each logical page which has some part in write buffer, three fields are 
  * maintained: lpn, valid sector mask and buffer id. */
+#define MAX_NUM_LPNS			(4 * NUM_WRITE_BUFFERS)
+#define NULL_LPN			0xFFFFFFFF
 static UINT32		num_lpns;
 static UINT32		lpns[MAX_NUM_LPNS];
 static sectors_mask_t 	lp_masks[MAX_NUM_LPNS]; /* 1 - in buff; 0 - not in buff  */
 static buf_id_t		buf_ids[MAX_NUM_LPNS];
 
-#define MAX_NUM_LPNS			(4 * NUM_WRITE_BUFFERS)
-#define NULL_LPN			0xFFFFFFFF
 
 /* ========================================================================= *
  * Private Functions 
@@ -88,36 +88,49 @@ static void fill_whole_sub_page(UINT32 const lspn, UINT8 const lsp_mask, UINT32 
 	vp_t vp; 
 	pmt_fetch(lspn, &vp);
 
+	// Prepare handler for the missing segments
+	void (*segment_handler) (UINT8, UINT8);
+	// Read existing sub-page from flash to fill the missing sectors
 	if (vp.vpn) {
 		UINT8  vsp_offset = lspn % SUB_PAGES_PER_PAGE;
 		UINT32 vspn 	  = vp.vpn * SUB_PAGES_PER_PAGE + vsp_offset;
 		vsp_t  vsp 	  = {.bank = vp.bank, .vspn = vspn};
 		fu_read_sub_page(vsp, TEMP_BUF_ADDR);
-	}
-
-	UINT32 sp_src_buff = TEMP_BUF_ADDR + vsp_offset * BYTES_PER_SUB_PAGE; 
-	UINT8 i = 0;
-	while (i < SECTORS_PER_SUB_PAGE) {
-		// find the first missing sector
-		while (i < SECTORS_PER_SUB_PAGE && 
-		       (((lsp_mask >> i) & 1) == 1)) i++;
-		if (i == SECTORS_PER_SUB_PAGE) break;
-		UINT8 begin_i = i++;
 		
-		// find the last missing sector
-		while (i < SECTORS_PER_SUB_PAGE &&
-		       (((lsp_mask >> i) & 1) == 0)) i++;
-		UINT8 end_i   = i++;
+		UINT32 sp_src_buff = TEMP_BUF_ADDR + vsp_offset * BYTES_PER_SUB_PAGE; 
 
-		if (vp.vpn)
-			mem_copy(buff + begin_i * BYTES_PER_SECTOR,
-				 sp_src_buff + begin_i * BYTES_PER_SECTOR,
-				 (end_i - begin_i) * BYTES_PER_SECTOR);
-		else
-			mem_set_dram(buff + begin_i * BYTES_PER_SECTOR,
-				     0, 
-				     (end_i - begin_i) * BYTES_PER_SECTOR);
+		segment_handler = 
+			lambda (void, (UINT8 begin_i, UINT8 end_i) {
+				mem_copy(buff + begin_i * BYTES_PER_SECTOR,
+					 sp_src_buff + begin_i * BYTES_PER_SECTOR,
+					 (end_i - begin_i) * BYTES_PER_SECTOR);
+			});
 	}
+	// Fill missing sectors with 0xFF...FF
+	else {
+		segment_handler = 
+			lambda (void, (UINT8 begin_i, UINT8 end_i) {
+				mem_set_dram(buff + begin_i * BYTES_PER_SECTOR,
+					     0xFFFFFFFF, (end_i - begin_i) * BYTES_PER_SECTOR);
+			});
+	}
+
+#define FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler)		\
+	UINT8 i = 0;							\
+	while (i < SECTORS_PER_SUB_PAGE) {				\
+		/* find the first missing sector */			\
+		while (i < SECTORS_PER_SUB_PAGE &&			\
+		       (((lsp_mask >> i) & 1) == 1)) i++;		\
+		if (i == SECTORS_PER_SUB_PAGE) break;			\
+		UINT8 begin_i = i++;					\
+		/* find the last missing sector */			\
+		while (i < SECTORS_PER_SUB_PAGE &&			\
+		       (((lsp_mask >> i) & 1) == 0)) i++;		\
+		UINT8 end_i   = i++;					\
+		/* evoke segment handler */				\
+		(*segment_handler)(begin_i, end_i);				\
+	}
+	FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler);
 }
 
 static void remove_buffer(UINT8 const buf_id)
@@ -165,7 +178,7 @@ static void flush_buffer()
 			UINT8	lsp_mask = (lp_mask >> (SECTORS_PER_SUB_PAGE * sp_offset));
 			// skip "holes"
 			if (lsp_mask != 0) {
-				if (lspn_mask != 0xFF)
+				if (lsp_mask != 0xFF)
 					fill_whole_sub_page(lspn, lsp_mask, 
 						    	    WRITE_BUF(victim_buf_id) + 
 								BYTES_PER_SUB_PAGE * sp_offset);
@@ -284,17 +297,17 @@ static void insert_and_merge_lpn(UINT32 const lpn, UINT8 const sector_offset,
 				       old_useful_mask);
 		}
 	
-		lp_masks[lpn_idx] |= lp_new_mask;
-		buf_ids[lpn_idx]   = new_buf_id;
+		lp_masks[lp_idx] |= lp_new_mask;
+		buf_ids[lp_idx]   = new_buf_id;
 	}
 	// New lpn
 	else {
 		new_buf_id 	   = allocate_buffer_for(lp_new_mask);
 		
-		lpn_idx	   	   = get_free_lpn_index();
-		lpns[lpn_idx]	   = lpn;
-		lp_masks[lpn_idx]  = lp_new_mask;
-		buf_ids[lpn_idx]   = new_buf_id;
+		lp_idx	   	   = get_free_lpn_index();
+		lpns[lp_idx]	   = lpn;
+		lp_masks[lp_idx]   = lp_new_mask;
+		buf_ids[lp_idx]    = new_buf_id;
 
 		num_lpns++;
 	}
@@ -325,7 +338,7 @@ void write_buffer_init()
 	mem_set_sram(lp_masks, 	  0, 		MAX_NUM_LPNS * sizeof(sectors_mask_t));
 	mem_set_sram(buf_ids,  	  NULL_BID, 	MAX_NUM_LPNS * sizeof(buf_id_t));
 
-	mem_set_sram(buf_masks,   0, 		NUM_WRITE_BUFFERS * sizeof(sectors_mask_T));
+	mem_set_sram(buf_masks,   0, 		NUM_WRITE_BUFFERS * sizeof(sectors_mask_t));
 	mem_set_sram(buf_sizes,   0, 		NUM_WRITE_BUFFERS * sizeof(UINT8));
 }
 
