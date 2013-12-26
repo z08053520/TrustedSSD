@@ -3,93 +3,72 @@
  * =========================================================================*/
 #include "jasmine.h"
 #if OPTION_FTL_TEST
+#include "dram.h"
 #include "pmt.h"
 #include "mem_util.h"
+#include "test_util.h"
 #include <stdlib.h>
 
 #define RAND_SEED	1234
-#define MAX_LPN		NUM_LPAGES
+#define MAX_LSPN	(SUB_PAGES_PER_PAGE * NUM_LPAGES)
 
 #define BUF_SIZE	(BYTES_PER_SECTOR * SECTORS_PER_PAGE / 2)
 #define LPN_BUF		TEMP_BUF_ADDR
 #define VPN_BUF		(TEMP_BUF_ADDR + BUF_SIZE)
 
-// a sample size that much bigger than the capacity of CMT or BC
-#define MAX_SAMPLE_SIZE	(BUF_SIZE / sizeof(UINT32))	/* 2K */
-#define SAMPLE_SIZE	MAX_SAMPLE_SIZE
+#define SAMPLE_SIZE	(BYTES_PER_PAGE / sizeof(UINT32))
 
-static void init_dram()
-{
-	mem_set_dram(LPN_BUF, 0, BUF_SIZE);
-	mem_set_dram(VPN_BUF, 0, BUF_SIZE);
-}
-
-static UINT32 get_lpn(UINT32 const i)
-{
-	return read_dram_32(LPN_BUF + sizeof(UINT32) * i);
-}
-
-static void set_lpn(UINT32 const i, UINT32 const lpn)
-{
-	write_dram_32(LPN_BUF + sizeof(UINT32) * i, lpn);
-}
-
-static UINT32 get_vpn(UINT32 const i)
-{
-	return read_dram_32(VPN_BUF + sizeof(UINT32) * i);
-}	
-
-static void set_vpn(UINT32 const i, UINT32 const vpn)
-{
-	write_dram_32(VPN_BUF + sizeof(UINT32) * i, vpn);
-}
+SETUP_BUF(lspn,		TEMP_BUF_ADDR,		SECTORS_PER_PAGE);
+SETUP_BUF(vp,		HIL_BUF_ADDR,		SECTORS_PER_PAGE);
 
 void ftl_test()
 {
 	UINT32 i;
-	UINT32 j, repeats = 128, sample_size;
-	UINT32 lpn, vpn, expected_vpn;
+	UINT32 lspn;
+	vp_t   vp, expected_vp;
+	vp_or_int vp_or_int;
 
 	uart_print("Running unit test for PMT... ");
 	uart_printf("sample size = %d\r\n", SAMPLE_SIZE);
 
 	srand(RAND_SEED);
-	init_dram();
-  	
-	uart_print("\tsample lpn to check vpn is set to 0 by default");
+ 	init_lspn_buf(0);
+	init_vp_buf(0);
+
+	uart_print("\tsample lspn to check vp is set to 0 by default");
 	for(i = 0; i < SAMPLE_SIZE; i++) {
-		lpn = rand() % MAX_LPN;
-		pmt_fetch(lpn, &vpn);
-		BUG_ON("vpn of an unused lpn is not 0", vpn != 0);
+		lspn = rand() % MAX_LSPN;
+		pmt_fetch(lspn, &vp);
+		vp_or_int.as_vp = vp;
+		BUG_ON("vp of an unused lspn is not 0", vp_or_int.as_int != 0);
 	}
 
-	lpn = 0;
-	for(j = 0; j < repeats; j++) {
-		sample_size = rand() % SAMPLE_SIZE+ 1;
+	uart_print("\tupdate lspns");
+	for(i = 0; i < SAMPLE_SIZE; i++) {
+		lspn    = rand() % MAX_LSPN;
 
-		uart_print("\tupdate lpns");
-		for(i = 0; i < sample_size; i++) {
-			vpn = 32 + rand() % 123456;
+		vp.bank = rand() % NUM_BANKS;
+		vp.vpn  = rand() % PAGES_PER_BANK;
+		vp_or_int.as_vp = vp;
 
-			set_lpn(i, lpn);
-			set_vpn(i, vpn);
+		set_lspn(i, lspn);
+		set_vp(i, vp_or_int.as_int);
 
-			pmt_update(lpn, vpn);
-			lpn++;
-			//uart_printf("%d: set lpn = %d, vpn = %d\r\n", i, lpn, vpn);
-		}
-		
-		uart_print("\tverify lpn->vpn");
-		for(i = 0; i < sample_size; i++) {
-			lpn = get_lpn(i);
-			expected_vpn = get_vpn(i);
+		pmt_update(lspn, vp);
+	}
+	
+	uart_print("\tverify lspn->vsp");
+	for(i = 0; i < SAMPLE_SIZE; i++) {
+		lspn = get_lspn(i);
+		vp_or_int.as_int = get_vp(i);
+		expected_vp = vp_or_int.as_vp; 
 
-			pmt_fetch(lpn, &vpn);
-			//uart_printf("%d: get lpn = %d, vpn = %d, expected_vpn = %d\r\n", 
-					//i, lpn, vpn, expected_vpn);
-			BUG_ON("vpn is not as expected", vpn != expected_vpn);
-		}
-	}	
+		pmt_fetch(lspn, &vp);
+		/*  uart_printf("vp (bank, vpn) = (%u, %u); expected_vp (bank, vpn) = (%u, %u)\r\n",
+			    vp.bank, vp.vpn, expected_vp.bank, expected_vp.vpn);*/
+		BUG_ON("vp is not as expected", vp_not_equal(vp, expected_vp) );
+	}
+	
 	uart_print("PMT passed the unit test ^_^");
 }
 

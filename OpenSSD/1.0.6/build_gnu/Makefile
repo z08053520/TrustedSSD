@@ -15,8 +15,8 @@ RM	= rm
 #TEST = ftl
 #TEST = gc
 #TEST = gtd
-#TEST = pmt
-TEST = page_cache
+TEST = pmt
+#TEST = page_cache
 #TEST = perf
 #TEST = sot
 
