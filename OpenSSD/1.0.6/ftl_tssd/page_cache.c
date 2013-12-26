@@ -155,7 +155,7 @@ static UINT32 evict_page()
 		merge_buf_size++;
 	}
 
-	// Remove the victime page from cache
+	// Remove the victim page from cache
 	cached_keys[lru_page_idx] = 0;
 	timestamps[lru_page_idx]  = 0xFFFFFFFF;
 	page_reset_dirty(lru_page_idx);	

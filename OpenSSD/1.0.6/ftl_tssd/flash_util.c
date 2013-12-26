@@ -1,5 +1,6 @@
 #include "flash_util.h"
 #include "ftl.h"
+#include "bad_blocks.h"
 
 /* ========================================================================== 
  * Private Functions 
@@ -28,7 +29,7 @@ void fu_format(const UINT32 from_vblk)
 
 UINT8 fu_get_idle_bank()
 {
-	static UINT8 bank = 0;
+	static UINT8 bank = NUM_BANKS - 1;
 
 	do {
 		bank = (bank + 1) % NUM_BANKS;
@@ -41,7 +42,7 @@ void fu_read_sub_page(const vsp_t vsp, const UINT32 buff_addr)
 	BUG_ON("should not read vpn #0", vsp.vspn < SUB_PAGES_PER_PAGE);
 
 	UINT32 vpn    = vsp.vspn / SUB_PAGES_PER_PAGE;
-	UINT32 offset = vsp.vspn % SUB_PAGES_PER_PAGE;
+	UINT32 offset = vsp.vspn % SUB_PAGES_PER_PAGE * SECTORS_PER_SUB_PAGE;
 	nand_page_ptread(vsp.bank, 
 			 vpn / PAGES_PER_VBLK,
 			 vpn % PAGES_PER_VBLK,

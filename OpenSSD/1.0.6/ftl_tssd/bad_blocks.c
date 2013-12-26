@@ -42,7 +42,7 @@ void bb_init()
 
 		INFO("bb>init", "bank %d: # of bad blocks = %d", bank, num_entries);
 
-		uart_printf("\tbank %d (%u bad blocks): ", bank, num_entries);
+///		uart_printf("\tbank %d (%u bad blocks): ", bank, num_entries);
 		for (i = 0; i < num_entries; i++)
 		{
 			UINT16 entry = read_dram_16(scan_list->list + i);
@@ -52,7 +52,7 @@ void bb_init()
 					pblk_offset == 0 || pblk_offset >= PBLKS_PER_BANK);
 			write_dram_16(scan_list->list + i, pblk_offset);
 
-			uart_printf(i ? ", %d" : "%d", pblk_offset);
+//			uart_printf(i ? ", %d" : "%d", pblk_offset);
 #if OPTION_2_PLANE
 			_bb_set_bmp(bank, pblk_offset / 2);
 			BUG_ON("should be bad but not tested", !bb_is_bad(bank, pblk_offset/2));
@@ -62,7 +62,7 @@ void bb_init()
 #endif
 			_bad_blcks_cnt[bank]++;
 		}
-		uart_print("");
+//		uart_print("");
 	}
 
 	FOR_EACH_BANK(bank) {
@@ -75,8 +75,8 @@ void bb_init()
 			vblk++;
 		}
 		
-		uart_printf("%u bad blocks from BMP of bank #%u\r\n", 
-			    _bad_blcks_cnt[bank], bank);
+		uart_printf("bank #%u: %u bad blocks from BMP \r\n", 
+			    bank, _bad_blcks_cnt[bank]);
 	}
 }
 
