@@ -1625,12 +1625,16 @@ int main() {
 				init();
 				break;
 
-			case MENU_SCAN:
-				scan_bad_blks();
-				break;
-
 			case MENU_LOAD_SCAN_DEV:
 				load_scan_list_from_nand();
+				break;
+
+			case MENU_INSTALL:
+				install();
+				break;
+
+			case MENU_SCAN:
+				scan_bad_blks();
 				break;
 
 			case MENU_ERASE_ALL:
@@ -1649,10 +1653,6 @@ int main() {
 						erase_flash(0, (UINT32)-1);
 					}
 				}
-				break;
-
-			case MENU_INSTALL:
-				install();
 				break;
 
 			case MENU_SAVE_SCAN:

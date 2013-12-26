@@ -60,10 +60,23 @@ void bb_init()
 			_bb_set_bmp(bank, pblk_offset);
 			BUG_ON("should be bad but not tested", !bb_is_bad(bank, pblk_offset));
 #endif
-			
 			_bad_blcks_cnt[bank]++;
 		}
 		uart_print("");
+	}
+
+	FOR_EACH_BANK(bank) {
+		_bad_blcks_cnt[bank] = 0;
+		
+		UINT32 vblk = 0;
+		while (vblk < VBLKS_PER_BANK) {
+			if (_bb_tst_bmp(bank, vblk))
+				_bad_blcks_cnt[bank]++;
+			vblk++;
+		}
+		
+		uart_printf("%u bad blocks from BMP of bank #%u\r\n", 
+			    _bad_blcks_cnt[bank], bank);
 	}
 }
 
