@@ -9,8 +9,8 @@
  * =========================================================================*/
 #define SETUP_BUF(name, addr, sectors)	\
 		const UINT32 __BUF_##name##_BYTES = (BYTES_PER_SECTOR * sectors);\
-		static void init_##name##_buf() {\
-			mem_set_dram(addr, 0, __BUF_##name##_BYTES);\
+		static void init_##name##_buf(UINT32 const val) {\
+			mem_set_dram(addr, val, __BUF_##name##_BYTES);\
 		}\
 		static UINT32 get_##name(UINT32 const i) {\
 			UINT32 offset = sizeof(UINT32) * i;\

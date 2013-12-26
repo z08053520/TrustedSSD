@@ -28,8 +28,8 @@ void ftl_test()
 
 	srand(RAND_SEED);
 
-	init_vsp_buf();
-	init_val_buf();
+	init_vsp_buf(0);
+	init_val_buf(0);
 
 	uart_printf("%u sub pages are going to be written and verified\r\n", total_vsp);
 

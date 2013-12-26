@@ -38,8 +38,8 @@ void ftl_test()
 
 	srand(RAND_SEED);
 
-	init_lba_buf();
-	init_uid_buf();
+	init_lba_buf(0);
+	init_uid_buf(0);
 
 	uart_print("Randomly check SOT initial state");
 	for (i = 0; i < SAMPLE_SIZE; i++) {

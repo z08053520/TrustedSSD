@@ -39,9 +39,9 @@ SETUP_BUF(val, 		VAL_BUF_ADDR, 		VAL_BUF_SECTORS);
 
 static void init_dram()
 {
-	init_lba_buf();
-	init_req_size_buf();
-	init_val_buf();
+	init_lba_buf(0);
+	init_req_size_buf(0);
+	init_val_buf(0);
 }
 
 /* ===========================================================================

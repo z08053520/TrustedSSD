@@ -12,11 +12,11 @@
 
 #define PC_ADDR			DRAM_BASE
 #define PC_END			(PC_ADDR + PC_BYTES)
-#define NUM_PC_BUFFERS		16
-#define NUM_PC_SUB_PAGES	((NUM_PC_BUFFERS-1) * SUB_PAGES_PER_PAGE)
+//#define NUM_PC_BUFFERS		16
+#define NUM_PC_BUFFERS		1
+#define NUM_PC_SUB_PAGES	(NUM_PC_BUFFERS * SUB_PAGES_PER_PAGE)
 #define PC_BYTES		(NUM_PC_BUFFERS * BYTES_PER_PAGE)
-#define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * i)
-#define PC_MERGE_BUF		(PC_ADDR + BYTES_PER_PAGE * (NUM_PC_BUFFERS-1))
+#define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * (i))
 
 /* ========================================================================= *
  * Buffer Cache  
@@ -28,8 +28,8 @@
 #define NUM_BC_BUFFERS_PER_BANK 1	
 #define NUM_BC_BUFFERS		(NUM_BC_BUFFERS_PER_BANK * NUM_BANKS)
 #define BC_BYTES		(NUM_BC_BUFFERS * BYTES_PER_PAGE)
-#define BC_BUF(i)		(BC_ADDR + BYTES_PER_PAGE * i)
-#define BC_BUF_IDX(addr)	((addr - BC_ADDR) / BYTES_PER_PAGE)
+#define BC_BUF(i)		(BC_ADDR + BYTES_PER_PAGE * (i))
+#define BC_BUF_IDX(addr)	(((addr) - BC_ADDR) / BYTES_PER_PAGE)
 
 /* ========================================================================= *
  * Bad Block 
@@ -75,8 +75,8 @@
 #define WRITE_BUF_BYTES		(NUM_WRITE_BUFFERS * BYTES_PER_PAGE)
 #define WRITE_BUF_END		(WRITE_BUF_ADDR + WRITE_BUF_BYTES)
 
-#define READ_BUF(i)		(READ_BUF_ADDR + BYTES_PER_PAGE * i)
-#define WRITE_BUF(i)		(WRITE_BUF_ADDR + BYTES_PER_PAGE * i)
+#define READ_BUF(i)		(READ_BUF_ADDR + BYTES_PER_PAGE * (i))
+#define WRITE_BUF(i)		(WRITE_BUF_ADDR + BYTES_PER_PAGE * (i))
 
 /* ========================================================================= *
  * Other Non-SATA Buffers

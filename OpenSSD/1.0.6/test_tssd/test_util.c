@@ -101,6 +101,31 @@ UINT32 random(UINT32 const min, UINT32 const max)
 	return min + (rand() % (max-min+1));
 }
 
+void  dump_buffer(UINT32 const buff_addr, 
+		  UINT8 const offset, 
+		  UINT8 const num_sectors)
+{
+	UINT32 i;
+	UINT32 v;
+	UINT32 j;
+
+	for(j = 0; j < num_sectors; j++) {
+		uart_printf("sector %d: ", offset + j);
+		for(i = 0; i < 5; i++) {
+			v = read_dram_32(buff_addr + BYTES_PER_SECTOR * (offset+j) + i * sizeof(UINT32));
+			if (i) uart_printf(", ");
+			uart_printf("%d", v);
+		}
+		uart_printf("... ");
+		for(i = 5; i > 0; i--) {
+			v = read_dram_32(buff_addr + BYTES_PER_SECTOR * (offset+j+1) - i * sizeof(UINT32));
+			if (i != 5) uart_printf(", ");
+			uart_printf("%d", v);
+		}
+		uart_print("");
+	}
+}
+
 BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 			   UINT8 offset, UINT8 num_sectors)
 {
