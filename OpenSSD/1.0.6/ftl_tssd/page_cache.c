@@ -231,9 +231,9 @@ void page_cache_load(UINT32 const idx, UINT32 *addr,
 	// try to find cached page given key
 	UINT32 key = idx2key(idx, type);
 	UINT32 page_idx; 
-	/*if (last_key == key)
+	if (last_key == key)
 		page_idx = last_page_idx;
-	else {*/
+	else {
 		page_idx = mem_search_equ_sram(cached_keys, 
 					       sizeof(UINT32), 
 					       NUM_PC_SUB_PAGES, key);
@@ -247,9 +247,9 @@ void page_cache_load(UINT32 const idx, UINT32 *addr,
 #endif
 			page_idx = load_page(idx, type);
 		}
-	//	last_key = key;
-		///last_page_idx = page_idx;
-	//}
+		last_key = key;
+		last_page_idx = page_idx;
+	}
 	*addr = PC_SUB_PAGE(page_idx);
 
 	// if this page is already in merge buffer, don't modify its state 

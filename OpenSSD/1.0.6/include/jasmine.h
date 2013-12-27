@@ -185,9 +185,9 @@ typedef unsigned long long	UINT64;
 	#define FULL_MASK	0xFFFFFFFFFFFFFFFFULL
 
 	#define init_mask(offset, num_sectors)				\
-			(num_sectors == sizeof(UINT64) ? 		\
+			((num_sectors) == sizeof(UINT64) ? 		\
 				FULL_MASK :				\
-				(((1ULL << num_sectors) - 1) << offset))
+				(((1ULL << (num_sectors)) - 1) << (offset)))
 #else
 	typedef UINT32		sectors_mask_t;
 	#define FULL_MASK	0xFFFFFFFFUL

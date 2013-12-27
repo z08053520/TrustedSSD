@@ -15,10 +15,11 @@ RM	= rm
 #TEST = ftl
 #TEST = gc
 #TEST = gtd
-TEST = pmt
+#TEST = pmt
 #TEST = page_cache
 #TEST = perf
 #TEST = sot
+TEST = write_buffer
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size

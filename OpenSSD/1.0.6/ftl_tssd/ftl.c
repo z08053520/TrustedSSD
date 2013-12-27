@@ -3,6 +3,7 @@
 #include "pmt.h"
 #include "gc.h"
 #include "page_cache.h"
+#include "flash_util.h"
 #include "write_buffer.h"
 #include "read_buffer.h"
 #if OPTION_ACL
@@ -164,31 +165,38 @@ static void read_page(UINT32 const lpn,
 	vp_t	vp;
 	// iterate sub pages
 	while (sectors_remain) {
-		// try to read from write buffer first
+		// alignment to sub pages
 		offset_in_sp = (sector_i % SECTORS_PER_SUB_PAGE);
 		if (sectors_remain >= SECTORS_PER_SUB_PAGE)
 			num_sectors_in_sp = SECTORS_PER_SUB_PAGE - offset_in_sp;
 		else
 			num_sectors_in_sp = sectors_remain;
 
+		// try to read from write buffer first
 		write_buffer_get(lspn, offset_in_sp, num_sectors_in_sp, &buff);
-		if (!buff) {
-			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id) + sector_i * BYTES_PER_SECTOR, 
-				 buff, num_sectors_in_sp * BYTES_PER_SECTOR);
-			continue;
+		if (buff) {
+			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id) 
+					+ sector_i * BYTES_PER_SECTOR, 
+				 buff + offset_in_sp * BYTES_PER_SECTOR, 
+				 num_sectors_in_sp * BYTES_PER_SECTOR);
+			goto next_sub_page;
 		}
 
 		vp = get_vp(lspn);
 		// read buffer can handle vpn == 0 case
 		read_buffer_get(vp, &buff);
-		if (!buff) {
-			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id) + sector_i * BYTES_PER_SECTOR,
+		if (buff) {
+			// TODO: we can make this more efficient by merge 
+			// memory copies from the same buffer
+			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id) 
+					+ sector_i * BYTES_PER_SECTOR,
 				 buff + sector_i * BYTES_PER_SECTOR,
 				 num_sectors_in_sp * BYTES_PER_SECTOR);
-			continue;
+			goto next_sub_page;;
 		}
 
-		if (num_segments == 0 || vp_not_equal(segment[num_segments-1].vp, vp)) {
+		if (num_segments == 0 || 
+		    vp_not_equal(segment[num_segments-1].vp, vp)) {
 			segment[num_segments].vp = vp;
 			segment[num_segments].sector_offset = sector_i;
 			segment[num_segments].num_sectors = 0;
@@ -196,6 +204,7 @@ static void read_page(UINT32 const lpn,
 		}
 		segment[num_segments-1].num_sectors += num_sectors_in_sp;
 
+next_sub_page:
 		lspn ++;
 		sector_i += num_sectors_in_sp;
 		sectors_remain -= num_sectors_in_sp;
@@ -290,7 +299,35 @@ static void write_page(UINT32 const lpn,
 		       UINT32 const sect_offset, 
 		       UINT32 const num_sectors_to_write)
 {
-	write_buffer_put(lpn, sect_offset, num_sectors_to_write);
+	// FIXME: this waiting may not be necessary
+	// Wait for SATA transfer completion
+	#if OPTION_FTL_TEST == 0
+	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
+	#endif
+	
+	// Write full page to flash directly
+	if (num_sectors_to_write == SECTORS_PER_PAGE) {
+		write_buffer_drop(lpn);
+
+		UINT8 bank = fu_get_idle_bank();
+		UINT32 vpn = gc_allocate_new_vpn(bank);
+		nand_page_program_from_host(bank, 
+				  	    vpn / PAGES_PER_VBLK, 
+				  	    vpn % PAGES_PER_VBLK);
+		return;
+	}
+
+	// Put partial page to write buffer to merge before writing back
+	write_buffer_put(lpn, sect_offset, num_sectors_to_write, 
+			 SATA_WR_BUF_PTR(g_ftl_write_buf_id));
+
+	// Update SATA write buffer pointer
+	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_SATA_WR_BUFFERS;	
+	// Wait for flash finish to avoid race condition when updating
+	// BM_WRITE_LIMIT
+	flash_finish();
+	SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);
+	SETREG(BM_STACK_RESET, 0x01);
 }
 
 /*  

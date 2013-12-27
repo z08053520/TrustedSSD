@@ -4,8 +4,6 @@
 #include "mem_util.h"
 #include "flash_util.h"
 
-extern UINT32 g_ftl_write_buf_id;
-
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
  * ========================================================================= */
@@ -14,8 +12,8 @@ extern UINT32 g_ftl_write_buf_id;
 typedef UINT8 		buf_id_t;
 #define NULL_BID	0xFF
 
-static buf_id_t		head_buf_id, 
-			tail_buf_id;
+static buf_id_t		head_buf_id;
+static UINT32		num_clean_buffers;
 static sectors_mask_t 	buf_masks[NUM_WRITE_BUFFERS]; /* 1 - occupied; 0 - available */
 static UINT8		buf_sizes[NUM_WRITE_BUFFERS];
 
@@ -23,7 +21,7 @@ static UINT8		buf_sizes[NUM_WRITE_BUFFERS];
 
 /* For each logical page which has some part in write buffer, three fields are 
  * maintained: lpn, valid sector mask and buffer id. */
-#define MAX_NUM_LPNS			(4 * NUM_WRITE_BUFFERS)
+#define MAX_NUM_LPNS			(8 * NUM_WRITE_BUFFERS)
 #define NULL_LPN			0xFFFFFFFF
 static UINT32		num_lpns;
 static UINT32		lpns[MAX_NUM_LPNS];
@@ -46,6 +44,8 @@ static BOOL8 find_index_of_lpn(UINT32 const lpn, UINT32 *lpn_idx)
 
 static void remove_lpn_by_index(UINT32 const lpn_idx)
 {
+	BUG_ON("out of bound", lpn_idx >= MAX_NUM_LPNS);
+
 	sectors_mask_t mask     = lp_masks[lpn_idx];
 	buf_id_t bid     	= buf_ids[lpn_idx];
 	BUG_ON("invalid bid", bid >= NUM_WRITE_BUFFERS);
@@ -60,18 +60,10 @@ static void remove_lpn_by_index(UINT32 const lpn_idx)
 	num_lpns--;
 }
 
-static void try_to_remove_lpn(UINT32 const lpn)
-{
-	UINT32 lpn_idx;
-	if(!find_index_of_lpn(lpn, &lpn_idx)) return;
-
-	remove_lpn_by_index(lpn_idx);
-}
-
 static buf_id_t find_fullest_buffer()
 {
 	buf_id_t max_buf_id   =  mem_search_min_max(buf_sizes, 
-						  sizeof(UINT8), 
+						  sizeof(buf_id_t), 
 						  NUM_WRITE_BUFFERS,
 						  MU_CMD_SEARCH_MAX_SRAM);
 
@@ -82,38 +74,6 @@ static buf_id_t find_fullest_buffer()
 
 	return max_buf_id;
 }
-
-static void fill_whole_sub_page(UINT32 const lspn, UINT8 const lsp_mask, UINT32 const buff)
-{
-	vp_t vp; 
-	pmt_fetch(lspn, &vp);
-
-	// Prepare handler for the missing segments
-	void (*segment_handler) (UINT8, UINT8);
-	// Read existing sub-page from flash to fill the missing sectors
-	if (vp.vpn) {
-		UINT8  vsp_offset = lspn % SUB_PAGES_PER_PAGE;
-		UINT32 vspn 	  = vp.vpn * SUB_PAGES_PER_PAGE + vsp_offset;
-		vsp_t  vsp 	  = {.bank = vp.bank, .vspn = vspn};
-		fu_read_sub_page(vsp, TEMP_BUF_ADDR);
-		
-		UINT32 sp_src_buff = TEMP_BUF_ADDR + vsp_offset * BYTES_PER_SUB_PAGE; 
-
-		segment_handler = 
-			lambda (void, (UINT8 begin_i, UINT8 end_i) {
-				mem_copy(buff + begin_i * BYTES_PER_SECTOR,
-					 sp_src_buff + begin_i * BYTES_PER_SECTOR,
-					 (end_i - begin_i) * BYTES_PER_SECTOR);
-			});
-	}
-	// Fill missing sectors with 0xFF...FF
-	else {
-		segment_handler = 
-			lambda (void, (UINT8 begin_i, UINT8 end_i) {
-				mem_set_dram(buff + begin_i * BYTES_PER_SECTOR,
-					     0xFFFFFFFF, (end_i - begin_i) * BYTES_PER_SECTOR);
-			});
-	}
 
 #define FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler)		\
 	UINT8 i = 0;							\
@@ -128,9 +88,42 @@ static void fill_whole_sub_page(UINT32 const lspn, UINT8 const lsp_mask, UINT32 
 		       (((lsp_mask >> i) & 1) == 0)) i++;		\
 		UINT8 end_i   = i++;					\
 		/* evoke segment handler */				\
-		(*segment_handler)(begin_i, end_i);				\
+		(*segment_handler)(begin_i, end_i);			\
 	}
-	FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler);
+	
+static void fill_whole_sub_page(UINT32 const lspn, UINT8 const lsp_mask, UINT32 const buff)
+{
+	vp_t vp; 
+	pmt_fetch(lspn, &vp);
+
+	// Prepare handler for the missing segments
+	void (*segment_handler) (UINT8, UINT8);
+	// Read existing sub-page from flash to fill the missing sectors
+	if (vp.vpn) {
+		UINT8  vsp_offset = lspn % SUB_PAGES_PER_PAGE;
+		UINT32 vspn 	  = vp.vpn * SUB_PAGES_PER_PAGE + vsp_offset;
+		vsp_t  vsp 	  = {.bank = vp.bank, .vspn = vspn};
+		fu_read_sub_page(vsp, FTL_BUF(vp.bank));
+		
+		UINT32 sp_src_buff = FTL_BUF(vp.bank)+ vsp_offset * BYTES_PER_SUB_PAGE; 
+
+		segment_handler = 
+			lambda (void, (UINT8 begin_i, UINT8 end_i) {
+				mem_copy(buff + begin_i * BYTES_PER_SECTOR,
+					 sp_src_buff + begin_i * BYTES_PER_SECTOR,
+					 (end_i - begin_i) * BYTES_PER_SECTOR);
+			});
+		FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler);
+	}
+	// Fill missing sectors with 0xFF...FF
+	else {
+		segment_handler = 
+			lambda (void, (UINT8 begin_i, UINT8 end_i) {
+				mem_set_dram(buff + begin_i * BYTES_PER_SECTOR,
+					     0xFFFFFFFF, (end_i - begin_i) * BYTES_PER_SECTOR);
+			});
+		FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler);
+	}
 }
 
 static void remove_buffer(UINT8 const buf_id)
@@ -143,16 +136,18 @@ static void remove_buffer(UINT8 const buf_id)
 	
 	buf_masks[buf_id] = 0;
 	buf_sizes[buf_id] = 0;
+	num_clean_buffers++;
 
 	if (buf_id == head_buf_id) 
 		head_buf_id = next_buf_id(head_buf_id);
-
 }
 
 static void flush_buffer() 
 {
 	buf_id_t victim_buf_id   = find_fullest_buffer();
 	BUG_ON("flush any empty buffer", buf_sizes[victim_buf_id] == 0);
+
+	DEBUG("write_buffer", "victim_buf_id = %u\r\n", victim_buf_id);
 
 	UINT8   bank    = fu_get_idle_bank();
 	UINT32  vpn	= gc_allocate_new_vpn(bank);
@@ -180,8 +175,8 @@ static void flush_buffer()
 			if (lsp_mask != 0) {
 				if (lsp_mask != 0xFF)
 					fill_whole_sub_page(lspn, lsp_mask, 
-						    	    WRITE_BUF(victim_buf_id) + 
-								BYTES_PER_SUB_PAGE * sp_offset);
+						WRITE_BUF(victim_buf_id) + 
+						BYTES_PER_SUB_PAGE * sp_offset);
 				pmt_update(lspn, vp);
 			}
 			
@@ -218,19 +213,13 @@ static UINT8 allocate_buffer_for(sectors_mask_t const mask)
 	UINT8 new_buf_id = head_buf_id;
 	do {
 		if ((buf_masks[new_buf_id] & mask) == 0) {
-			// Update tail position of buffer 
-			if ((head_buf_id <= tail_buf_id && 
-			      	(new_buf_id < head_buf_id || 
-			         new_buf_id > tail_buf_id)) || 
-			    (head_buf_id > tail_buf_id &&
-			      	(new_buf_id > tail_buf_id && 
-				 new_buf_id < head_buf_id))) {
-				tail_buf_id = new_buf_id;
-			}
+			if (buf_masks[new_buf_id] == 0) 
+				num_clean_buffers--;
 			return new_buf_id;
 		}
 		new_buf_id = next_buf_id(new_buf_id);
 	} while (new_buf_id != head_buf_id);
+	BUG_ON("no free buffer to allocate", 1);
 	return NULL_BID;
 }
 
@@ -265,7 +254,8 @@ static UINT32 get_free_lpn_index()
 }
 
 static void insert_and_merge_lpn(UINT32 const lpn, UINT8 const sector_offset, 
-				 UINT8  const num_sectors)
+				 UINT8  const num_sectors,
+				 UINT32 const buf)
 {
 	sectors_mask_t  lp_new_mask = init_mask(sector_offset, num_sectors);
 	buf_id_t	new_buf_id  = NULL_BID;	
@@ -287,7 +277,6 @@ static void insert_and_merge_lpn(UINT32 const lpn, UINT8 const sector_offset,
 			// old & new data
 			sectors_mask_t merged_mask = lp_old_mask | lp_new_mask;
 			new_buf_id = allocate_buffer_for(merged_mask);
-			BUG_ON("No available buffer", new_buf_id == NULL_BID);	
 
 			// move useful part of old data to new buffer 
 			sectors_mask_t old_useful_mask = 
@@ -295,6 +284,13 @@ static void insert_and_merge_lpn(UINT32 const lpn, UINT8 const sector_offset,
 			copy_to_buffer(WRITE_BUF(new_buf_id),
 				       WRITE_BUF(old_buf_id),
 				       old_useful_mask);
+
+			// update old buffer
+			buf_masks[old_buf_id] &= ~lp_old_mask;
+			buf_sizes[old_buf_id]  = count_sectors(
+							buf_masks[old_buf_id]);
+			if (buf_sizes[old_buf_id] == 0) 
+				num_clean_buffers++;
 		}
 	
 		lp_masks[lp_idx] |= lp_new_mask;
@@ -314,7 +310,7 @@ static void insert_and_merge_lpn(UINT32 const lpn, UINT8 const sector_offset,
 		
 	// Do insertion 
 	copy_to_buffer(WRITE_BUF(new_buf_id),
-		       SATA_WR_BUF_PTR(g_ftl_write_buf_id),
+		       buf,
 		       lp_new_mask);
 	buf_masks[new_buf_id] |= lp_new_mask;
 	buf_sizes[new_buf_id]  = count_sectors(buf_masks[new_buf_id]);
@@ -331,48 +327,67 @@ void write_buffer_init()
 	BUG_ON("# of write buffers is too large", NUM_WRITE_BUFFERS > 255);
 
 	num_lpns      = 0;
+	num_clean_buffers   = NUM_WRITE_BUFFERS;
 	head_buf_id   = 0;
-	tail_buf_id   = 0;
 
 	mem_set_sram(lpns, 	  NULL_LPN, 	MAX_NUM_LPNS * sizeof(UINT32));
 	mem_set_sram(lp_masks, 	  0, 		MAX_NUM_LPNS * sizeof(sectors_mask_t));
-	mem_set_sram(buf_ids,  	  NULL_BID, 	MAX_NUM_LPNS * sizeof(buf_id_t));
+	mem_set_sram(buf_ids,  	  0xFFFFFFFF, 	MAX_NUM_LPNS * sizeof(buf_id_t));
 
 	mem_set_sram(buf_masks,   0, 		NUM_WRITE_BUFFERS * sizeof(sectors_mask_t));
 	mem_set_sram(buf_sizes,   0, 		NUM_WRITE_BUFFERS * sizeof(UINT8));
 }
-
-#define should_flush_buffer()	(num_lpns == MAX_NUM_LPNS || \
-				 next_buf_id(tail_buf_id) == head_buf_id)
 
 void write_buffer_get(UINT32 const lspn, 
 		      UINT8  const sector_offset_in_sp, 
 		      UINT8  const num_sectors_in_sp, 
 		      UINT32 *buf)
 {
-#warning to be implemented
+	BUG_ON("out of bound", sector_offset_in_sp + num_sectors_in_sp > 
+			       SECTORS_PER_SUB_PAGE);
+
 	*buf = NULL;
+
+	UINT32	lpn		= lspn / SUB_PAGES_PER_PAGE;
+	UINT32 	lpn_idx;
+	// if the logical page is not in buffer, just quit 
+	if(!find_index_of_lpn(lpn, &lpn_idx)) return;
+	
+	UINT8	base_offset 	= (lspn % SUB_PAGES_PER_PAGE) * SECTORS_PER_SUB_PAGE; 
+	sectors_mask_t required_sectors_mask 
+				= init_mask(base_offset + sector_offset_in_sp,
+					    num_sectors_in_sp);
+	sectors_mask_t lp_mask = lp_masks[lpn_idx];
+	// if write buffer doesn't include any sectors wanted, just quit
+	if ((required_sectors_mask & lp_mask) == 0) return;
+
+	*buf = WRITE_BUF(buf_ids[lpn_idx]) + base_offset * BYTES_PER_SECTOR;
+	// if some request sectors are not in buffer, we have to load them
+	if ((required_sectors_mask & lp_mask) != required_sectors_mask) {
+		fill_whole_sub_page(lspn, 
+				    (UINT8)(lp_mask >> base_offset),
+				    *buf);
+		lp_masks[lpn_idx] |= (0xFF << base_offset);
+	}
 }
 
-void write_buffer_put(UINT32 const lpn, UINT8 const sector_offset, 
-		      UINT8  const num_sectors)
+void write_buffer_put(UINT32 const lpn, 
+		      UINT8  const sector_offset, 
+		      UINT8  const num_sectors,
+		      UINT32 const sata_wr_buf)
 {
-	if (num_sectors == 0) return;
+	insert_and_merge_lpn(lpn, sector_offset, num_sectors, sata_wr_buf);
 
-	// Write full page to flash directly
-	if (num_sectors == SECTORS_PER_PAGE) {
-		try_to_remove_lpn(lpn);
-
-		UINT8 bank = fu_get_idle_bank();
-		UINT32 vpn = gc_allocate_new_vpn(bank);
-		nand_page_program_from_host(bank, 
-				  	    vpn / PAGES_PER_VBLK, 
-				  	    vpn % PAGES_PER_VBLK);
-		return;
-	}
-
-	if (should_flush_buffer()) 
+	// Flush buffer when needed
+	if (num_lpns == MAX_NUM_LPNS || num_clean_buffers == 0)
 		flush_buffer();
+}
 
-	insert_and_merge_lpn(lpn, sector_offset, num_sectors);
+
+void write_buffer_drop(UINT32 const lpn)
+{
+	UINT32 lpn_idx;
+	if(!find_index_of_lpn(lpn, &lpn_idx)) return;
+
+	remove_lpn_by_index(lpn_idx);
 }

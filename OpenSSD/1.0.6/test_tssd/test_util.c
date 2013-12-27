@@ -110,17 +110,17 @@ void  dump_buffer(UINT32 const buff_addr,
 	UINT32 j;
 
 	for(j = 0; j < num_sectors; j++) {
-		uart_printf("sector %d: ", offset + j);
+		uart_printf("sector %u: ", offset + j);
 		for(i = 0; i < 5; i++) {
 			v = read_dram_32(buff_addr + BYTES_PER_SECTOR * (offset+j) + i * sizeof(UINT32));
 			if (i) uart_printf(", ");
-			uart_printf("%d", v);
+			uart_printf("%u", v);
 		}
 		uart_printf("... ");
 		for(i = 5; i > 0; i--) {
 			v = read_dram_32(buff_addr + BYTES_PER_SECTOR * (offset+j+1) - i * sizeof(UINT32));
 			if (i != 5) uart_printf(", ");
-			uart_printf("%d", v);
+			uart_printf("%u", v);
 		}
 		uart_print("");
 	}
@@ -130,29 +130,10 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 			   UINT8 offset, UINT8 num_sectors)
 {
 	if (offset >= SECTORS_PER_PAGE || num_sectors == 0) return FALSE;	
-/*  	
-	UINT32 i;
-	UINT32 v;
-	UINT32 j;
-
-	INFO("is_buff_wrong", "Print the first/last five UINT32 values in every valid sectors of buffer: from %d, to %d",
-				offset, offset + num_sectors);
-	for(j = 0; j < num_sectors; j++) {
-		uart_printf("sector %d: ", offset + j);
-		for(i = 0; i < 5; i++) {
-			v = read_dram_32(buff_addr + BYTES_PER_SECTOR * (offset+j) + i * sizeof(UINT32));
-			if (i) uart_printf(", ");
-			uart_printf("%d", v);
-		}
-		uart_printf("... ");
-		for(i = 5; i > 0; i--) {
-			v = read_dram_32(buff_addr + BYTES_PER_SECTOR * (offset+j+1) - i * sizeof(UINT32));
-			if (i != 5) uart_printf(", ");
-			uart_printf("%d", v);
-		}
-		uart_print("");
-	}
-*/	
+	
+	// Debug
+	dump_buffer(buff_addr, offset, num_sectors);
+	
 	buff_addr    	    = buff_addr + BYTES_PER_SECTOR * offset;
 	UINT32 buff_entries = BYTES_PER_SECTOR * num_sectors / sizeof(UINT32);
 
@@ -170,7 +151,7 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
                               	buff_entries, MU_CMD_SEARCH_MAX_DRAM);
 	UINT32 max_val  = read_dram_32(buff_addr + max_idx * sizeof(UINT32));
 	if (max_val != val) {
-		uart_printf("expect max val to be %u but was %u, at position %u\r\n", val, min_val);
+		uart_printf("expect max val to be %u but was %u, at position %u\r\n", val, max_val, max_idx);
 		return TRUE;
 	}
 
