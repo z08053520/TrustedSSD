@@ -12,18 +12,18 @@
 #define RAND_SEED	1234
 #define MAX_LSPN	(SUB_PAGES_PER_PAGE * NUM_LPAGES)
 
-#define BUF_SIZE	(BYTES_PER_SECTOR * SECTORS_PER_PAGE / 2)
-#define LPN_BUF		TEMP_BUF_ADDR
-#define VPN_BUF		(TEMP_BUF_ADDR + BUF_SIZE)
+#define LSPN_BUF	TEMP_BUF_ADDR
+#define VP_BUF		HIL_BUF_ADDR	
 
-#define SAMPLE_SIZE	(BYTES_PER_PAGE / sizeof(UINT32))
+#define BUF_SIZE	(BYTES_PER_PAGE / sizeof(UINT32))
+#define SAMPLE_SIZE	BUF_SIZE	
 
-SETUP_BUF(lspn,		TEMP_BUF_ADDR,		SECTORS_PER_PAGE);
-SETUP_BUF(vp,		HIL_BUF_ADDR,		SECTORS_PER_PAGE);
+SETUP_BUF(lspn,		LSPN_BUF,	SECTORS_PER_PAGE);
+SETUP_BUF(vp,		VP_BUF,		SECTORS_PER_PAGE);
 
 void ftl_test()
 {
-	UINT32 i;
+	UINT32 i, j;
 	UINT32 lspn;
 	vp_t   vp, expected_vp;
 	vp_or_int vp_or_int;
@@ -32,7 +32,7 @@ void ftl_test()
 	uart_printf("sample size = %d\r\n", SAMPLE_SIZE);
 
 	srand(RAND_SEED);
- 	init_lspn_buf(0);
+ 	init_lspn_buf(0xFFFFFFFF);
 	init_vp_buf(0);
 
 	uart_print("\tsample lspn to check vp is set to 0 by default");
@@ -44,17 +44,26 @@ void ftl_test()
 	}
 
 	uart_print("\tupdate lspns");
-	for(i = 0; i < SAMPLE_SIZE; i++) {
-		lspn    = rand() % MAX_LSPN;
+	i = 0;
+	while (i < SAMPLE_SIZE) {	
+		lspn    = rand() % MAX_LSPN;	
 
 		vp.bank = rand() % NUM_BANKS;
 		vp.vpn  = rand() % PAGES_PER_BANK;
 		vp_or_int.as_vp = vp;
 
-		set_lspn(i, lspn);
-		set_vp(i, vp_or_int.as_int);
-
 		pmt_update(lspn, vp);
+
+		j 	= mem_search_equ_dram(LSPN_BUF, sizeof(UINT32), 
+					      BUF_SIZE, lspn);
+		if (j < BUF_SIZE) {
+			set_vp(j, vp_or_int.as_int);
+		}
+		else {
+			set_lspn(i, lspn);
+			set_vp(i, vp_or_int.as_int);
+			i++;
+		}
 	}
 	
 	uart_print("\tverify lspn->vsp");
