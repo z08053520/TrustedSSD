@@ -144,7 +144,7 @@ typedef struct _segment {
 #define align_lba_to_sp(lba) (lba / SECTORS_PER_SUB_PAGE * SECTORS_PER_SUB_PAGE)
 
 static void read_page(UINT32 const lpn, 
-		      UINT32 const sect_offset, 
+		      UINT32 const sector_offset, 
 		      UINT32 const num_sectors_to_read)
 {	
 	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
@@ -158,7 +158,7 @@ static void read_page(UINT32 const lpn,
 
 	UINT32	buff;
 	UINT32 	lspn 		= lpn * SUB_PAGES_PER_PAGE + sector_offset / SECTORS_PER_SUB_PAGE;
-	UITN32	sectors_remain	= num_sectors_to_read;
+	UINT32	sectors_remain	= num_sectors_to_read;
 	UINT32  sector_i  	= sector_offset;
 	UINT32  offset_in_sp, num_sectors_in_sp;
 	vp_t	vp;

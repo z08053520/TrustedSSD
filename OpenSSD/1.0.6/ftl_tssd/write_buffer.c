@@ -345,10 +345,12 @@ void write_buffer_init()
 #define should_flush_buffer()	(num_lpns == MAX_NUM_LPNS || \
 				 next_buf_id(tail_buf_id) == head_buf_id)
 
-void write_buffer_get(UINT32 const lpn, UINT8 const sector_offset, 
+void write_buffer_get(UINT32 const lspn, 
+		      UINT8  const sector_offset_in_sp, 
+		      UINT8  const num_sectors_in_sp, 
 		      UINT32 *buf)
 {
-#error to be implemented
+#warning to be implemented
 	*buf = NULL;
 }
 
