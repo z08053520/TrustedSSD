@@ -148,27 +148,33 @@ static void read_page(UINT32 const lpn,
 		      UINT32 const num_sectors_to_read)
 {	
 	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
-	segment_t segment[SUB_PAGES_PER_PAGE];
-	UINT8   num_segments = 0;
 
-	UINT32  sector_begin	= align_lba_to_sp(sect_offset),
-		sector_end	= align_lba_to_sp(sect_offset + num_sectors_to_read);
-	
+	segment_t segment[SUB_PAGES_PER_PAGE];
+	UINT8   num_segments 	= 0;
+
 	#if OPTION_FTL_TEST == 0
 	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
 	#endif
 
 	UINT32	buff;
-	UINT32 	lspn 		= lpn * SUB_PAGES_PER_PAGE + sector_begin / SECTORS_PER_SUB_PAGE;
-	UINT32  sector_i  	= sector_begin;
+	UINT32 	lspn 		= lpn * SUB_PAGES_PER_PAGE + sector_offset / SECTORS_PER_SUB_PAGE;
+	UITN32	sectors_remain	= num_sectors_to_read;
+	UINT32  sector_i  	= sector_offset;
+	UINT32  offset_in_sp, num_sectors_in_sp;
 	vp_t	vp;
 	// iterate sub pages
-	while (sector_i < sector_end) {
-		// FIXME: not right!
-		write_buffer_get(lpn, sector_i, &buff);
+	while (sectors_remain) {
+		// try to read from write buffer first
+		offset_in_sp = (sector_i % SECTORS_PER_SUB_PAGE);
+		if (sectors_remain >= SECTORS_PER_SUB_PAGE)
+			num_sectors_in_sp = SECTORS_PER_SUB_PAGE - offset_in_sp;
+		else
+			num_sectors_in_sp = sectors_remain;
+
+		write_buffer_get(lspn, offset_in_sp, num_sectors_in_sp, &buff);
 		if (!buff) {
 			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id) + sector_i * BYTES_PER_SECTOR, 
-				 buff, BYTES_PER_SUB_PAGE);
+				 buff, num_sectors_in_sp * BYTES_PER_SECTOR);
 			continue;
 		}
 
@@ -176,11 +182,11 @@ static void read_page(UINT32 const lpn,
 		// read buffer can handle vpn == 0 case
 		read_buffer_get(vp, &buff);
 		if (!buff) {
-			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id),
-				 buff + BYTES_PER_SECTOR * SECTORS_PER_SUB_PAGE * (lspn % SUB_PAGES_PER_PAGE),
-				 BYTES_PER_SUB_PAGE);
+			mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id) + sector_i * BYTES_PER_SECTOR,
+				 buff + sector_i * BYTES_PER_SECTOR,
+				 num_sectors_in_sp * BYTES_PER_SECTOR);
 			continue;
-		}	
+		}
 
 		if (num_segments == 0 || vp_not_equal(segment[num_segments-1].vp, vp)) {
 			segment[num_segments].vp = vp;
@@ -188,10 +194,11 @@ static void read_page(UINT32 const lpn,
 			segment[num_segments].num_sectors = 0;
 			num_segments++;
 		}
-		segment[num_segments-1].num_sectors += SECTORS_PER_SUB_PAGE;
+		segment[num_segments-1].num_sectors += num_sectors_in_sp;
 
 		lspn ++;
-		sector_i += SECTORS_PER_SUB_PAGE;
+		sector_i += num_sectors_in_sp;
+		sectors_remain -= num_sectors_in_sp;
 	}
 
 	// if no need to do any flash read

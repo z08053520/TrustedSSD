@@ -348,7 +348,7 @@ void write_buffer_init()
 void write_buffer_get(UINT32 const lpn, UINT8 const sector_offset, 
 		      UINT32 *buf)
 {
-#warning to be implemented
+#error to be implemented
 	*buf = NULL;
 }
 
