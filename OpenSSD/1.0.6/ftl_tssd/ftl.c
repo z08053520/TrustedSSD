@@ -1,4 +1,5 @@
 #include "ftl.h"
+#include "dram.h"
 #include "bad_blocks.h"
 #include "pmt.h"
 #include "gc.h"
@@ -294,7 +295,7 @@ static void write_full_page_to_flash (UINT32 const lpn)
 	cmt_update(lpn, new_vpn);
 }
 */
-
+static UINT32 write_count =0;
 static void write_page(UINT32 const lpn, 
 		       UINT32 const sect_offset, 
 		       UINT32 const num_sectors_to_write)
@@ -314,20 +315,33 @@ static void write_page(UINT32 const lpn,
 		nand_page_program_from_host(bank, 
 				  	    vpn / PAGES_PER_VBLK, 
 				  	    vpn % PAGES_PER_VBLK);
+
+		vp_t   vp = {.bank = bank, .vpn = vpn};
+		UINT32 base_lspn = lpn * SUB_PAGES_PER_PAGE;
+		UINT8 sp;
+		for (sp = 0; sp < SUB_PAGES_PER_PAGE; sp++)
+			pmt_update(base_lspn + sp, vp);
 		return;
 	}
+
 
 	// Put partial page to write buffer to merge before writing back
 	write_buffer_put(lpn, sect_offset, num_sectors_to_write, 
 			 SATA_WR_BUF_PTR(g_ftl_write_buf_id));
 
 	// Update SATA write buffer pointer
-	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_SATA_WR_BUFFERS;	
-	// Wait for flash finish to avoid race condition when updating
-	// BM_WRITE_LIMIT
-	flash_finish();
-	SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);
-	SETREG(BM_STACK_RESET, 0x01);
+	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_SATA_WR_BUFFERS;
+
+	// FIXME: add timeout
+#warning slow!
+//	write_count++;
+//	if (write_count % NUM_BANKS == 0) {
+		// Wait for flash finish to avoid race condition when updating
+		// BM_WRITE_LIMIT
+		flash_finish();
+		SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);
+		SETREG(BM_STACK_RESET, 0x01);
+//	}
 }
 
 /*  

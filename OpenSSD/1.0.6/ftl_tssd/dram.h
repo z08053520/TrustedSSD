@@ -12,7 +12,7 @@
 
 #define PC_ADDR			DRAM_BASE
 #define PC_END			(PC_ADDR + PC_BYTES)
-#define NUM_PC_BUFFERS		16
+#define NUM_PC_BUFFERS		128	
 //#define NUM_PC_BUFFERS		1
 #define NUM_PC_SUB_PAGES	(NUM_PC_BUFFERS * SUB_PAGES_PER_PAGE)
 #define PC_BYTES		(NUM_PC_BUFFERS * BYTES_PER_PAGE)
@@ -65,7 +65,7 @@
  * ========================================================================= */
 
 #define NUM_READ_BUFFERS	1
-#define NUM_WRITE_BUFFERS	8	
+#define NUM_WRITE_BUFFERS	1	
 
 #define READ_BUF_ADDR		GTD_END	
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)

@@ -215,7 +215,7 @@ void page_cache_init(void)
 {
 	BUG_ON("# of sub pages is not a multiple of 8", 
 			NUM_PC_SUB_PAGES % SUB_PAGES_PER_PAGE != 0);
-	BUG_ON("Capacity too large", NUM_PC_SUB_PAGES > 255);
+	///BUG_ON("Capacity too large", NUM_PC_SUB_PAGES > 255);
 
 	UINT32 num_bytes = sizeof(UINT32) * NUM_PC_SUB_PAGES;
 	mem_set_sram(cached_keys, NULL_KEY, 		num_bytes);

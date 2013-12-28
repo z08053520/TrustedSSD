@@ -81,7 +81,7 @@ static void dram_perf_test()
 
 	uart_print("Next, test latency");
 	UINT32 total_mem_operations = 1024 * 1024;
-	UINT32 begin_addr = BUFS_ADDR, end_addr = HIL_BUF_ADDR;
+	UINT32 begin_addr = HIL_BUF_ADDR, end_addr = HIL_BUF_ADDR + BYTES_PER_PAGE;
 	UINT32 addr = begin_addr;
 	UINT32 num_mem_operations  = 0;
 	timer_reset();

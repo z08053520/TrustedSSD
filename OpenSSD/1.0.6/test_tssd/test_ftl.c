@@ -12,7 +12,8 @@
 #define RAND_SEED	1234
 #define MAX_NUM_SECTORS 512
 //#define MAX_NUM_SECTORS SECTORS_PER_PAGE
-#define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES
+///#define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES
+#define MAX_NUM_REQS	9	
 
 extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
 
@@ -155,39 +156,46 @@ static void seq_rw_test()
 
 	UINT32 num_requests	= MAX_NUM_REQS;
 	//UINT32 num_requests	= NUM_BC_BUFFERS;
-	/* 512B -> 4KB -> 7KB -> 17KB -> 32KB  */
+	/* 512B -> 4KB -> 8KB -> 16KB -> 32KB  */
 	UINT32 req_sizes[NUM_SEQ_REQ_SIZES] = {
-		1, KB2SEC(4), KB2SEC(7), KB2SEC(17), KB2SEC(32)
+		1, KB2SEC(4), KB2SEC(8), KB2SEC(16), KB2SEC(32)
 	};
 	UINT32 lba, req_sectors, val;
 	UINT32 i, j;
+	UINT32 total_sectors;
 
 	uart_print("sequential write");
-	perf_monitor_reset();
 	lba = 0;
 	for (j = 0; j < NUM_SEQ_REQ_SIZES; j++) {
 		req_sectors = req_sizes[j];
+		uart_printf("req_sectors = %u\r\n", req_sectors);
+		total_sectors = 0;
+		perf_monitor_reset();
 		for (i = 0; i < num_requests; i++) {
 			val 	= lba;
 			do_flash_write(lba, req_sectors, val, FALSE);
 
 			lba += req_sectors;
-			perf_monitor_update(req_sectors);
+			total_sectors += req_sectors;
 		}
+		perf_monitor_update(total_sectors);
 	}
 
 	uart_print("seqential read and verify");
-	perf_monitor_reset();
 	lba = 0;
 	for (j = 0; j < NUM_SEQ_REQ_SIZES; j++) {
 		req_sectors = req_sizes[j];
+		uart_printf("req_sectors = %u\r\n", req_sectors);
+		total_sectors = 0;
+		perf_monitor_reset();
 		for (i = 0; i < num_requests; i++) {
 			val 	= lba;
 			do_flash_verify(lba, req_sectors, val, FALSE);
 
 			lba += req_sectors;
-			perf_monitor_update(req_sectors);	
+			total_sectors += req_sectors;
 		}
+		perf_monitor_update(total_sectors);	
 	}
 
 	uart_print("done");
@@ -200,6 +208,7 @@ static void rnd_rw_test()
 	UINT32 num_requests = MAX_NUM_REQS;
 	UINT32 lba, req_size, val;
 	UINT32 i;
+	UINT32 total_sectors;
 
 	BUG_ON("too many requests to run", num_requests > MAX_NUM_REQS);
 
@@ -207,7 +216,9 @@ static void rnd_rw_test()
 
 	uart_print("random write");
 	perf_monitor_reset();
+	total_sectors = 0;
 	for (i = 0; i < num_requests; i++) {
+		uart_printf("i = %u\r\n", i);
 		lba 	  = random(0, MAX_LBA_LIMIT_BY_VAL_BUF);
 		val 	  = lba;
 		req_size  = random(1, MAX_NUM_SECTORS); 
@@ -218,20 +229,22 @@ static void rnd_rw_test()
 
 		set_lba(i, lba);
 		set_req_size(i, req_size);
-		
-		perf_monitor_update(req_size);	
+	
+		total_sectors += req_size;
 	}
+	perf_monitor_update(total_sectors);	
 
 	uart_print("random read and verify");
 	perf_monitor_reset();
+	total_sectors = 0;
 	for (i = 0; i < num_requests; i++) {
 		lba	 = get_lba(i);
 		req_size = get_req_size(i);
 
 		do_flash_verify(lba, req_size, 0, TRUE);
-		
-		perf_monitor_update(req_size);	
+		total_sectors += req_size;		
 	}
+	perf_monitor_update(total_sectors);	
 
 	uart_print("done");
 }
@@ -291,16 +304,18 @@ void ftl_test()
 {
 	uart_print("Start testing FTL unit test");
 
+	perf_monitor_set_output_threshold(1024 * 1024);
+
 	init_dram();
 
 	srand(RAND_SEED);
 
-	seq_rw_test();
+//	seq_rw_test();
 	rnd_rw_test();
 	
-	long_seq_rw_test();	
+/*  	long_seq_rw_test();	
 	long_seq_rw_test();
-
+*/
 	uart_print("FTL passed unit test ^_^");
 }
 

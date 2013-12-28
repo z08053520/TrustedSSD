@@ -408,7 +408,9 @@ void write_buffer_drop(UINT32 const lpn)
 	UINT32 lpn_idx;
 	if(!find_index_of_lpn(lpn, &lpn_idx)) return;
 
+	buf_id_t buf_id = buf_ids[lpn_idx];
 	remove_lpn_by_index(lpn_idx);
+	if (buf_sizes[buf_id] == 0) num_clean_buffers++;
 }
 
 // Debug
