@@ -131,7 +131,35 @@ void uart_print_hex(UINT32 num)
 	uart_txbyte('\r');
 	uart_txbyte('\n');
 }
+void uart_print_hex_64(UINT64 num)
+{
+    char str[16];
+    UINT8 remain=0;
+    UINT8 cnt = 0;
 
+    while (cnt < 16) {
+        remain = num%16;
+        num = num/16;
+        if (remain<10)
+            str[cnt]=remain+48;
+        else
+            str[cnt]=remain+55;
+        cnt++;
+    }
+    cnt--;
+    uart_txbyte('0');
+    uart_txbyte('x');
+
+    while (1) {
+    	uart_txbyte(str[cnt]);
+        if (cnt == 0) {
+            break;
+        }
+	cnt--;
+    }
+	uart_txbyte('\r');
+	uart_txbyte('\n');
+}
 #include <stdarg.h>
 void uart_printf(const char *msg, ...)
 {

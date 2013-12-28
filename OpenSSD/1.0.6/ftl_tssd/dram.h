@@ -65,7 +65,7 @@
  * ========================================================================= */
 
 #define NUM_READ_BUFFERS	1
-#define NUM_WRITE_BUFFERS	8
+#define NUM_WRITE_BUFFERS	8	
 
 #define READ_BUF_ADDR		GTD_END	
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)

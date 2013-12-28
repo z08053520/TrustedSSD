@@ -132,7 +132,7 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 	if (offset >= SECTORS_PER_PAGE || num_sectors == 0) return FALSE;	
 	
 	// Debug
-	dump_buffer(buff_addr, offset, num_sectors);
+	//dump_buffer(buff_addr, offset, num_sectors);
 	
 	buff_addr    	    = buff_addr + BYTES_PER_SECTOR * offset;
 	UINT32 buff_entries = BYTES_PER_SECTOR * num_sectors / sizeof(UINT32);

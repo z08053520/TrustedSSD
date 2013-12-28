@@ -185,21 +185,28 @@ typedef unsigned long long	UINT64;
 	#define FULL_MASK	0xFFFFFFFFFFFFFFFFULL
 
 	#define init_mask(offset, num_sectors)				\
-			((num_sectors) == sizeof(UINT64) ? 		\
+			((num_sectors) == sizeof(UINT64) * 8? 		\
 				FULL_MASK :				\
 				(((1ULL << (num_sectors)) - 1) << (offset)))
+	#define count_sectors(mask)		__builtin_popcountll(mask) 
+	#define _begin_sector(mask)		__builtin_ctzll(mask)
+	#define _end_sector(mask)		((sizeof(sectors_mask_t) * 8) - __builtin_clzll(mask))
 #else
 	typedef UINT32		sectors_mask_t;
 	#define FULL_MASK	0xFFFFFFFFUL
 
 	#define init_mask(offset, num_sectors)				\
-			(num_sectors == sizeof(UINT32) ? 		\
+			(num_sectors == sizeof(UINT32) * 8? 		\
 				FULL_MASK :				\
 				(((1UL << num_sectors) - 1) << offset))
+	#define count_sectors(mask)		__builtin_popcount(mask) 
+	#define _begin_sector(mask)		__builtin_ctz(mask)
+	#define _end_sector(mask)		((sizeof(sectors_mask_t) * 8) - __builtin_clz(mask))
 #endif
-#define count_sectors(mask)		__builtin_popcount(mask) 
-#define begin_sector(mask)		__builtin_ctz(mask)
-#define end_sector(mask)		((sizeof(sectors_mask_t) * 8) - __builtin_clz(mask))
+// DEBUG
+
+UINT8 begin_sector(sectors_mask_t const mask);
+UINT8 end_sector(sectors_mask_t const mask);
 
 /* virtual page */
 typedef struct _vp_t {
