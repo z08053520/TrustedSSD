@@ -12,8 +12,8 @@
 #define RAND_SEED	1234
 #define MAX_NUM_SECTORS 512
 //#define MAX_NUM_SECTORS SECTORS_PER_PAGE
-///#define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES
-#define MAX_NUM_REQS	9	
+#define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES
+/* #define MAX_NUM_REQS	1 */	
 
 extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
 
@@ -240,6 +240,8 @@ static void rnd_rw_test()
 	for (i = 0; i < num_requests; i++) {
 		lba	 = get_lba(i);
 		req_size = get_req_size(i);
+		
+		uart_printf("i = %u\r\n", i);
 
 		do_flash_verify(lba, req_size, 0, TRUE);
 		total_sectors += req_size;		
@@ -310,7 +312,7 @@ void ftl_test()
 
 	srand(RAND_SEED);
 
-//	seq_rw_test();
+	seq_rw_test();
 	rnd_rw_test();
 	
 /*  	long_seq_rw_test();	
