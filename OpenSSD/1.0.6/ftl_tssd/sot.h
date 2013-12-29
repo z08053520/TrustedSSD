@@ -1,6 +1,5 @@
 #ifndef __SOT_H
 #define __SOT_H
-
 #include "jasmine.h"
 #if OPTION_ACL
 

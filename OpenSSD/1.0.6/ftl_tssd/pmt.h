@@ -13,6 +13,11 @@
  *   For a 64GB flash with 32KB page and 4KB sub-page, there are 64GB / 4KB = 
  *   16M PMT entries, in 16M / (32KB / sizeof(UINT32)) = 2K pages.
  * */
+
+/* ===========================================================================
+ * Type and Macro Definitions
+ * =========================================================================*/
+
 #define PMT_ENTRIES			(SUB_PAGES_PER_PAGE * PAGES_PER_BANK * NUM_BANKS)
 
 #define PMT_ENTRIES_PER_SUB_PAGE	(BYTES_PER_SUB_PAGE / sizeof(UINT32))
@@ -21,6 +26,10 @@
 // TODO: remove?
 #define PMT_ENTRIES_PER_PAGE		(BYTES_PER_PAGE / sizeof(UINT32))
 #define PMT_PAGES			COUNT_BUCKETS(PMT_ENTRIES, PMT_ENTRIES_PER_PAGE)
+
+/* ===========================================================================
+ * Public Interface 
+ * =========================================================================*/
 
 void pmt_init(void);
 
