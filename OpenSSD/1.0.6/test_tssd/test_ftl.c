@@ -12,8 +12,8 @@
 #define RAND_SEED	1234
 #define MAX_NUM_SECTORS 512
 //#define MAX_NUM_SECTORS SECTORS_PER_PAGE
-#define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES
-/* #define MAX_NUM_REQS	1 */	
+/* #define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES */
+#define MAX_NUM_REQS	1	
 
 extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
 
@@ -147,6 +147,7 @@ static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors,
  * Tests for sequential and random R/W 
  * =========================================================================*/
 
+/* #define NUM_SEQ_REQ_SIZES	1 */
 #define NUM_SEQ_REQ_SIZES	5
 #define KB2SEC(N)		(N * 1024 / 512)
 
@@ -159,6 +160,7 @@ static void seq_rw_test()
 	/* 512B -> 4KB -> 8KB -> 16KB -> 32KB  */
 	UINT32 req_sizes[NUM_SEQ_REQ_SIZES] = {
 		1, KB2SEC(4), KB2SEC(8), KB2SEC(16), KB2SEC(32)
+		/* 1 */
 	};
 	UINT32 lba, req_sectors, val;
 	UINT32 i, j;
@@ -218,7 +220,7 @@ static void rnd_rw_test()
 	perf_monitor_reset();
 	total_sectors = 0;
 	for (i = 0; i < num_requests; i++) {
-		uart_printf("i = %u\r\n", i);
+		/* uart_printf("i = %u\r\n", i); */
 		lba 	  = random(0, MAX_LBA_LIMIT_BY_VAL_BUF);
 		val 	  = lba;
 		req_size  = random(1, MAX_NUM_SECTORS); 
@@ -241,7 +243,7 @@ static void rnd_rw_test()
 		lba	 = get_lba(i);
 		req_size = get_req_size(i);
 		
-		uart_printf("i = %u\r\n", i);
+		/* uart_printf("i = %u\r\n", i); */
 
 		do_flash_verify(lba, req_size, 0, TRUE);
 		total_sectors += req_size;		

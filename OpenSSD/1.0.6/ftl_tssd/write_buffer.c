@@ -142,6 +142,8 @@ static void flush_buffer()
 	BUG_ON("flush any empty buffer", buf_sizes[victim_buf_id] == 0);
 	sectors_mask_t 	victim_buf_mask = buf_masks[victim_buf_id];
 
+	/* DEBUG("write buffer>flush", "!"); */
+
 	UINT8   bank    = fu_get_idle_bank();
 	UINT32  vpn	= gc_allocate_new_vpn(bank);
 	vp_t	vp	= {.bank = bank, .vpn = vpn};
@@ -158,7 +160,8 @@ static void flush_buffer()
 		sectors_mask_t 	lp_mask = lp_masks[lpn_i];
 
 		UINT8  begin_sp	   = begin_sector(lp_mask) / SECTORS_PER_SUB_PAGE,
-		       end_sp	   = end_sector(lp_mask)   / SECTORS_PER_SUB_PAGE;
+		       end_sp	   = COUNT_BUCKETS(end_sector(lp_mask), SECTORS_PER_SUB_PAGE);
+		BUG_ON("empty sub page", begin_sp == end_sp);
 		UINT8  sp_offset   = begin_sp;
 		UINT32 lspn	   = lpn * SUB_PAGES_PER_PAGE + begin_sp,
 		       end_lspn	   = lspn + end_sp;
@@ -261,9 +264,9 @@ static void insert_and_merge_lpn(UINT32 const lpn, UINT8 const sector_offset,
 	buf_id_t	new_buf_id  = NULL_BID;	
 
 	// DEBUG
-	/*  uart_printf("offset = %u, num_sectors = %u\r\n", sector_offset, num_sectors);
-	uart_printf("lp_new_mask = ");uart_print_hex_64(lp_new_mask);
-	uart_printf("max 64 uint = ");uart_print_hex_64(0xFFFFFFFFFFFFFFFFULL);*/
+	/* uart_printf("lpn = %u, offset = %u, num_sectors = %u\r\n", lpn, sector_offset, num_sectors); */
+	/* uart_printf("lp_new_mask = ");uart_print_hex_64(lp_new_mask); */
+
 	// Try to merge with the same lpn in the buffer 
 	UINT32 lp_idx;
 	if (find_index_of_lpn(lpn, &lp_idx)) {
@@ -318,10 +321,10 @@ static void insert_and_merge_lpn(UINT32 const lpn, UINT8 const sector_offset,
 		       lp_new_mask);
 	buf_masks[new_buf_id] |= lp_new_mask;
 	buf_sizes[new_buf_id]  = count_sectors(buf_masks[new_buf_id]);
-	//DEBUG("write buffer", "buf address = %u", WRITE_BUF(new_buf_id));
-	/*  uart_printf("lp_new_mask = ");uart_print_hex_64(lp_new_mask);
-	uart_printf("buf_masks[new_buf_id] = ");uart_print_hex_64(buf_masks[new_buf_id]);
-	uart_printf("buf_sizes[new_buf_id] = %u\r\n", buf_sizes[new_buf_id]);*/
+	/* DEBUG("write buffer", "buf address = %u", WRITE_BUF(new_buf_id)); */
+	/* uart_printf("lp_new_mask = ");uart_print_hex_64(lp_new_mask); */
+	/* uart_printf("buf_masks[new_buf_id] = ");uart_print_hex_64(buf_masks[new_buf_id]); */
+	/* uart_printf("buf_sizes[new_buf_id] = %u\r\n", buf_sizes[new_buf_id]); */
 }
 
 /* ========================================================================= *
@@ -363,19 +366,31 @@ void write_buffer_get(UINT32 const lspn,
 			       SECTORS_PER_SUB_PAGE);
 
 	*buf = NULL;
+	
+	/* DEBUG("write buffer>get", "lspn = %u, sector_offset_in_sp = %u, " */
+	/*       "num_sectors_in_sp = %u", */ 
+	/* 	lspn, sector_offset_in_sp, num_sectors_in_sp); */
 
 	UINT32	lpn		= lspn / SUB_PAGES_PER_PAGE;
 	UINT32 	lpn_idx;
 	// if the logical page is not in buffer, just quit 
 	if(!find_index_of_lpn(lpn, &lpn_idx)) return;
-	
+
+	/* DEBUG("write buffer>get", "lpn %u is in write buffer"); */
+
 	UINT8	lspn_offset 	= (lspn % SUB_PAGES_PER_PAGE) * SECTORS_PER_SUB_PAGE; 
 	sectors_mask_t required_sectors_mask 
 				= init_mask(lspn_offset + sector_offset_in_sp,
 					    num_sectors_in_sp);
 	sectors_mask_t lp_mask = lp_masks[lpn_idx];
+
+	/* uart_printf("lp_mask = ");uart_print_hex_64(lp_mask); */
+	/* uart_printf("required_sectors_mask = ");uart_print_hex_64(required_sectors_mask); */
+
 	// if write buffer doesn't include any sectors wanted, just quit
 	if ((required_sectors_mask & lp_mask) == 0) return;
+	
+	/* DEBUG("write buffer>get", "interesting part of lpn %u is in write buffer"); */
 
 	*buf = WRITE_BUF(buf_ids[lpn_idx]) + lspn_offset * BYTES_PER_SECTOR;
 	// if some request sectors are not in buffer, we have to load them
