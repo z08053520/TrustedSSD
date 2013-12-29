@@ -185,7 +185,7 @@ typedef unsigned long long	UINT64;
 	#define FULL_MASK	0xFFFFFFFFFFFFFFFFULL
 
 	#define init_mask(offset, num_sectors)				\
-			((num_sectors) == sizeof(UINT64) * 8? 		\
+			((num_sectors) >= sizeof(UINT64) * 8? 		\
 				FULL_MASK :				\
 				(((1ULL << (num_sectors)) - 1) << (offset)))
 	#define count_sectors(mask)		__builtin_popcountll(mask) 
@@ -196,9 +196,9 @@ typedef unsigned long long	UINT64;
 	#define FULL_MASK	0xFFFFFFFFUL
 
 	#define init_mask(offset, num_sectors)				\
-			(num_sectors == sizeof(UINT32) * 8? 		\
+			((num_sectors) >= sizeof(UINT32) * 8? 		\
 				FULL_MASK :				\
-				(((1UL << num_sectors) - 1) << offset))
+				(((1UL << (num_sectors)) - 1) << (offset)))
 	#define count_sectors(mask)		__builtin_popcount(mask) 
 	#define _begin_sector(mask)		__builtin_ctz(mask)
 	#define _end_sector(mask)		((sizeof(sectors_mask_t) * 8) - __builtin_clz(mask))

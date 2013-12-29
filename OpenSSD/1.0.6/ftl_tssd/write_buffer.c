@@ -113,9 +113,9 @@ static void fill_whole_sub_page(UINT32 const lspn, UINT8 const lsp_mask, UINT32 
 		UINT8  vsp_offset = lspn % SUB_PAGES_PER_PAGE;
 		UINT32 vspn 	  = vp.vpn * SUB_PAGES_PER_PAGE + vsp_offset;
 		vsp_t  vsp 	  = {.bank = vp.bank, .vspn = vspn};
-		fu_read_sub_page(vsp, FTL_BUF(vp.bank));
+		fu_read_sub_page(vsp, FTL_RD_BUF(vp.bank));
 		
-		UINT32 sp_src_buff = FTL_BUF(vp.bank)+ vsp_offset * BYTES_PER_SUB_PAGE; 
+		UINT32 sp_src_buff = FTL_RD_BUF(vp.bank)+ vsp_offset * BYTES_PER_SUB_PAGE; 
 
 		segment_handler = 
 			lambda (void, (UINT8 begin_i, UINT8 end_i) {
@@ -191,14 +191,14 @@ static void flush_buffer()
 	// contend with work correctly instead of perfectly. 
 	UINT32 offset 	   	= begin_sector(victim_buf_mask),
 	       num_sectors 	= end_sector(victim_buf_mask) - offset;
-	mem_copy(FTL_BUF(bank) + offset * BYTES_PER_SECTOR, 
+	mem_copy(FTL_WR_BUF(bank) + offset * BYTES_PER_SECTOR, 
 		 WRITE_BUF(victim_buf_id) + offset * BYTES_PER_SECTOR,
 		 num_sectors * BYTES_PER_SECTOR);
 	nand_page_ptprogram(bank, 
 			    vpn / PAGES_PER_VBLK, 
 			    vpn % PAGES_PER_VBLK,
 			    offset, num_sectors,
-			    FTL_BUF(bank));
+			    FTL_WR_BUF(bank));
 
 	// Remove buffer
 	BUG_ON("buf mask is not cleared", buf_masks[victim_buf_id] != 0ULL);
@@ -369,21 +369,21 @@ void write_buffer_get(UINT32 const lspn,
 	// if the logical page is not in buffer, just quit 
 	if(!find_index_of_lpn(lpn, &lpn_idx)) return;
 	
-	UINT8	base_offset 	= (lspn % SUB_PAGES_PER_PAGE) * SECTORS_PER_SUB_PAGE; 
+	UINT8	lspn_offset 	= (lspn % SUB_PAGES_PER_PAGE) * SECTORS_PER_SUB_PAGE; 
 	sectors_mask_t required_sectors_mask 
-				= init_mask(base_offset + sector_offset_in_sp,
+				= init_mask(lspn_offset + sector_offset_in_sp,
 					    num_sectors_in_sp);
 	sectors_mask_t lp_mask = lp_masks[lpn_idx];
 	// if write buffer doesn't include any sectors wanted, just quit
 	if ((required_sectors_mask & lp_mask) == 0) return;
 
-	*buf = WRITE_BUF(buf_ids[lpn_idx]) + base_offset * BYTES_PER_SECTOR;
+	*buf = WRITE_BUF(buf_ids[lpn_idx]) + lspn_offset * BYTES_PER_SECTOR;
 	// if some request sectors are not in buffer, we have to load them
 	if ((required_sectors_mask & lp_mask) != required_sectors_mask) {
 		fill_whole_sub_page(lspn, 
-				    (UINT8)(lp_mask >> base_offset),
+				    (UINT8)(lp_mask >> lspn_offset),
 				    *buf);
-		lp_masks[lpn_idx] |= (0xFF << base_offset);
+		lp_masks[lpn_idx] |= (0xFF << lspn_offset);
 	}
 	//DEBUG("write buffer", "buf address = %u", *buf);
 }

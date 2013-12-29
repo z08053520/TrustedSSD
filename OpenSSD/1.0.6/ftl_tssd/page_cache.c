@@ -132,7 +132,7 @@ static void flush_merge_buffer()
 		}
 
 		// Copy to one buffer before writing back to flash
-		mem_copy(FTL_BUF(bank) + i * BYTES_PER_SUB_PAGE,
+		mem_copy(FTL_WR_BUF(bank) + i * BYTES_PER_SUB_PAGE,
 			 PC_SUB_PAGE(page_idx),
 			 BYTES_PER_SUB_PAGE);
 
@@ -141,7 +141,7 @@ static void flush_merge_buffer()
 	}
 
 	// Write to flash
-	fu_write_page(vp, FTL_BUF(bank));
+	fu_write_page(vp, FTL_WR_BUF(bank));
 
 	to_be_merged_pages = 0;
 	num_free_sub_pages += SUB_PAGES_PER_PAGE;

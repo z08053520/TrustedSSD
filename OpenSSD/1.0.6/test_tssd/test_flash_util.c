@@ -51,7 +51,7 @@ void ftl_test()
 
 			set_vsp(num_vsp, vsp2int.as_int);
 			set_val(num_vsp, val);
-			mem_set_dram(FTL_BUF(bank) + vsp_offset * BYTES_PER_SUB_PAGE,
+			mem_set_dram(FTL_WR_BUF(bank) + vsp_offset * BYTES_PER_SUB_PAGE,
 				     val, BYTES_PER_SUB_PAGE);
 
 			vspn++;
@@ -59,7 +59,7 @@ void ftl_test()
 			num_vsp++;
 		}
 		
-		fu_write_page(vp, FTL_BUF(bank));
+		fu_write_page(vp, FTL_WR_BUF(bank));
 		// take a break so that idle banks can be predictable
 		flash_finish();
 		

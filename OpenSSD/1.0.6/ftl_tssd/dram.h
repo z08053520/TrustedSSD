@@ -83,17 +83,21 @@
  * ========================================================================= */
 
 #define NUM_COPY_BUFFERS	NUM_BANKS_MAX
-#define NUM_FTL_BUFFERS		NUM_BANKS
+#define NUM_FTL_RD_BUFFERS	NUM_BANKS
+#define NUM_FTL_WR_BUFFERS	NUM_BANKS
 #define NUM_HIL_BUFFERS		1
 #define NUM_TEMP_BUFFERS	1
 
 #define COPY_BUF_ADDR          	WRITE_BUF_END 
 #define COPY_BUF_BYTES          (NUM_COPY_BUFFERS * BYTES_PER_PAGE)
 
-#define FTL_BUF_ADDR            (COPY_BUF_ADDR + COPY_BUF_BYTES)
-#define FTL_BUF_BYTES           (NUM_FTL_BUFFERS * BYTES_PER_PAGE)
+#define FTL_RD_BUF_ADDR		(COPY_BUF_ADDR + COPY_BUF_BYTES)
+#define FTL_RD_BUF_BYTES       	(NUM_FTL_RD_BUFFERS * BYTES_PER_PAGE)
 
-#define HIL_BUF_ADDR            (FTL_BUF_ADDR + FTL_BUF_BYTES)
+#define FTL_WR_BUF_ADDR         (FTL_RD_BUF_ADDR + FTL_RD_BUF_BYTES)
+#define FTL_WR_BUF_BYTES        (NUM_FTL_WR_BUFFERS * BYTES_PER_PAGE)
+
+#define HIL_BUF_ADDR            (FTL_WR_BUF_ADDR + FTL_WR_BUF_BYTES)
 #define HIL_BUF_BYTES           (NUM_HIL_BUFFERS * BYTES_PER_PAGE)
 
 #define TEMP_BUF_ADDR           (HIL_BUF_ADDR + HIL_BUF_BYTES)
@@ -103,7 +107,11 @@
 
 #define _COPY_BUF(RBANK)	(COPY_BUF_ADDR + (RBANK) * BYTES_PER_PAGE)
 #define COPY_BUF(BANK)		_COPY_BUF(REAL_BANK(BANK))
-#define FTL_BUF(BANK)       	(FTL_BUF_ADDR + ((BANK) * BYTES_PER_PAGE))
+#define FTL_WR_BUF(BANK)       	(FTL_WR_BUF_ADDR + ((BANK) * BYTES_PER_PAGE))
+#define FTL_RD_BUF(BANK)       	(FTL_RD_BUF_ADDR + ((BANK) * BYTES_PER_PAGE))
+
+#define NUM_FTL_BUFFERS		(NUM_FTL_RD_BUFFERS + NUM_FTL_WR_BUFFERS)
+#define	FTL_BUF_BYTES		(FTL_RD_BUF_BYTES   + FTL_WR_BUF_BYTES) 
 
 /* ========================================================================= *
  * SATA Buffers

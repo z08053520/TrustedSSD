@@ -111,9 +111,9 @@ static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors,
 	// verify data by iterating each page in the SATA buffer 
 	while (remain_sects) {
 		if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
-		    num_sectors = remain_sects;
+			num_sectors = remain_sects;
 		else
-		    num_sectors = SECTORS_PER_PAGE - sect_offset;
+			num_sectors = SECTORS_PER_PAGE - sect_offset;
 
 		if (!use_val_buf) {
 			// verify data in buffer

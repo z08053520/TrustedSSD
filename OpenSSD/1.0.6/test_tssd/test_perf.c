@@ -70,7 +70,7 @@ static void dram_perf_test()
 	bank = 0;
 	timer_reset();
 	while (num_pages_copied < num_pages_to_copy) {
-		mem_copy(FTL_BUF(bank), TEMP_BUF_ADDR, BYTES_PER_PAGE);
+		mem_copy(FTL_RD_BUF(bank), TEMP_BUF_ADDR, BYTES_PER_PAGE);
 
 		bank = (bank + 1) % NUM_BANKS;
 		num_pages_copied++;
