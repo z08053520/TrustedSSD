@@ -168,10 +168,10 @@ static void read_page(UINT32 const lpn,
 	while (sectors_remain) {
 		// alignment to sub pages
 		offset_in_sp = (sector_i % SECTORS_PER_SUB_PAGE);
-		if (sectors_remain >= SECTORS_PER_SUB_PAGE)
-			num_sectors_in_sp = SECTORS_PER_SUB_PAGE - offset_in_sp;
-		else
+		if (offset_in_sp + sectors_remain < SECTORS_PER_SUB_PAGE)
 			num_sectors_in_sp = sectors_remain;
+		else
+			num_sectors_in_sp = SECTORS_PER_SUB_PAGE - offset_in_sp;
 
 		// try to read from write buffer first
 		write_buffer_get(lspn, offset_in_sp, num_sectors_in_sp, &buff);

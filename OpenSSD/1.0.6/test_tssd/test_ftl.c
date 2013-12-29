@@ -12,8 +12,8 @@
 #define RAND_SEED	1234
 #define MAX_NUM_SECTORS 512
 //#define MAX_NUM_SECTORS SECTORS_PER_PAGE
-/* #define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES */
-#define MAX_NUM_REQS	1	
+#define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES
+/* #define MAX_NUM_REQS	1 */	
 
 extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
 
@@ -317,9 +317,9 @@ void ftl_test()
 	seq_rw_test();
 	rnd_rw_test();
 	
-/*  	long_seq_rw_test();	
+  	long_seq_rw_test();	
 	long_seq_rw_test();
-*/
+
 	uart_print("FTL passed unit test ^_^");
 }
 
