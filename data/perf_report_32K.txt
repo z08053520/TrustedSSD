@@ -1,0 +1,64 @@
+--------------------- FTL Seq R/W -----------------------
+FTL **sequential** read/write test (unit = 4096 bytes) begins...
+Write sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 5289596us (~5289ms), throughput 50MB/s
+> Total of 0 flash reads and 7952 flash writes
+> Total of 1 PMT cache miss count
+Read sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 9410790us (~9410ms), throughput 28MB/s
+> Total of 8193 flash reads and 240 flash writes
+> Total of 0 PMT cache miss count
+Done
+FTL **sequential** read/write test (unit = 16384 bytes) begins...
+Write sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 5552973us (~5552ms), throughput 48MB/s
+> Total of 7952 flash reads and 7952 flash writes
+> Total of 0 PMT cache miss count
+Read sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 8931686us (~8931ms), throughput 30MB/s
+> Total of 8433 flash reads and 240 flash writes
+> Total of 0 PMT cache miss count
+Done
+FTL **sequential** read/write test (unit = 32768 bytes) begins...
+Write sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 1505652us (~1505ms), throughput 178MB/s
+> Total of 0 flash reads and 7952 flash writes
+> Total of 0 PMT cache miss count
+Read sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 1399620us (~1399ms), throughput 191MB/s
+> Total of 7952 flash reads and 0 flash writes
+> Total of 0 PMT cache miss count
+Done
+--------------------- FTL Rnd R/W -----------------------
+FTL **random** read/write test (unit = 4096 bytes) begins...
+Write randomly 64MB of data
+> Transferred 67108864 bytes (~64MB) in 18809793us (~18809ms), throughput 3MB/s
+> Total of 9487 flash reads and 17967 flash writes
+> Total of 2 PMT cache miss count
+Read randomly 64MB of data
+> Transferred 67108864 bytes (~64MB) in 3917041us (~3917ms), throughput 17MB/s
+> Total of 12471 flash reads and 224 flash writes
+> Total of 0 PMT cache miss count
+Done
+FTL **random** read/write test (unit = 16384 bytes) begins...
+Write randomly 64MB of data
+> Transferred 67108864 bytes (~64MB) in 6229402us (~6229ms), throughput 10MB/s
+> Total of 4121 flash reads and 5792 flash writes
+> Total of 0 PMT cache miss count
+Read randomly 64MB of data
+> Transferred 67108864 bytes (~64MB) in 2547561us (~2547ms), throughput 26MB/s
+> Total of 4705 flash reads and 234 flash writes
+> Total of 0 PMT cache miss count
+Done
+FTL **random** read/write test (unit = 32768 bytes) begins...
+Write randomly 64MB of data
+> Transferred 67108864 bytes (~64MB) in 4043743us (~4043ms), throughput 16MB/s
+> Total of 2903 flash reads and 3790 flash writes
+> Total of 0 PMT cache miss count
+Read randomly 64MB of data
+> Transferred 67108864 bytes (~64MB) in 1650463us (~1650ms), throughput 40MB/s
+> Total of 3357 flash reads and 231 flash writes
+> Total of 0 PMT cache miss count
+Done
+--------------------------------------------------------
+Performance test is done ^_^
