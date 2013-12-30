@@ -45,6 +45,12 @@
  * Makefile, which will automatically define OPTION_FTL_TEST.
  * */
 
+/* About macro OPTION_PROFILING 
+ *
+ * If this marco is defined, profiling will be enabled to analyze time spent 
+ * by major compoents/functions. This macro is defined in Makefile.
+ * */
+
 /* About macro OPTION_2_PLANE
  * 
  * Flash performance profiling result shows that flash throughput is

@@ -12,12 +12,12 @@ RM	= rm
 # withour any SATA communication; otherwise, a normal firmware that can handle 
 # SATA request will be generated.
 #TEST = flash_util
-TEST = ftl
+#TEST = ftl
 #TEST = gc
 #TEST = gtd
 #TEST = pmt
 #TEST = page_cache
-#TEST = perf
+TEST = perf
 #TEST = sot
 #TEST = write_buffer
 
@@ -43,6 +43,12 @@ ifdef TEST
 CFLAGS += -D OPTION_FTL_TEST
 VPATH  += :../test_tssd
 SRCS   += test_${TEST}.c test_util.c
+endif
+
+PROFILING = y
+ifdef PROFILING
+CFLAGS += -D OPTION_PROFILING
+SRCS   += profiler.c
 endif
 
 $(TARGETBIN): $(TARGETELF)

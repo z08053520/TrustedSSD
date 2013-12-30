@@ -20,6 +20,10 @@
 #include "jasmine.h"
 #include "ftl.h"
 
+#if OPTION_PROFILING
+#include "profiler.h"
+#endif
+
 const UINT8 c_bank_map[] = BANK_MAP;
 UINT8 c_bank_rmap[] = BANK_RMAP;
 
@@ -101,8 +105,14 @@ void flash_erase(UINT32 const bank, UINT16 const vblk_offset)
 
 void flash_finish(void)
 {
+#if OPTION_PROFILING
+	profiler_start_timer(PROFILER_FLASH_FINISH);
+#endif
 	// When the value of MON_CHABANKIDLE is zero, Waiting Room is empty and all the banks are idle.
 	while (GETREG(MON_CHABANKIDLE) != 0);
+#if OPTION_PROFILING
+	profiler_end_timer(PROFILER_FLASH_FINISH);
+#endif
 }
 
 void flash_clear_irq(void)

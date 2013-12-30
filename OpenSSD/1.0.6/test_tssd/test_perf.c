@@ -2,13 +2,12 @@
  * Test the performance of FTL, raw flash operations, DRAM and SRAM 
  * =========================================================================*/
 
+#if OPTION_FTL_TEST
 #include "jasmine.h"
 #include "ftl.h"
 #include "bad_blocks.h"
 #include "gc.h"
 #include "test_util.h"
-
-#if OPTION_FTL_TEST
 
 static void sram_perf_test()
 {
@@ -324,7 +323,7 @@ void ftl_test()
 		ftl_perf_test_seq(32, total_mb_seq);	// req stride -- 16KB
 		ftl_perf_test_seq(64, total_mb_seq);	// req stride -- 32KB
 	uart_print("--------------------- FTL Rnd R/W -----------------------");
-		UINT32 total_mb_rnd = 64;
+		UINT32 total_mb_rnd = 128;
 		ftl_perf_test_rnd(8,  total_mb_rnd);	// req stride -- 4KB 
 		ftl_perf_test_rnd(32, total_mb_rnd);	// req stride -- 16KB
 		ftl_perf_test_rnd(64, total_mb_rnd);	// req stride -- 32KB

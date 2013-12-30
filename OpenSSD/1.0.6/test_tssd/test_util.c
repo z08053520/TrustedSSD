@@ -3,6 +3,10 @@
 #if OPTION_FTL_TEST
 #include <stdlib.h>
 
+#if OPTION_PROFILING
+#include <profiler.h>
+#endif
+
 /* ===========================================================================
  * Timer
  * =========================================================================*/
@@ -49,6 +53,11 @@ void perf_monitor_reset()
 	g_sot_cache_miss_count = 0;
 #endif
 #endif
+
+#if OPTION_PROFILING
+	profiler_init();
+#endif
+
 	timer_reset();
 }
 
@@ -80,6 +89,11 @@ void perf_monitor_report()
 #endif
 	}
 #endif	
+
+#if OPTION_PROFILING
+	uart_printf("> flash_finish() time = %ums\r\n", 
+	    profiler_get_total_time(PROFILER_FLASH_FINISH) / 1000);
+#endif
 }
 
 void perf_monitor_update(UINT32 const num_sectors)
