@@ -236,13 +236,17 @@ static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 
 	UINT32 total_sectors 	= total_mb * 1024 * 1024 / BYTES_PER_SECTOR;
 
-	UINT32 lba, end_lba = total_sectors;
-		
+	UINT32 lba, 
+	       begin_lba = LBA_BEGIN + g_seq_total_mb * 1024 / 1024 / BYTES_PER_SECTOR,
+	       end_lba = total_sectors;
+	
+	begin_lba = begin_lba / num_sectors * num_sectors;
+	
 	g_seq_total_mb += total_mb;
 
 	// write
 	uart_printf("Write sequentially %uMB of data\r\n", total_mb);
-	lba = LBA_BEGIN;
+	lba = begin_lba;
 	perf_monitor_reset();
 	while (lba < end_lba) {
 		ftl_write(lba, num_sectors);
@@ -253,7 +257,7 @@ static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 
 	// read
 	uart_printf("Read sequentially %uMB of data\r\n", total_mb);
-	lba = LBA_BEGIN;
+	lba = begin_lba;
 	perf_monitor_reset();
 	while (lba < end_lba) {
 		ftl_read(lba, num_sectors);
@@ -279,6 +283,7 @@ static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 	num_sectors_so_far = 0;
 	while (num_sectors_so_far < total_num_sectors) {
 		lba = random(0, end_lba);
+		lba = lba / num_sectors * num_sectors; // align with req size
 
 		ftl_write(lba, num_sectors);
 	
@@ -292,6 +297,7 @@ static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 	num_sectors_so_far = 0;
 	while (num_sectors_so_far < total_num_sectors) {
 		lba = random(0, end_lba);
+		lba = lba / num_sectors * num_sectors; // align with req size
 
 		ftl_read(lba, num_sectors);
 

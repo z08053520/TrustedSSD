@@ -339,8 +339,8 @@ static void write_page(UINT32 const lpn,
 		// Wait for flash finish to avoid race condition when updating
 		// BM_WRITE_LIMIT
 		flash_finish();
-		SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);
-		SETREG(BM_STACK_RESET, 0x01);
+		/* SETREG(BM_STACK_WRSET, g_ftl_write_buf_id); */
+		/* SETREG(BM_STACK_RESET, 0x01); */
 //	}
 }
 

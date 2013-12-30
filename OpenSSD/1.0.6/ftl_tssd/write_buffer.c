@@ -116,7 +116,7 @@ static buf_id_t find_fullest_buffer()
 
 	return max_buf_id;
 }
-
+/*  
 static void dump_state()
 {
 	UINT8 i = 0;
@@ -151,7 +151,7 @@ static void dump_state()
 	}
 	uart_print("");
 }
-
+*/
 #define FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler)		\
 	UINT8 i = 0;							\
 	while (i < SECTORS_PER_SUB_PAGE) {				\
