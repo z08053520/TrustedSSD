@@ -73,68 +73,6 @@ static void mem_read_done(UINT32 const next_read_buf_id)
 	g_ftl_read_buf_id = next_read_buf_id;
 }
 
-/*
-static void read_empty_page (UINT32 const sect_offset, 
-			     UINT32 const num_sectors_to_read)
-{
-	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
-
-	// wait for the next buffer to get SATA transfer done
-	#if OPTION_FTL_TEST == 0
-	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
-	#endif
-
-	// Send 0xFF...FF to host when the host request to read the 
-	// sector that has never been written.
-	mem_set_dram(SATA_RD_BUF_PTR(g_ftl_read_buf_id) 
-			+ sect_offset * BYTES_PER_SECTOR,
-			0xFFFFFFFF, 
-			num_sectors_to_read * BYTES_PER_SECTOR);
-
-	mem_read_done(next_read_buf_id);
-}
-
-static BOOL8 try_read_from_cache (UINT32 const lpn,
-				  UINT32 const sect_offset,
-				  UINT32 const num_sectors_to_read)
-{
-	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
-	UINT32 page_buff = NULL;
-	UINT32 vpn;
-	
-	// is page in cache?
-	bc_get(lpn, &page_buff, BC_BUF_TYPE_USR);
-
-	if (page_buff) {
-		bc_fill(lpn, sect_offset, num_sectors_to_read, BC_BUF_TYPE_USR);
-	}
-	else { 
-		if (num_sectors_to_read > SECTORS_PER_PAGE / 2 || 
-	    		(cmt_get(lpn, &vpn) != 0 && cmt_get(lpn-1, &vpn) != 0))
-			return FALSE;
-
-		// heuristic to optimize small reads: 
-		// load uncached page into cache if its previous page or itself was 
-		// visited lately
-		get_vpn(lpn);
-		bc_put(lpn, &page_buff, BC_BUF_TYPE_USR);
-		bc_fill_full_page(lpn, BC_BUF_TYPE_USR);
-	}
-	
-	// wait for the next buffer to get SATA transfer done
-	#if OPTION_FTL_TEST == 0
-	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
-	#endif
-
-	mem_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id) + BYTES_PER_SECTOR * sect_offset,
-		 page_buff + BYTES_PER_SECTOR * sect_offset,
-		 BYTES_PER_SECTOR * num_sectors_to_read);
-	
-	mem_read_done(next_read_buf_id);
-	return TRUE;
-}
-*/
-
 /* segment is contiguous sub pages that are stored in the same page */
 typedef struct _segment {
 	vp_t   vp;
@@ -244,57 +182,7 @@ next_sub_page:
 				 seg->sector_offset,
 				 seg->num_sectors);
 }
-/* 
-static void read_page  (UINT32 const lpn, 
-			UINT32 const sect_offset, 
-			UINT32 const num_sectors_to_read)
-{
-    	UINT32 bank, vpn;
 
-	INFO("ftl>read>input", "read %d sectors at logical page %d with offset %d", 
-			num_sectors_to_read, lpn, sect_offset);
-
-	// if page in cache
-	if (try_read_from_cache(lpn, sect_offset, num_sectors_to_read))
-		return;
-	
-	vpn  = get_vpn(lpn);
-	// if page is empty
-	if (vpn == NULL)  {
-		read_empty_page(sect_offset, num_sectors_to_read);
-		return;
-	}
-
-	// if page is in flash
-	bank = lpn2bank(lpn);
-	nand_page_ptread_to_host(bank,
-				 vpn / PAGES_PER_BLK,
-				 vpn % PAGES_PER_BLK,
-				 sect_offset,
-				 num_sectors_to_read);
-}
-
-static void write_full_page_to_flash (UINT32 const lpn)
-{
-	UINT32 bank 	= lpn2bank(lpn);
-	UINT32 old_vpn  = get_vpn(lpn);
-	UINT32 new_vpn  = old_vpn ? gc_replace_old_vpn(bank, old_vpn) :
-				    gc_allocate_new_vpn(bank) ;
-
-	// FIXME: this waiting may not be necessary
-	// wait for SATA transfer completion
-	#if OPTION_FTL_TEST == 0
-	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
-	#endif
-
-	nand_page_program_from_host(bank,
-                                    new_vpn / PAGES_PER_VBLK,
-                                    new_vpn % PAGES_PER_VBLK);
-	
-	// Update lpn->vpn in CMT
-	cmt_update(lpn, new_vpn);
-}
-*/
 static UINT32 write_count =0;
 static void write_page(UINT32 const lpn, 
 		       UINT32 const sect_offset, 
@@ -344,57 +232,6 @@ static void write_page(UINT32 const lpn,
 //	}
 }
 
-/*  
-static void write_page(UINT32 const lpn, 
-		       UINT32 const sect_offset, 
-		       UINT32 const num_sectors_to_write)
-{
-	UINT32 buff_addr;
-	UINT32 target_addr, src_addr, num_bytes; 
-
-	INFO("ftl>write>input", "write %d sectors at logical page %d with offset %d", 
-			num_sectors_to_write, lpn, sect_offset);
-
-	bc_get(lpn, &buff_addr, BC_BUF_TYPE_USR);
-	if (buff_addr == NULL) {
-		// Optimization for large sequential writes
-  		if (num_sectors_to_write == SECTORS_PER_PAGE) {
-			write_full_page_to_flash(lpn);
-			return;
-		}
-
-		// make sure lpn->vpn mapping is in CMT
-		// this is a requirement of putting a lpn into buffer cache 
-		get_vpn(lpn);
-		bc_put(lpn, &buff_addr, BC_BUF_TYPE_USR);
-	}
-
-	// FIXME: this waiting may not be necessary
-	// wait for SATA transfer completion
-	#if OPTION_FTL_TEST == 0
-	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
-	#endif
-
-	// copy from SATA circular buffer to buffer cache 
-	target_addr = buff_addr + sect_offset * BYTES_PER_SECTOR;
-	src_addr    = SATA_WR_BUF_PTR(g_ftl_write_buf_id) + sect_offset * BYTES_PER_SECTOR;
-	num_bytes   = num_sectors_to_write * BYTES_PER_SECTOR;
-
-	mem_copy(target_addr, src_addr, num_bytes);
-
-	bc_set_valid_sectors(lpn, sect_offset, num_sectors_to_write, BC_BUF_TYPE_USR);
-	bc_set_dirty(lpn, BC_BUF_TYPE_USR);
-
-	g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_SATA_WR_BUFFERS;	
-
-	// wait for flash finish to avoid race condition when updating
-	// BM_WRITE_LIMIT
-	flash_finish();
-
-	SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);
-	SETREG(BM_STACK_RESET, 0x01);
-}
-*/
 static void print_info(void)
 {
 	uart_printf("TrustedSSD FTL (compiled at %s %s)\r\n", __TIME__, __DATE__);
