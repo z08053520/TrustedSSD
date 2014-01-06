@@ -10,6 +10,9 @@
 #if OPTION_ACL
 #include "acl.h"
 #endif
+#if OPTION_ENCRYPTION
+#include "fde.h"
+#endif
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
@@ -154,9 +157,15 @@ static void read_page(UINT32 const lpn,
 	segment_t segment[SUB_PAGES_PER_PAGE];
 	UINT8   num_segments 	= 0;
 
-	#if OPTION_FTL_TEST == 0
+#if OPTION_FTL_TEST == 0
 	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
-	#endif
+#endif
+
+#if OPTION_FDE
+	/* Add decryption overhead */
+	fde_decrypt(COPY_BUF(0) + sector_offset * BYTES_PER_SECTOR, 
+		    num_sectors_to_read, 0);
+#endif
 
 	UINT32	buff;
 	UINT32 	lspn 		= lpn * SUB_PAGES_PER_PAGE + sector_offset / SECTORS_PER_SUB_PAGE;
@@ -302,10 +311,16 @@ static void write_page(UINT32 const lpn,
 {
 	// FIXME: this waiting may not be necessary
 	// Wait for SATA transfer completion
-	#if OPTION_FTL_TEST == 0
+#if OPTION_FTL_TEST == 0
 	while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));
-	#endif
+#endif
 	
+#if OPTION_FDE
+	/* Add encryption overhead */
+	fde_encrypt(COPY_BUF(0) + sect_offset * BYTES_PER_SECTOR, 
+		    num_sectors_to_write, 0);
+#endif
+
 	// Write full page to flash directly
 	if (num_sectors_to_write == SECTORS_PER_PAGE) {
 		write_buffer_drop(lpn);
@@ -440,6 +455,10 @@ void ftl_open(void) {
 	pmt_init();
 #if OPTION_ACL
 	sot_init();
+#endif
+
+#if OPTION_FDE
+	fde_init();
 #endif
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;

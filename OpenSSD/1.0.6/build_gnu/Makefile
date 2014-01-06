@@ -17,9 +17,10 @@ RM	= rm
 #TEST = gtd
 #TEST = pmt
 #TEST = page_cache
-TEST = perf
+#TEST = perf
 #TEST = sot
 #TEST = write_buffer
+TEST = fde
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size
@@ -49,6 +50,13 @@ PROFILING = y
 ifdef PROFILING
 CFLAGS += -D OPTION_PROFILING
 SRCS   += profiler.c
+endif
+
+# FDE = Full Disk Encryption
+FDE = y
+ifdef FDE 
+CFLAGS += -D OPTION_FDE
+SRCS   += fde.c
 endif
 
 $(TARGETBIN): $(TARGETELF)

@@ -51,6 +51,12 @@
  * by major compoents/functions. This macro is defined in Makefile.
  * */
 
+/* About macro OPTION_FDE 
+ *
+ * If this marco is defined, full disk encryption (FDE) will be enabled. 
+ * This macro is defined in Makefile.
+ * */
+
 /* About macro OPTION_2_PLANE
  * 
  * Flash performance profiling result shows that flash throughput is
