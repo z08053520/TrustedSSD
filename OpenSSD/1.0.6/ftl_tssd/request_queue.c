@@ -6,7 +6,6 @@
 
 #define reset_req_in_queue(req)		(req->req_id = NULL_REQ_ID, \
 					 req->waiting_banks = 0)
-#define REQ_QUEUE_SIZE		32
 static request_in_queue_t _queue[REQ_QUEUE_SIZE];
 static UINT8		_queue_head;
 static UINT8		_queue_size;
@@ -28,7 +27,19 @@ BOOL8	request_queue_is_full()
 	return _queue_size == REQ_QUEUE_SIZE;
 }
 
+banks_mask_t	request_queue_get_idle_banks()
+{
+	banks_mask_t idle_banks = 0;
+	UINT8 bank_i;
+	for (bank_i = 0; bank_i < NUM_BANKS; bank_i++) {
+		if (BSP_FSM(bank_i) == BANK_IDLE) 
+			idle_banks |= (1 << banks_i);
+	}
+	return idle_banks;
+}
+
 void	request_queue_accept_new(request_id_t const req_id, 
+				 UINT8 const read_or_write,
 				 banks_mask_t *idle_banks)
 {
 	BUG_ON("queue is full; can't accept any new request",
@@ -37,6 +48,7 @@ void	request_queue_accept_new(request_id_t const req_id,
 	UINT8 queue_tail = (_queue_head + _queue_size) % REQ_QUEUE_SIZE;
 	request_in_queue_t *req = & _queue[queue_tail];
 	req->req_id = req_id;
+	req->rw	    = read_or_write;
 	req->waiting_banks = 0;
 
 	(*g_request_handler)(req, idle_banks);

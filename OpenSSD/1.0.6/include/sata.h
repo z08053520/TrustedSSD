@@ -234,5 +234,7 @@ void pio_sector_transfer(UINT32 const dram_addr, UINT32 const protocol);
 
 extern volatile UINT32 g_sata_action_flags;
 
+BOOL8 sata_has_next_rw_cmd();
+void  sata_get_next_rw_cmd(CMD_T *cmd);
 
 #endif	// #ifndef SATA_H

@@ -41,5 +41,5 @@
 			slab_**name**_obj_t *slab_obj = obj;		\
 			slab_obj->next_free = slab_**name**_free_list;	\
 			slab_**name**_free_list = slab_obj;		\
-		}
+		}							\
 #endif
