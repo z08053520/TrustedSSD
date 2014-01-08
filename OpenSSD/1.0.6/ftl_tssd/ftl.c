@@ -5,6 +5,8 @@
 #include "gc.h"
 #include "page_cache.h"
 #include "flash_util.h"
+#include "read_buffer.h"
+#include "write_buffer.h"
 #if OPTION_ACL
 #include "acl.h"
 #endif
@@ -286,7 +288,7 @@ void ftl_open(void) {
 	uart_print("ftl_open done\r\n");
 }
 
-void ftl_main(void)
+BOOL8 ftl_main(void)
 {
 	/* Wait for at least one bank to become idle */
 	banks_mask_t idle_banks = 0;
@@ -318,11 +320,14 @@ void ftl_main(void)
 		struct request *req = allocate_and_init_request(lpn, offset, num_sectors);
 		BUG_ON("allocation request failed", req == NULL);
 		request_id_t req_id = request_get_id(req);
-		request_queue_accept_new(req_id, lba.cmd_type, &idle_banks);
+		request_queue_accept_new(req_id, sata_cmd.cmd_type, &idle_banks);
 		
 		sata_cmd.lba += num_sectors;
 		sata_cmd.sector_count -= num_sectors;
 	}
+
+	BOOL8 is_idle = request_queue_is_empty();
+	return is_idle;
 }
 /* #if OPTION_ACL */
 /* void ftl_read(UINT32 const lba, UINT32 const num_sectors, UINT32 const skey) */
@@ -342,8 +347,8 @@ void ftl_main(void)
 /*     	sect_offset  = lba % SECTORS_PER_PAGE; */
 /*     	remain_sects = num_sectors; */
 
-/* /1*    	uart_printf("ftl read: g_ftl_read_buf_id=%d, SATA_RBUF_PTR=%d, BM_READ_LIMIT=%d\r\n", */ 
-/* 			g_ftl_read_buf_id, GETREG(SATA_RBUF_PTR), GETREG(BM_READ_LIMIT));*/ */
+/*     	uart_printf("ftl read: g_ftl_read_buf_id=%d, SATA_RBUF_PTR=%d, BM_READ_LIMIT=%d\r\n", */ 
+/* 			g_ftl_read_buf_id, GETREG(SATA_RBUF_PTR), GETREG(BM_READ_LIMIT)); */
 /* 	while (remain_sects != 0) */
 /* 	{ */
 /*         	if ((sect_offset + remain_sects) < SECTORS_PER_PAGE) */
@@ -375,8 +380,8 @@ void ftl_main(void)
 /* 	UINT32 remain_sects, num_sectors_to_write; */
 /*     	UINT32 lpn, sect_offset; */
 
-/* /1*  	uart_printf("ftl write: g_ftl_write_buf_id=%d, SATA_WBUF_PTR=%d, BM_WRITE_LIMIT=%d\r\n", */ 
-/* 			g_ftl_write_buf_id, GETREG(SATA_WBUF_PTR), GETREG(BM_WRITE_LIMIT));*/ */
+/*   	uart_printf("ftl write: g_ftl_write_buf_id=%d, SATA_WBUF_PTR=%d, BM_WRITE_LIMIT=%d\r\n", */ 
+/* 			g_ftl_write_buf_id, GETREG(SATA_WBUF_PTR), GETREG(BM_WRITE_LIMIT)); */
 
 /* #if OPTION_ACL */
 /* 	acl_authorize(lba, num_sectors, skey); */	

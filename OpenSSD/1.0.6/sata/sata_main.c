@@ -114,7 +114,7 @@ static void  sata_handle_slow_cmd()
 void Main(void)
 {
 	while (1) {
-		BOOL idle = ftl_main();
+		BOOL8 idle = ftl_main();
 
 		if (idle && sata_has_slow_cmd())
 			sata_handle_slow_cmd();

@@ -17,7 +17,7 @@ RM	= rm
 #TEST = gtd
 #TEST = pmt
 #TEST = page_cache
-TEST = perf
+#TEST = perf
 #TEST = sot
 #TEST = write_buffer
 
@@ -45,7 +45,7 @@ VPATH  += :../test_tssd
 SRCS   += test_${TEST}.c test_util.c
 endif
 
-PROFILING = y
+PROFILING =
 ifdef PROFILING
 CFLAGS += -D OPTION_PROFILING
 SRCS   += profiler.c

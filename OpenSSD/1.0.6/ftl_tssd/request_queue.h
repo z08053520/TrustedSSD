@@ -32,6 +32,7 @@ void (*g_request_handler)(request_in_queue_t *req, banks_mask_t *idle_banks);
 
 void 		request_queue_init();
 BOOL8		request_queue_is_full();
+BOOL8		request_queue_is_empty();
 banks_mask_t	request_queue_get_idle_banks();
 void		request_queue_accept_new(request_id_t const req_id, 
 					 UINT8 const read_or_write,

@@ -68,7 +68,7 @@ phase_handler	handlers_for_write[NUM_REQ_PHASES] = {
 	write_finish_phase
 };
 
-#define id2req(id)		(& slab_request_buf[(id)])
+#define id2req(id)		((request_t*) &(slab_request_buf[(id)]))
 
 /* Main handler, invoked by request_queue to handle all requests */
 static void ftl_request_handler(request_in_queue_t *req_in_queue, banks_mask_t *idle_banks)
@@ -89,22 +89,30 @@ static void ftl_request_handler(request_in_queue_t *req_in_queue, banks_mask_t *
  * Phase Handlers for Read 
  * =========================================================================*/
 
-static BOOL8 read_preparation_phase(request_t*, banks_mask_t*, banks_mask_t*)
+static BOOL8 read_preparation_phase(request_t* req, 
+				    banks_mask_t* waiting_banks, 
+				    banks_mask_t* idle_banks)
 {
 	return HANDLER_EXIT;
 }
 
-static BOOL8 read_mapping_phase(request_t*, banks_mask_t*, banks_mask_t*)
+static BOOL8 read_mapping_phase(request_t* req, 
+				banks_mask_t* waiting_banks, 
+				banks_mask_t* idle_banks)
 {
 	return HANDLER_EXIT;
 }
 
-static BOOL8 read_flash_phase(request_t*, banks_mask_t*, banks_mask_t*)
+static BOOL8 read_flash_phase  (request_t* req, 
+				banks_mask_t* waiting_banks, 
+				banks_mask_t* idle_banks)
 {
 	return HANDLER_EXIT;
 }
 
-static BOOL8 read_finish_phase(request_t*, banks_mask_t*, banks_mask_t*)
+static BOOL8 read_finish_phase (request_t* req, 
+				banks_mask_t* waiting_banks, 
+				banks_mask_t* idle_banks)
 {
 	return HANDLER_EXIT;
 }
@@ -113,22 +121,30 @@ static BOOL8 read_finish_phase(request_t*, banks_mask_t*, banks_mask_t*)
  * Phase Handlers for Read 
  * =========================================================================*/
 
-static BOOL8 write_preparation_phase(request_t*, banks_mask_t*, banks_mask_t*)
+static BOOL8 write_preparation_phase(request_t* req, 
+				     banks_mask_t* waiting_banks, 
+				     banks_mask_t* idle_banks)
 {
 	return HANDLER_EXIT;
 }
 
-static BOOL8 write_mapping_phase(request_t*, banks_mask_t*, banks_mask_t*)
+static BOOL8 write_mapping_phase(request_t* req, 
+				 banks_mask_t* waiting_banks, 
+				 banks_mask_t* idle_banks)
 {
 	return HANDLER_EXIT;
 }
 
-static BOOL8 write_flash_phase(request_t*, banks_mask_t*, banks_mask_t*)
+static BOOL8 write_flash_phase(request_t* req, 
+			       banks_mask_t* waiting_banks, 
+			       banks_mask_t* idle_banks)
 {
 	return HANDLER_EXIT;
 }
 
-static BOOL8 write_finish_phase(request_t*, banks_mask_t*, banks_mask_t*)
+static BOOL8 write_finish_phase(request_t* req, 
+				banks_mask_t* waiting_banks, 
+				banks_mask_t* idle_banks)
 {
 	return HANDLER_EXIT;
 }
@@ -154,10 +170,11 @@ request_t* allocate_and_init_request(UINT32 const lpn, UINT8 const offset,
 	req->lpn = lpn;
 	req->offset = offset;
 	req->num_sectors = num_sectors;
+	return req;
 }
 
 request_id_t request_get_id(request_t *req)
 {
 	BUG_ON("req is null", req == NULL);
-	return (slab_request_obj_t)req - slab_request_buf; 
+	return (slab_request_obj_t*)req - slab_request_buf; 
 }
