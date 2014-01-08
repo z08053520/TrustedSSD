@@ -21,6 +21,7 @@ typedef struct request {
 	UINT32			lpn;
 	UINT8			offset;
 	UINT8			num_sectors;
+	sectors_mask_t		target_sectors;
 } request_t;
 
 /* Allocate memory for requests using slab */
@@ -89,24 +90,93 @@ static void ftl_request_handler(request_in_queue_t *req_in_queue, banks_mask_t *
  * Phase Handlers for Read 
  * =========================================================================*/
 
+#define lpn2lspn(lpn)		(lpn * SUB_PAGES_PER_PAGE)
+
+#define lspn_offset(lspn)	(lspn % SECTORS_PER_SUB_PAGE)
+
+#define FOR_EACH_SUB_PAGE(req, lspn, offset_in_sp, num_sectors_in_sp,	\
+			  sectors_remain, sector_i)			\
+	for (sectors_remain = req->num_sectors,				\
+	     sector_i	    = req->offset,				\
+	     lspn 	    = lpn2lspn(req->lpn);			\
+	     sectors_remain > 0 &&					\
+	     	  (offset_in_sp       = lspn_offset(lspn), 		\
+	     	   num_sectors_in_sp  = 				\
+	     	   	(offset_in_sp + sectors_remain 			\
+		    	              <= SECTORS_PER_SUB_PAGE ?		\
+		       		sectors_remain :			\
+		       		SECTORS_PER_SUB_PAGE - offset_in_sp))	\
+	     lspn++, 							\
+	     sector_i += num_sectors_in_sp,				\
+	     sectors_remain -= num_sectors_in_sp)			\
+
 static BOOL8 read_preparation_phase(request_t* req, 
 				    banks_mask_t* waiting_banks, 
 				    banks_mask_t* idle_banks)
 {
-	return HANDLER_EXIT;
+	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
+#if OPTION_FTL_TEST == 0
+	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+#endif
+
+	sectors_mask_t	target_sectors = init_mask(req->offset, 
+						   req->num_sectors) 
+
+	/* Try write buffer first for the logical page */
+	UINT32 		buf;
+	sectors_mask_t	valid_sectors;
+	write_buffer_get(req->lpn, &valid_sectors, &buf);
+	sectors_mask_t	common_sectors = valid_sectors & target_sectors;
+	if (common_sectors) {
+		buffer_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id),
+			    buf, common_sectors);
+		
+		target_sectors &= ~valid_sectors;
+		/* In case we can serve all sectors from write buffer */
+		if (target_sectors == 0) {
+			req->phase = REQ_PHASE_FINISH;
+			return HANDLER_CONTINUE; 
+		}
+	}
+	
+	req->target_sectors = target_sectors;
+	req->phase = REQ_PHASE_MAPPING;
+	return HANDLER_CONTINUE;
 }
+
+#define banks_mask_has(mask, bank)	(mask & (1 << bank))
 
 static BOOL8 read_mapping_phase(request_t* req, 
 				banks_mask_t* waiting_banks, 
 				banks_mask_t* idle_banks)
 {
-	return HANDLER_EXIT;
+	if (!pmt_is_loaded(req->lpn)) {
+		vsp_t vsp = gtd_get_vsp(pmt_get_index(req->lpn),
+				        GTD_ZONE_TYPE_PMT);
+		/* If required bank is not available for now */
+		if (!banks_mask_has(idle_banks, vsp.bank)) {
+			req->waiting_banks = (1 << vsp.bank);
+			return HANDLER_EXIT;
+		}
+
+		fu_read_sub_page(vsp);
+	}
+	req->phase = REQ_PHASE_FLASH;
+	return HANDLER_CONTINUE;
 }
 
 static BOOL8 read_flash_phase  (request_t* req, 
 				banks_mask_t* waiting_banks, 
 				banks_mask_t* idle_banks)
 {
+	UINT32 	lspn, sectors_remain, sectors_i;
+	UINT8	offset_in_sp, num_sectors_in_sp;
+	FOR_EACH_SUB_PAGE(req, lspn, offset_in_sp, num_sectors_in_sp,
+			  sectors_remain, sector_i) {
+		UINT8	valid_sectors = 0;
+		UINT32 	buff = NULL;
+		write_buffer_get(lspn, &valid_sectors, &buff);
+	}
 	return HANDLER_EXIT;
 }
 
