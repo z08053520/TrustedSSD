@@ -10,7 +10,9 @@
 #if OPTION_ACL
 #include "acl.h"
 #endif
-#include "ftl_request.h"
+#include "task_engine.h"
+#include "ftl_read_task.h"
+#include "ftl_write_task.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
@@ -274,7 +276,9 @@ void ftl_open(void) {
 	sot_init();
 #endif
 
-	ftl_request_init();
+	task_engine_init();
+	ftl_read_task_register();
+	ftl_write_task_register();
 
 	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
 
@@ -290,18 +294,10 @@ void ftl_open(void) {
 
 BOOL8 ftl_main(void)
 {
-	/* Wait for at least one bank to become idle */
-	banks_mask_t idle_banks = 0;
-	do {
-		idle_banks = request_queue_get_idle_banks();
-	} while (idle_banks == 0);
-
-	/* Unfinished requests have priority */
-	request_queue_process_old(&idle_banks);
-
 	static CMD_T sata_cmd = {.lba = 0, .sector_count = 0, .cmd_type = 0};
+
 	/* Accept new SATA read/write requests if we can */
-	while (!request_queue_is_full()) {
+	while (task_can_allocate(1)) {
 		/* Make sure we have a SATA request to process */
 		if (sata_cmd.sector_count == 0) {
 			if (!sata_has_next_rw_cmd()) break;
@@ -316,19 +312,23 @@ BOOL8 ftl_main(void)
 					sata_cmd.sector_count :	
 					SECTORS_PER_PAGE - offset;
 
-		/* Enqueue new request */
-		struct request *req = allocate_and_init_request(lpn, offset, num_sectors);
-		BUG_ON("allocation request failed", req == NULL);
-		request_id_t req_id = request_get_id(req);
-		request_queue_accept_new(req_id, sata_cmd.cmd_type, &idle_banks);
+		/* Submit a new task */
+		task_t *task = task_allocate();		
+		BUG_ON("allocation task failed", task == NULL);
+		if (sata_cmd.cmd_type == READ)
+			ftl_read_task_init(task, lpn, offset, num_sectors);
+		else
+			ftl_write_task_init(task, lpn, offset, num_sectors);
+		task_engine_submit(task);
 		
 		sata_cmd.lba += num_sectors;
 		sata_cmd.sector_count -= num_sectors;
 	}
 
-	BOOL8 is_idle = request_queue_is_empty();
+	BOOL8 is_idle = task_engine_run();
 	return is_idle;
 }
+
 /* #if OPTION_ACL */
 /* void ftl_read(UINT32 const lba, UINT32 const num_sectors, UINT32 const skey) */
 /* #else */
