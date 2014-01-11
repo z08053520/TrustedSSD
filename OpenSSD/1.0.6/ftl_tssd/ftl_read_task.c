@@ -2,6 +2,9 @@
 #include "dram.h"
 #include "pmt.h"
 
+UINT32	g_num_ftl_read_tasks_submitted;
+UINT32 	g_num_ftl_read_tasks_finished;
+
 /* ===========================================================================
  *  Macros, types and global variables
  * =========================================================================*/
@@ -16,10 +19,10 @@ typedef enum {
 
 typedef struct {
 	TASK_PUBLIC_FIELDS
+	UINT32		seq_id;
 	UINT32		lpn;
 	UINT8		offset;
 	UINT8		num_sectors;
-	UINT16		g_ftl_read_buf_id;
 	sectors_mask_t	target_sectors;
 	/* segments */
 	vp_t		segment_vp[SUB_PAGES_PER_PAGE];
@@ -27,6 +30,8 @@ typedef struct {
 	UINT8		segment_num_sectors[SUB_PAEGS_PER_PAGE];	
 	UINT8		num_segments;
 } ftl_read_task_t;
+
+#define task_buf_id(task)	((task->seq_id) % NUM_SATA_RD_BUFFERS)
 
 static UINT8		ftl_read_task_type;
 
@@ -52,7 +57,7 @@ static task_handler_t handlers[NUM_STATES] = {
 
 #define FOR_EACH_SUB_PAGE(task, lspn, offset_in_sp, num_sectors_in_sp,	\
 			  sectors_remain, sector_i)			\
-	for (sectors_remain = task->num_sectors,				\
+	for (sectors_remain = task->num_sectors,			\
 	     sector_i	    = task->offset,				\
 	     lspn 	    = lpn2lspn(task->lpn);			\
 	     sectors_remain > 0 &&					\
@@ -61,19 +66,19 @@ static task_handler_t handlers[NUM_STATES] = {
 	     	   	(offset_in_sp + sectors_remain 			\
 		    	              <= SECTORS_PER_SUB_PAGE ?		\
 		       		sectors_remain :			\
-		       		SECTORS_PER_SUB_PAGE - offset_in_sp))	\
+		       		SECTORS_PER_SUB_PAGE - offset_in_sp));	\
 	     lspn++, 							\
 	     sector_i += num_sectors_in_sp,				\
-	     sectors_remain -= num_sectors_in_sp)			\
+	     sectors_remain -= num_sectors_in_sp)
 
 static task_res_t preparation_state_handler(task_t* task, 
 					    banks_mask_t* idle_banks)
 {
-	UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
+	UINT32 read_buf_id	= task_buf_id(task);
+	UINT32 next_read_buf_id = (read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
 #if OPTION_FTL_TEST == 0
 	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
 #endif
-	task->g_ftl_read_buf_id = g_ftl_read_buf_id;
 
 	sectors_mask_t	target_sectors = init_mask(task->offset, 
 						   task->num_sectors) 
@@ -82,9 +87,11 @@ static task_res_t preparation_state_handler(task_t* task,
 	UINT32 		buf;
 	sectors_mask_t	valid_sectors;
 	write_buffer_get(task->lpn, &valid_sectors, &buf);
+	if (buf == NULL) goto next_state_mapping;
+
 	sectors_mask_t	common_sectors = valid_sectors & target_sectors;
 	if (common_sectors) {
-		buffer_copy(SATA_RD_BUF_PTR(g_ftl_read_buf_id),
+		buffer_copy(SATA_RD_BUF_PTR(read_buf_id),
 			    buf, common_sectors);
 		
 		target_sectors &= ~valid_sectors;
@@ -94,7 +101,7 @@ static task_res_t preparation_state_handler(task_t* task,
 			return TASK_CONTINUE; 
 		}
 	}
-	
+next_state_mapping:	
 	task->target_sectors = target_sectors;
 	task->state = STATE_MAPPING;
 	return TASK_CONTINUE;
@@ -126,12 +133,13 @@ static task_res_t mapping_state_handler	(task_t* task,
 		if (buf) {
 			// TODO: we can make this more efficient by merge 
 			// memory copies from the same buffer
-			mem_copy(SATA_RD_BUF_PTR(task->g_ftl_read_buf_id) 
+			mem_copy(SATA_RD_BUF_PTR(task_buf_id(task))
 					+ sector_i * BYTES_PER_SECTOR,
 				 buf + sector_i * BYTES_PER_SECTOR,
 				 num_sectors_in_sp * BYTES_PER_SECTOR);
-			
-			task->target_sectors ~= (0xFFULL << sector_i);
+		
+			sectors_mask_t copied_sectors = init_mask(sector_i, SECTORS_PER_SUB_PAGE);
+			task->target_sectors ~= copied_sectors;
 			continue;
 		}
 
@@ -155,8 +163,8 @@ static task_res_t mapping_state_handler	(task_t* task,
 static task_res_t flash_state_handler	(task_t* task, 
 					 banks_mask_t* idle_banks)
 {
-	UINT32 	buf = SATA_RD_BUF_PTR(task->g_ftl_read_buf_id);
-	UINT8 	segment_i;
+	UINT32 	buf = SATA_RD_BUF_PTR(task_buf_id(task));
+	UINT8 	segment_i, num_segments = task->num_segments;
 	for (segment_i = 0; segment_i < num_segments; segment_i++) {
 		vp_t		vp  = task->vp[segment_i];
 		banks_mask_t 	this_bank = (1 << vp.bank);
@@ -195,6 +203,15 @@ static task_res_t flash_state_handler	(task_t* task,
 static task_res_t finish_state_handler	(task_t* task, 
 					 banks_mask_t* idle_banks)
 {
+	/* if all tasks previous to this one is completed, then we can 
+	 * safely inform SATA buffer manager to update pointer */
+	if (g_num_ftl_read_tasks_finished == task->seq_id) {
+		SETREG(BM_STACK_RDSET, next_read_buf_id);
+		SETREG(BM_STACK_RESET, 0x02);
+	}
+	g_num_ftl_read_tasks_finished++;
+	BUG_ON("impossible counter", g_num_ftl_read_tasks_finished
+			   	   > g_num_ftl_read_tasks_submitted);
 	return TASK_FINISHED;
 }
 
@@ -204,6 +221,9 @@ static task_res_t finish_state_handler	(task_t* task,
 
 void ftl_read_task_register()
 {
+	g_num_ftl_read_tasks_submitted = 0;
+	g_num_ftl_read_tasks_finished  = 0;
+
 	BOOL8 res = task_engine_register_task_type(
 			&ftl_read_task_type, handlers);
 	BUG_ON("failed to register FTL read task", res);
@@ -216,6 +236,8 @@ void ftl_read_task_init(task_t *task, UINT32 const lpn,
 
 	read_task->type		= ftl_read_task_type;
 	read_task->state	= STATE_PREPARATION;
+
+	read_task->seq_id	= g_num_ftl_read_tasks_submitted++;
 
 	read_task->lpn 		= lpn;
 	read_task->offset	= offset;
