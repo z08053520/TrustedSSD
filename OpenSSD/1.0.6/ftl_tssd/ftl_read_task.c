@@ -48,6 +48,32 @@ UINT32	g_num_ftl_read_tasks_submitted;
 UINT32 	g_num_ftl_read_tasks_finished;
 
 /* ===========================================================================
+ *  Private Functions 
+ * =========================================================================*/
+
+static void copy_buffer(UINT32 const target_buf, UINT32 const src_buf, 
+			   sectors_mask_t const valid_sectors)
+{
+	UINT8 sector_i = 0;
+	while (sector_i < SECTORS_PER_PAGE) {
+		// find the first sector to copy
+		while (sector_i < SECTORS_PER_PAGE && 
+		       ((valid_sectors >> sector_i) & 1) == 0) sector_i++;
+		if (sector_i == SECTORS_PER_PAGE) break;
+		UINT8 begin_sector = sector_i++;
+
+		// find the last sector to copy
+		while (sector_i < SECTORS_PER_PAGE && 
+		       ((valid_sectors >> sector_i) & 1) == 1) sector_i++;
+		UINT8 end_sector = sector_i++;
+
+		mem_copy(target_buf + begin_sector * BYTES_PER_SECTOR,
+			 src_buf    + begin_sector * BYTES_PER_SECTOR,
+			 (end_sector - begin_sector) * BYTES_PER_SECTOR);
+	}
+}
+
+/* ===========================================================================
  *  Task Handlers
  * =========================================================================*/
 

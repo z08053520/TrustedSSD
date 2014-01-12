@@ -147,7 +147,7 @@ static task_res_t mapping_state_handler	(task_t* task,
 }
 
 #define begin_subpage(mask)	(begin_sector(mask) / SECTORS_PER_SUB_PAGE)
-#define end_subpage(mask)	(end_sector(mask) / SECTORS_PER_SUB_PAGE)
+#define end_subpage(mask)	COUNT_BUCKETS(end_sector(mask), SECTORS_PER_SUB_PAGE)
 
 #define mask_is_set(mask, i)		(((mask) >> (i)) & 1)
 #define mask_set(mask, i)		((mask) |= (1 << (i)))
@@ -226,7 +226,7 @@ static task_res_t flash_read_state_handler(task_t* task,
 			/* skip if bank is not available */
 			if (!banks_has(*idle_banks, bank)) continue;
 
-			fu_read_sub_page_async(vp, FTL_RD_BUF(bank));
+			fu_read_sub_page(vp, FTL_RD_BUF(bank), FU_ASYNC);
 			mask_set(task->wb_sp_cmd_issued, sp_i);
 		}
 		/* if flash cmd is done */

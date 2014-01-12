@@ -194,7 +194,7 @@ static UINT32 load_page(UINT32 const idx, pc_buf_type_t const type)
 
 	vsp_t vsp = get_vsp(idx, type);
 	if (vsp.vspn) {
-		fu_read_sub_page(vsp, FTL_RD_BUF(vsp.bank));
+		fu_read_sub_page(vsp, FTL_RD_BUF(vsp.bank), FU_SYNC);
 
 		UINT8 sect_offset = vsp.vspn % SUB_PAGES_PER_PAGE * SECTORS_PER_SUB_PAGE; 
 		mem_copy(PC_SUB_PAGE(free_page_idx),

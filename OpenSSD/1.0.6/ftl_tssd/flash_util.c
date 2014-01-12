@@ -37,7 +37,7 @@ UINT8 fu_get_idle_bank()
 	return bank;
 }
 
-void fu_read_sub_page(const vsp_t vsp, const UINT32 buff_addr)
+void fu_read_sub_page(const vsp_t vsp, const UINT32 buff_addr, const BOOL8 is_async)
 {
 	BUG_ON("should not read vpn #0", vsp.vspn < SUB_PAGES_PER_PAGE);
 
@@ -46,8 +46,10 @@ void fu_read_sub_page(const vsp_t vsp, const UINT32 buff_addr)
 	nand_page_ptread(vsp.bank, 
 			 vpn / PAGES_PER_VBLK,
 			 vpn % PAGES_PER_VBLK,
-			 offset, SECTORS_PER_SUB_PAGE,
-			 buff_addr, RETURN_WHEN_DONE);
+			 offset, 
+			 SECTORS_PER_SUB_PAGE,
+			 buff_addr, 
+			 is_async ? RETURN_ON_ISSUE : RETURN_WHEN_DONE);
 }
 
 void fu_write_page(const vp_t vp, const UINT32 buff_addr)

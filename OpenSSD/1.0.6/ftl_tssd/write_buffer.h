@@ -4,14 +4,15 @@
 #include "jasmine.h"
 
 void write_buffer_init();
-
-void write_buffer_get(UINT32 const lspn, 
-		      UINT8  const sector_offset_in_sp, 
-		      UINT8  const num_sectors_in_sp, 
-		      UINT32 *buf);
+BOOL8 write_buffer_is_full();
+void write_buffer_get(UINT32 const lpn, 
+		      UINT32 *buf, 
+		      sectors_mask_t *valid_sectors);
 void write_buffer_put(UINT32 const lpn, 
 		      UINT8  const sector_offset, 
 		      UINT8  const num_sectors,
 		      UINT32 const sata_wr_buf);
 void write_buffer_drop(UINT32 const lpn);
+void write_buffer_flush(UINT32 const buf, UINT32 *lspn, 
+			sectors_mask_t *valid_sectors);
 #endif
