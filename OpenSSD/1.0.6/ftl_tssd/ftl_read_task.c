@@ -2,9 +2,6 @@
 #include "dram.h"
 #include "pmt.h"
 
-UINT32	g_num_ftl_read_tasks_submitted;
-UINT32 	g_num_ftl_read_tasks_finished;
-
 /* ===========================================================================
  *  Macros, types and global variables
  * =========================================================================*/
@@ -47,6 +44,9 @@ static task_handler_t handlers[NUM_STATES] = {
 	finish_state_handler
 };
 
+UINT32	g_num_ftl_read_tasks_submitted;
+UINT32 	g_num_ftl_read_tasks_finished;
+
 /* ===========================================================================
  *  Task Handlers
  * =========================================================================*/
@@ -74,10 +74,13 @@ static task_handler_t handlers[NUM_STATES] = {
 static task_res_t preparation_state_handler(task_t* task, 
 					    banks_mask_t* idle_banks)
 {
+	/* Assign an unique id to each task */
+	read_task->seq_id	= g_num_ftl_read_tasks_submitted++;
+
 	UINT32 read_buf_id	= task_buf_id(task);
 	UINT32 next_read_buf_id = (read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
 #if OPTION_FTL_TEST == 0
-	while (next_read_buf_id == GETREG(SATA_RBUF_PTR));
+	if (next_read_buf_id == GETREG(SATA_RBUF_PTR)) return TASK_BLOCKED;
 #endif
 
 	sectors_mask_t	target_sectors = init_mask(task->offset, 
@@ -98,13 +101,13 @@ static task_res_t preparation_state_handler(task_t* task,
 		/* In case we can serve all sectors from write buffer */
 		if (target_sectors == 0) {
 			task->state = STATE_FINISH;
-			return TASK_CONTINUE; 
+			return TASK_CONTINUED; 
 		}
 	}
 next_state_mapping:	
 	task->target_sectors = target_sectors;
 	task->state = STATE_MAPPING;
-	return TASK_CONTINUE;
+	return TASK_CONTINUED;
 }
 
 #define banks_mask_has(mask, bank)	(mask & (1 << bank))
@@ -157,7 +160,7 @@ static task_res_t mapping_state_handler	(task_t* task,
 	task->waiting_banks = 0;
 	task->num_segments  = num_segments;	
 	task->state 	    = STATE_FLASH;
-	return TASK_CONTINUE;
+	return TASK_CONTINUED;
 }
 
 static task_res_t flash_state_handler	(task_t* task, 
@@ -194,10 +197,10 @@ static task_res_t flash_state_handler	(task_t* task,
 	}
 
 	if (waiting_banks)
-		return TASK_PAUSE;
+		return TASK_PAUSED;
 
 	task->state = STATE_FINISH;
-	return TASK_CONTINUE;
+	return TASK_CONTINUED;
 }
 
 static task_res_t finish_state_handler	(task_t* task, 
@@ -206,6 +209,8 @@ static task_res_t finish_state_handler	(task_t* task,
 	/* if all tasks previous to this one is completed, then we can 
 	 * safely inform SATA buffer manager to update pointer */
 	if (g_num_ftl_read_tasks_finished == task->seq_id) {
+		UINT32 next_read_buf_id = (task_buf_id(task) + 1) 
+					% NUM_SATA_READ_BUFFERS;
 		SETREG(BM_STACK_RDSET, next_read_buf_id);
 		SETREG(BM_STACK_RESET, 0x02);
 	}
@@ -221,6 +226,9 @@ static task_res_t finish_state_handler	(task_t* task,
 
 void ftl_read_task_register()
 {
+	BUG_ON("ftl read task structure is too large to fit into "
+	       "general task structure", sizeof(ftl_read_task_t) > sizeof(task_t));
+
 	g_num_ftl_read_tasks_submitted = 0;
 	g_num_ftl_read_tasks_finished  = 0;
 
@@ -236,8 +244,6 @@ void ftl_read_task_init(task_t *task, UINT32 const lpn,
 
 	read_task->type		= ftl_read_task_type;
 	read_task->state	= STATE_PREPARATION;
-
-	read_task->seq_id	= g_num_ftl_read_tasks_submitted++;
 
 	read_task->lpn 		= lpn;
 	read_task->offset	= offset;

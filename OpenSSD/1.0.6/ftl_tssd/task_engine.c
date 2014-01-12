@@ -109,12 +109,15 @@ BOOL8 	task_engine_run()
 		task_res_t res;
 		do {
 			res = run_task(task, &idle_banks);
-		} while (res == TASK_CONTINUE);
+		} while (res == TASK_CONTINUED);
 
 		/* Remove task that is done */
 		if (res == TASK_FINISHED) {
 			set_next_task(pre, get_next_task(task));
 			slab_deallocate_task(task);
+		}
+		else if (res == TASK_BLOCKED) {
+			break;
 		}
 		else {
 next_task:

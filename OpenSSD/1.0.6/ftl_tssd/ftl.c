@@ -18,9 +18,6 @@
  * Macros, Data Structure and Gloal Variables 
  * ========================================================================= */
 
-UINT32 g_ftl_read_buf_id;
-UINT32 g_ftl_write_buf_id;
-
 typedef struct {
 
 } ftl_metadata;

@@ -8,8 +8,13 @@
 #define MAX_NUM_TASK_STATES		(1 << MAX_NUM_TASK_STATES_LOG2)
 
 typedef enum {
-	TASK_CONTINUE,
-	TASK_PAUSE,
+	/* CONTINUED: task engine continues to process the current task */
+	TASK_CONTINUED,
+	/* PAUSED: task engine processes next task as the current task is paused */
+	TASK_PAUSED,
+	/* BLOCKED: task engine restarts to process earlier tasks */
+	TASK_BLOCKED,		
+	/* FINISHED: task engine removes a finished task from queue */
 	TASK_FINISHED
 } task_res_t;
 
