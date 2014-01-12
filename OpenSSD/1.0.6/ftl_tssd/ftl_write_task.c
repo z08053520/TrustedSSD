@@ -285,9 +285,7 @@ static task_res_t finish_state_handler	(task_t* task,
 	/* if all tasks previous to this one is completed, then we can 
 	 * safely inform SATA buffer manager to update pointer */
 	if (g_num_ftl_write_tasks_finished == task->seq_id) {
-		UINT32 next_write_buf_id = (task_buf_id(task) + 1) 
-					 % NUM_SATA_WRITE_BUFFERS;
-		SETREG(BM_STACK_WRSET, next_write_buf_id);
+		SETREG(BM_STACK_WRSET, task_buf_id(task));
 		SETREG(BM_STACK_RESET, 0x01);
 	}
 	g_num_ftl_write_tasks_finished++;

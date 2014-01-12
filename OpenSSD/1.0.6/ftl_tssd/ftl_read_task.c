@@ -17,15 +17,15 @@ typedef enum {
 typedef struct {
 	TASK_PUBLIC_FIELDS
 	UINT32		seq_id;
+	sectors_mask_t	target_sectors;
 	UINT32		lpn;
 	UINT8		offset;
 	UINT8		num_sectors;
-	sectors_mask_t	target_sectors;
 	/* segments */
+	UINT8		num_segments;
 	vp_t		segment_vp[SUB_PAGES_PER_PAGE];
 	UINT8		segment_offset[SUB_PAEGS_PER_PAGE];	
 	UINT8		segment_num_sectors[SUB_PAEGS_PER_PAGE];	
-	UINT8		num_segments;
 } ftl_read_task_t;
 
 #define task_buf_id(task)	((task->seq_id) % NUM_SATA_RD_BUFFERS)
@@ -33,9 +33,9 @@ typedef struct {
 static UINT8		ftl_read_task_type;
 
 static task_res_t preparation_state_handler	(task_t*, banks_mask_t*);
-static task_res_t mapping_state_handler	(task_t*, banks_mask_t*);
-static task_res_t flash_state_handler	(task_t*, banks_mask_t*);
-static task_res_t finish_state_handler	(task_t*, banks_mask_t*);
+static task_res_t mapping_state_handler		(task_t*, banks_mask_t*);
+static task_res_t flash_state_handler		(task_t*, banks_mask_t*);
+static task_res_t finish_state_handler		(task_t*, banks_mask_t*);
 
 static task_handler_t handlers[NUM_STATES] = {
 	preparation_state_handler,
@@ -89,7 +89,7 @@ static task_res_t preparation_state_handler(task_t* task,
 	/* Try write buffer first for the logical page */
 	UINT32 		buf;
 	sectors_mask_t	valid_sectors;
-	write_buffer_get(task->lpn, &valid_sectors, &buf);
+	write_buffer_get(task->lpn, &buf, &valid_sectors);
 	if (buf == NULL) goto next_state_mapping;
 
 	sectors_mask_t	common_sectors = valid_sectors & target_sectors;
@@ -104,20 +104,15 @@ static task_res_t preparation_state_handler(task_t* task,
 			return TASK_CONTINUED; 
 		}
 	}
-next_state_mapping:	
+next_state_mapping:
 	task->target_sectors = target_sectors;
 	task->state = STATE_MAPPING;
 	return TASK_CONTINUED;
 }
 
-#define banks_mask_has(mask, bank)	(mask & (1 << bank))
-
 static task_res_t mapping_state_handler	(task_t* task, 
 					 banks_mask_t* idle_banks)
 {
-	if (!pmt_is_loaded(task->lpn)) 
-		pmt_load(task->lpn);	
-
 	/* Iterate all segments in the logical page */
 	UINT8	num_segments = 0;
 	UINT32 	lspn, sectors_remain, sector_i;
@@ -141,16 +136,17 @@ static task_res_t mapping_state_handler	(task_t* task,
 				 buf + sector_i * BYTES_PER_SECTOR,
 				 num_sectors_in_sp * BYTES_PER_SECTOR);
 		
-			sectors_mask_t copied_sectors = init_mask(sector_i, SECTORS_PER_SUB_PAGE);
-			task->target_sectors ~= copied_sectors;
+			sectors_mask_t copied_sectors = 
+				init_mask(sector_i, SECTORS_PER_SUB_PAGE);
+			task->target_sectors &= ~copied_sectors;
 			continue;
 		}
 
 		/* Save segment information */	
 		if (num_segments == 0 || 
 		    task->segment_vp[num_segments - 1] != vp) {
-			task->segment_vp[num_segments] = vp;	
-			task->segment_offset[num_segments] = sector_i; 
+			task->segment_vp[num_segments] 		= vp;	
+			task->segment_offset[num_segments] 	= sector_i; 
 			task->segment_num_sectors[num_segments] = 0; 
 			num_segments++;
 		}
@@ -158,7 +154,7 @@ static task_res_t mapping_state_handler	(task_t* task,
 	}
 
 	task->waiting_banks = 0;
-	task->num_segments  = num_segments;	
+	task->num_segments  = num_segments;
 	task->state 	    = STATE_FLASH;
 	return TASK_CONTINUED;
 }
@@ -169,13 +165,13 @@ static task_res_t flash_state_handler	(task_t* task,
 	UINT32 	buf = SATA_RD_BUF_PTR(task_buf_id(task));
 	UINT8 	segment_i, num_segments = task->num_segments;
 	for (segment_i = 0; segment_i < num_segments; segment_i++) {
-		vp_t		vp  = task->vp[segment_i];
+		vp_t		vp  	  = task->vp[segment_i];
 		banks_mask_t 	this_bank = (1 << vp.bank);
 
 		/* if the flash read cmd for the segment has been sent */
 		if (task->segment_num_sectors == 0) {
 			if ((*idle_banks & this_bank))
-				waiting_banks ~= this_bank;
+				waiting_banks &= ~this_bank;
 			continue;
 		}
 		
@@ -196,8 +192,7 @@ static task_res_t flash_state_handler	(task_t* task,
 		task->segment_num_sectors[segment_i] == 0;
 	}
 
-	if (waiting_banks)
-		return TASK_PAUSED;
+	if (waiting_banks) return TASK_PAUSED;
 
 	task->state = STATE_FINISH;
 	return TASK_CONTINUED;
