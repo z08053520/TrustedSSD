@@ -287,6 +287,7 @@ void ftl_open(void) {
 	uart_print("ftl_open done\r\n");
 }
 
+
 BOOL8 ftl_main(void)
 {
 	static CMD_T sata_cmd = {.lba = 0, .sector_count = 0, .cmd_type = 0};

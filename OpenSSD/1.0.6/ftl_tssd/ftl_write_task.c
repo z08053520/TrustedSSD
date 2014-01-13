@@ -53,8 +53,9 @@ static task_handler_t handlers[NUM_STATES] = {
 	finish_state_handler
 };
 
-UINT32	g_num_ftl_write_tasks_submitted = 0;
-UINT32	g_num_ftl_write_tasks_finished  = 0;
+UINT32	g_num_ftl_write_tasks_submitted;
+UINT32	g_num_ftl_write_tasks_finished;
+UINT32	g_next_finishing_task_seq_id;
 
 #define lpn2lspn(lpn)		(lpn * SUB_PAGES_PER_PAGE)
 
@@ -299,13 +300,20 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
-	/* if all tasks previous to this one is completed, then we can 
-	 * safely inform SATA buffer manager to update pointer */
-	if (g_num_ftl_write_tasks_finished == task->seq_id) {
-		SETREG(BM_STACK_WRSET, task_buf_id(task));
-		SETREG(BM_STACK_RESET, 0x01);
-	}
 	g_num_ftl_write_tasks_finished++;
+
+	if (g_next_finishing_task_seq_id == task->seq_id)
+		g_next_finishing_task_seq_id++;
+	else if (g_num_ftl_write_tasks_finished == g_num_ftl_write_tasks_submitted)
+		g_next_finishing_task_seq_id = g_num_ftl_write_tasks_finished;
+	else
+		return TASK_FINISHED;
+
+	/* safely inform SATA buffer manager to update pointer */
+	UINT32 next_write_buf_id = g_next_finishing_task_seq_id % NUM_SATA_WR_BUFFERS;
+	SETREG(BM_STACK_WRSET, next_write_buf_id);
+	SETREG(BM_STACK_RESET, 0x01);
+
 	BUG_ON("impossible counter", g_num_ftl_write_tasks_finished
 			   	   > g_num_ftl_write_tasks_submitted);
 	return TASK_FINISHED;
@@ -322,6 +330,7 @@ void ftl_write_task_register()
 	
 	g_num_ftl_write_tasks_submitted = 0;
 	g_num_ftl_write_tasks_finished  = 0;
+	g_next_finishing_task_seq_id 	= 0;
 
 	BOOL8 res = task_engine_register_task_type(
 			&ftl_write_task_type, handlers);

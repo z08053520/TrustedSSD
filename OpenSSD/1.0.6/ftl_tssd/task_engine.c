@@ -7,7 +7,7 @@
 
 #define MAX_NUM_TASKS		32
 
-/* Allocate memory for requests using slab */
+/* Allocate memory for tasks using slab */
 define_slab_interface(task, task_t);
 define_slab_implementation(task, task_t, MAX_NUM_TASKS);
 
@@ -111,14 +111,14 @@ BOOL8 	task_engine_run()
 			res = run_task(task, &idle_banks);
 		} while (res == TASK_CONTINUED);
 
+		if (res == TASK_BLOCKED) break;
+
 		/* Remove task that is done */
 		if (res == TASK_FINISHED) {
 			set_next_task(pre, get_next_task(task));
-			slab_deallocate_task(task);
+			task_deallocate(task);
 		}
-		else if (res == TASK_BLOCKED) {
-			break;
-		}
+		/* TASK_PAUSED */
 		else {
 next_task:
 			pre  = task;
