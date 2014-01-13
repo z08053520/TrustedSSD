@@ -1,7 +1,10 @@
 #include "ftl_write_task.h"
 #include "dram.h"
+#include "gc.h"
 #include "pmt.h"
+#include "read_buffer.h"
 #include "write_buffer.h"
+#include "flash_util.h"
 
 /* ===========================================================================
  *  Macros, types and global variables
@@ -55,6 +58,17 @@ UINT32	g_num_ftl_write_tasks_finished  = 0;
 
 #define lpn2lspn(lpn)		(lpn * SUB_PAGES_PER_PAGE)
 
+#define begin_subpage(mask)	(begin_sector(mask) / SECTORS_PER_SUB_PAGE)
+#define end_subpage(mask)	COUNT_BUCKETS(end_sector(mask), SECTORS_PER_SUB_PAGE)
+
+#define mask_is_set(mask, i)		(((mask) >> (i)) & 1)
+#define mask_set(mask, i)		((mask) |= (1 << (i)))
+#define mask_clear(mask, i)		((mask) &= ~(1 << (i)))
+
+#define banks_has(banks, bank)		mask_is_set(banks, bank)
+#define banks_add(banks, bank)		mask_set(banks, bank)
+#define banks_del(banks, bank)		mask_clear(banks, bank)
+
 /* ===========================================================================
  *  Task Handlers
  * =========================================================================*/
@@ -71,11 +85,13 @@ static UINT8	auto_idle_bank(banks_mask_t* idle_banks)
 	return NUM_BANKS;
 }
 
-static task_res_t preparation_state_handler(task_t* task, 
+static task_res_t preparation_state_handler(task_t* _task, 
 					    banks_mask_t* idle_banks)
 {
+	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
+
 	/* Assign an unique id to each task */
-	write_task->seq_id	= g_num_ftl_write_tasks_submitted++;
+	task->seq_id		= g_num_ftl_write_tasks_submitted++;
 
 	UINT32 write_buf_id	= task_buf_id(task);
 	// FIXME: this waiting may not be necessary
@@ -84,19 +100,19 @@ static task_res_t preparation_state_handler(task_t* task,
 	if (write_buf_id == GETREG(SATA_WBUF_PTR)) return TASK_BLOCKED;
 #endif
 
-	write_task->wb_buf	= NULL;
+	task->wb_buf		= NULL;
 	/* Insert and merge into write buffer */
 	if (task->num_sectors < SECTORS_PER_PAGE) {
 		if (write_buffer_is_full()) {
 			if (*idle_banks == 0) return TASK_BLOCKED;
 
-			UINT8 idle_bank  = auto_idle_bank(idle_banks)
+			UINT8 idle_bank  = auto_idle_bank(idle_banks);
 			task->wb_vp.bank = idle_bank;
 			task->wb_vp.vpn  = gc_allocate_new_vpn(idle_bank);
 			task->wb_buf	 = FTL_WR_BUF(idle_bank);	
 
 			write_buffer_flush(task->wb_buf, task->wb_lspn, 
-					   &task->wb_valid_secotrs);
+					   &task->wb_valid_sectors);
 		}
 
 		write_buffer_put(task->lpn, task->offset, task->num_sectors, 
@@ -106,16 +122,16 @@ static task_res_t preparation_state_handler(task_t* task,
 	else {
 		if (*idle_banks == 0) return TASK_BLOCKED;
 
-		UINT8 idle_bank  = auto_idle_bank(idle_banks)
+		UINT8 idle_bank  = auto_idle_bank(idle_banks);
 		task->wb_vp.bank = idle_bank;
 		task->wb_vp.vpn  = gc_allocate_new_vpn(idle_bank);
 		task->wb_buf	 = SATA_WR_BUF_PTR(write_buf_id);
-		task->wb_valid_secotrs = FULL_MASK;
+		task->wb_valid_sectors = FULL_MASK;
 
 		UINT32 lspn_base = lpn2lspn(task->lpn);
 		UINT8 sp_i;
 		for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++)
-			task->lspn[sp_i] = lspn_base + sp_i;
+			task->wb_lspn[sp_i] = lspn_base + sp_i;
 
 		write_buffer_drop(task->lpn);
 	}
@@ -129,14 +145,16 @@ static task_res_t preparation_state_handler(task_t* task,
 	return TASK_CONTINUED;
 }
 
-static task_res_t mapping_state_handler	(task_t* task, 
+static task_res_t mapping_state_handler	(task_t* _task, 
 					 banks_mask_t* idle_banks)
 {
+	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
+
 	UINT8 sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
-		UINT32 lspn = task->lspn[sp_i];
-		pmt_fetch(lspn, & task->old_vp[sp_i]);		
-		pmt_update(lspn, task->vp);
+		UINT32 lspn = task->wb_lspn[sp_i];
+		pmt_fetch(lspn, & task->wb_old_vp[sp_i]);		
+		pmt_update(lspn, task->wb_vp);
 	}
 	
 	task->waiting_banks 	= 0;
@@ -145,17 +163,6 @@ static task_res_t mapping_state_handler	(task_t* task,
 	task->wb_sp_cmd_done 	= 0;
 	return TASK_CONTINUED;
 }
-
-#define begin_subpage(mask)	(begin_sector(mask) / SECTORS_PER_SUB_PAGE)
-#define end_subpage(mask)	COUNT_BUCKETS(end_sector(mask), SECTORS_PER_SUB_PAGE)
-
-#define mask_is_set(mask, i)		(((mask) >> (i)) & 1)
-#define mask_set(mask, i)		((mask) |= (1 << (i)))
-#define mask_clear(mask, i)		((mask) &= ~(1 << (i)))
-
-#define banks_has(banks, bank)		mask_is_set(banks, bank)
-#define banks_add(banks, bank)		mask_set(banks, bank)
-#define banks_del(banks, bank)		mask_clear(banks, bank)
 
 #define FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler, sp_mask)	\
 	UINT8 i = 0;							\
@@ -173,9 +180,11 @@ static task_res_t mapping_state_handler	(task_t* task,
 		(*segment_handler)(begin_i, end_i);			\
 	}
 
-static task_res_t flash_read_state_handler(task_t* task, 
+static task_res_t flash_read_state_handler(task_t* _task, 
 					   banks_mask_t* idle_banks)
 {
+	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
+
 	BUG_ON("no valid sectors in write buffer", task->wb_valid_sectors == 0);
 	UINT8	begin_sp = begin_subpage(task->wb_valid_sectors),
 		end_sp	 = end_subpage(task->wb_valid_sectors);
@@ -200,10 +209,10 @@ static task_res_t flash_read_state_handler(task_t* task,
 			continue;
 		}
 
-		UINT8 bank = task->wb_old_vp[sp_i].bank	
+		UINT8 bank = task->wb_old_vp[sp_i].bank;
 		/* issue flash cmd to fill the paritial sub-page */
 		if (!mask_is_set(task->wb_sp_cmd_issued, sp_i)) {
-			vp_t vp    = task->wb_old_vp[sp_i].vp;
+			vp_t vp    = task->wb_old_vp[sp_i];
 
 			/* if this sub-page is never written before */
 			if (vp.vpn == 0) {
@@ -226,13 +235,17 @@ static task_res_t flash_read_state_handler(task_t* task,
 			/* skip if bank is not available */
 			if (!banks_has(*idle_banks, bank)) continue;
 
-			fu_read_sub_page(vp, FTL_RD_BUF(bank), FU_ASYNC);
+			vsp_t vsp = {
+				.bank = vp.bank, 
+				.vspn = vp.vpn * SUB_PAGES_PER_PAGE + sp_i
+			};
+			fu_read_sub_page(vsp, FTL_RD_BUF(bank), FU_ASYNC);
 			mask_set(task->wb_sp_cmd_issued, sp_i);
 		}
 		/* if flash cmd is done */
 		else if (banks_has(*idle_banks, bank)) {
 			UINT32 	sp_target_buf = task->wb_buf + sp_i * BYTES_PER_SUB_PAGE,
-				sp_src_buff   = FTL_RD_BUF(bank)+ sp_i * BYTES_PER_SUB_PAGE; 
+				sp_src_buf    = FTL_RD_BUF(bank)+ sp_i * BYTES_PER_SUB_PAGE; 
 			void (*segment_handler) (UINT8 const, UINT8 const) = 
 				lambda (void, (UINT8 const begin_i, const UINT8 end_i) {
 					mem_copy(sp_target_buf + begin_i * BYTES_PER_SECTOR,
@@ -253,16 +266,18 @@ static task_res_t flash_read_state_handler(task_t* task,
 	return TASK_CONTINUED;
 }
 
-static task_res_t flash_write_state_handler(task_t* task, 
+static task_res_t flash_write_state_handler(task_t* _task, 
 					    banks_mask_t* idle_banks)
 {
+	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
+
+	UINT8	bank		= task->wb_vp.bank;
 	if (task->waiting_banks == 0) {
-		UINT8	bank		= task->wb_vp.bank;
 		if (!banks_has(*idle_banks, bank)) return TASK_PAUSED;
 
-		UINT32	vpn 		= task->wb_vp.vpn;	
+		UINT32	vpn 		= task->wb_vp.vpn,
 			offset 	   	= begin_sector(task->wb_valid_sectors),
-			num_sectors 	= end_sector(victim_buf_mask) - offset;
+			num_sectors 	= end_sector(task->wb_valid_sectors) - offset;
 		nand_page_ptprogram(bank, 
 				    vpn / PAGES_PER_VBLK, 
 				    vpn % PAGES_PER_VBLK,
@@ -279,9 +294,11 @@ static task_res_t flash_write_state_handler(task_t* task,
 	}
 }
 
-static task_res_t finish_state_handler	(task_t* task, 
+static task_res_t finish_state_handler	(task_t* _task, 
 					 banks_mask_t* idle_banks)
 {
+	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
+
 	/* if all tasks previous to this one is completed, then we can 
 	 * safely inform SATA buffer manager to update pointer */
 	if (g_num_ftl_write_tasks_finished == task->seq_id) {

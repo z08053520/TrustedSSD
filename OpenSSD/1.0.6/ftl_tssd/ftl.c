@@ -277,8 +277,6 @@ void ftl_open(void) {
 	ftl_read_task_register();
 	ftl_write_task_register();
 
-	g_ftl_read_buf_id = g_ftl_write_buf_id = 0;
-
 	flash_clear_irq();
 	// This example FTL can handle runtime bad block interrupts and read fail (uncorrectable bit errors) interrupts
 	SETREG(INTR_MASK, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);

@@ -245,7 +245,7 @@ void write_buffer_get(UINT32 const lpn,
 void write_buffer_put(UINT32 const lpn, 
 		      UINT8  const sector_offset, 
 		      UINT8  const num_sectors,
-		      UINT32 const sata_wr_buf)
+		      UINT32 const buf)
 {
 	if (num_sectors == 0) return;
 	BUG_ON("buffer is full!", write_buffer_is_full());
@@ -343,7 +343,7 @@ void write_buffer_drop(UINT32 const lpn)
 #define begin_subpage(mask)	(begin_sector(mask) / SECTORS_PER_SUB_PAGE)
 #define end_subpage(mask)	COUNT_BUCKETS(end_sector(mask), SECTORS_PER_SUB_PAGE)
 
-void write_buffer_flush(UINT32 const buf, UINT32 *lspn, 
+void write_buffer_flush(UINT32 const buf, UINT32 *lspns, 
 			sectors_mask_t *valid_sectors)
 {
 	/* find a vicitim buffer */
@@ -371,7 +371,7 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspn,
 		while (lspn < end_lspn) {
 			UINT8	lsp_mask = (lp_mask >> (SECTORS_PER_SUB_PAGE * sp_offset));
 			
-			lspn[sp_offset] = lsp_mask ? lspn : 0;	
+			lspns[sp_offset] = lsp_mask ? lspn : 0;	
 			
 			lspn++;
 			sp_offset++;
@@ -384,8 +384,8 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspn,
 	}
 
 	// Copy buffer
-	UINT32 offset 	   	= begin_sector(buf_mask),
-	       num_sectors 	= end_sector(buf_mask) - offset;
+	UINT32 offset 	   	= begin_sector(*valid_sectors),
+	       num_sectors 	= end_sector(*valid_sectors) - offset;
 	mem_copy(buf + offset * BYTES_PER_SECTOR, 
 		 WRITE_BUF(buf_id) + offset * BYTES_PER_SECTOR,
 		 num_sectors * BYTES_PER_SECTOR);

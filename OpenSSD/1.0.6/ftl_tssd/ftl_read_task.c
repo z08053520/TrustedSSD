@@ -1,6 +1,9 @@
 #include "ftl_read_task.h"
 #include "dram.h"
 #include "pmt.h"
+#include "read_buffer.h"
+#include "write_buffer.h"
+#include "flash_util.h"
 
 /* ===========================================================================
  *  Macros, types and global variables
@@ -24,8 +27,8 @@ typedef struct {
 	/* segments */
 	UINT8		num_segments;
 	vp_t		segment_vp[SUB_PAGES_PER_PAGE];
-	UINT8		segment_offset[SUB_PAEGS_PER_PAGE];	
-	UINT8		segment_num_sectors[SUB_PAEGS_PER_PAGE];	
+	UINT8		segment_offset[SUB_PAGES_PER_PAGE];	
+	UINT8		segment_num_sectors[SUB_PAGES_PER_PAGE];	
 } ftl_read_task_t;
 
 #define task_buf_id(task)	((task->seq_id) % NUM_SATA_RD_BUFFERS)
@@ -97,11 +100,13 @@ static void copy_buffer(UINT32 const target_buf, UINT32 const src_buf,
 	     sector_i += num_sectors_in_sp,				\
 	     sectors_remain -= num_sectors_in_sp)
 
-static task_res_t preparation_state_handler(task_t* task, 
-					    banks_mask_t* idle_banks)
+ task_res_t preparation_state_handler(task_t* _task, 
+				      banks_mask_t* idle_banks)
 {
+	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
+
 	/* Assign an unique id to each task */
-	read_task->seq_id	= g_num_ftl_read_tasks_submitted++;
+	task->seq_id	= g_num_ftl_read_tasks_submitted++;
 
 	UINT32 read_buf_id	= task_buf_id(task);
 	UINT32 next_read_buf_id = (read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
@@ -110,7 +115,7 @@ static task_res_t preparation_state_handler(task_t* task,
 #endif
 
 	sectors_mask_t	target_sectors = init_mask(task->offset, 
-						   task->num_sectors) 
+						   task->num_sectors);
 
 	/* Try write buffer first for the logical page */
 	UINT32 		buf;
@@ -120,7 +125,7 @@ static task_res_t preparation_state_handler(task_t* task,
 
 	sectors_mask_t	common_sectors = valid_sectors & target_sectors;
 	if (common_sectors) {
-		buffer_copy(SATA_RD_BUF_PTR(read_buf_id),
+		copy_buffer(SATA_RD_BUF_PTR(read_buf_id),
 			    buf, common_sectors);
 		
 		target_sectors &= ~valid_sectors;
@@ -136,9 +141,11 @@ next_state_mapping:
 	return TASK_CONTINUED;
 }
 
-static task_res_t mapping_state_handler	(task_t* task, 
+static task_res_t mapping_state_handler	(task_t* _task, 
 					 banks_mask_t* idle_banks)
 {
+	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
+
 	/* Iterate all segments in the logical page */
 	UINT8	num_segments = 0;
 	UINT32 	lspn, sectors_remain, sector_i;
@@ -170,7 +177,7 @@ static task_res_t mapping_state_handler	(task_t* task,
 
 		/* Save segment information */	
 		if (num_segments == 0 || 
-		    task->segment_vp[num_segments - 1] != vp) {
+		    vp_not_equal(task->segment_vp[num_segments - 1], vp)) {
 			task->segment_vp[num_segments] 		= vp;	
 			task->segment_offset[num_segments] 	= sector_i; 
 			task->segment_num_sectors[num_segments] = 0; 
@@ -185,23 +192,25 @@ static task_res_t mapping_state_handler	(task_t* task,
 	return TASK_CONTINUED;
 }
 
-static task_res_t flash_state_handler	(task_t* task, 
+static task_res_t flash_state_handler	(task_t* _task, 
 					 banks_mask_t* idle_banks)
 {
+	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
+
 	UINT32 	buf = SATA_RD_BUF_PTR(task_buf_id(task));
 	UINT8 	segment_i, num_segments = task->num_segments;
 	for (segment_i = 0; segment_i < num_segments; segment_i++) {
-		vp_t		vp  	  = task->vp[segment_i];
+		vp_t		vp  	  = task->segment_vp[segment_i];
 		banks_mask_t 	this_bank = (1 << vp.bank);
 
 		/* if the flash read cmd for the segment has been sent */
-		if (task->segment_num_sectors == 0) {
+		if (task->segment_num_sectors[segment_i] == 0) {
 			if ((*idle_banks & this_bank))
-				waiting_banks &= ~this_bank;
+				task->waiting_banks &= ~this_bank;
 			continue;
 		}
 		
-		waiting_banks |= this_bank;
+		task->waiting_banks |= this_bank;
 
 		/* if the bank is not avilable for now, skip the segment */
 		if ((this_bank & *idle_banks) == 0) continue;
@@ -215,23 +224,25 @@ static task_res_t flash_state_handler	(task_t* task,
 				 RETURN_ON_ISSUE);
 		
 		*idle_banks &= ~this_bank;
-		task->segment_num_sectors[segment_i] == 0;
+		task->segment_num_sectors[segment_i] = 0;
 	}
 
-	if (waiting_banks) return TASK_PAUSED;
+	if (task->waiting_banks) return TASK_PAUSED;
 
 	task->state = STATE_FINISH;
 	return TASK_CONTINUED;
 }
 
-static task_res_t finish_state_handler	(task_t* task, 
+static task_res_t finish_state_handler	(task_t* _task, 
 					 banks_mask_t* idle_banks)
 {
+	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
+
 	/* if all tasks previous to this one is completed, then we can 
 	 * safely inform SATA buffer manager to update pointer */
 	if (g_num_ftl_read_tasks_finished == task->seq_id) {
 		UINT32 next_read_buf_id = (task_buf_id(task) + 1) 
-					% NUM_SATA_READ_BUFFERS;
+					% NUM_SATA_RD_BUFFERS;
 		SETREG(BM_STACK_RDSET, next_read_buf_id);
 		SETREG(BM_STACK_RESET, 0x02);
 	}
