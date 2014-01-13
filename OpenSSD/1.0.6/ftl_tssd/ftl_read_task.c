@@ -4,6 +4,7 @@
 #include "read_buffer.h"
 #include "write_buffer.h"
 #include "flash_util.h"
+#include "ftl_task.h"
 
 /* ===========================================================================
  *  Macros, types and global variables
@@ -29,6 +30,9 @@ typedef struct {
 	vp_t		segment_vp[SUB_PAGES_PER_PAGE];
 	UINT8		segment_offset[SUB_PAGES_PER_PAGE];	
 	UINT8		segment_num_sectors[SUB_PAGES_PER_PAGE];	
+	UINT8		segment_has_holes;
+	UINT8		segment_cmd_issued;
+	UINT8		segment_cmd_done;
 } ftl_read_task_t;
 
 #define task_buf_id(task)	((task->seq_id) % NUM_SATA_RD_BUFFERS)
@@ -49,14 +53,14 @@ static task_handler_t handlers[NUM_STATES] = {
 
 UINT32	g_num_ftl_read_tasks_submitted;
 UINT32 	g_num_ftl_read_tasks_finished;
-UINT32	g_next_finishing_read_task_seq_id;
+UINT32	g_next_finishing_task_seq_id;
 
 /* ===========================================================================
  *  Private Functions 
  * =========================================================================*/
 
 static void copy_buffer(UINT32 const target_buf, UINT32 const src_buf, 
-			   sectors_mask_t const valid_sectors)
+			sectors_mask_t const valid_sectors)
 {
 	UINT8 sector_i = 0;
 	while (sector_i < SECTORS_PER_PAGE) {
@@ -81,28 +85,8 @@ static void copy_buffer(UINT32 const target_buf, UINT32 const src_buf,
  *  Task Handlers
  * =========================================================================*/
 
-#define lpn2lspn(lpn)		(lpn * SUB_PAGES_PER_PAGE)
-
-#define lspn_offset(lspn)	(lspn % SECTORS_PER_SUB_PAGE)
-
-#define FOR_EACH_SUB_PAGE(task, lspn, offset_in_sp, num_sectors_in_sp,	\
-			  sectors_remain, sector_i)			\
-	for (sectors_remain = task->num_sectors,			\
-	     sector_i	    = task->offset,				\
-	     lspn 	    = lpn2lspn(task->lpn);			\
-	     sectors_remain > 0 &&					\
-	     	  (offset_in_sp       = lspn_offset(lspn), 		\
-	     	   num_sectors_in_sp  = 				\
-	     	   	(offset_in_sp + sectors_remain 			\
-		    	              <= SECTORS_PER_SUB_PAGE ?		\
-		       		sectors_remain :			\
-		       		SECTORS_PER_SUB_PAGE - offset_in_sp));	\
-	     lspn++, 							\
-	     sector_i += num_sectors_in_sp,				\
-	     sectors_remain -= num_sectors_in_sp)
-
- task_res_t preparation_state_handler(task_t* _task, 
-				      banks_mask_t* idle_banks)
+task_res_t preparation_state_handler(task_t* _task, 
+				     banks_mask_t* idle_banks)
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 
@@ -129,7 +113,7 @@ static void copy_buffer(UINT32 const target_buf, UINT32 const src_buf,
 		copy_buffer(SATA_RD_BUF_PTR(read_buf_id),
 			    buf, common_sectors);
 		
-		target_sectors &= ~valid_sectors;
+		target_sectors &= ~common_sectors;
 		/* In case we can serve all sectors from write buffer */
 		if (target_sectors == 0) {
 			task->state = STATE_FINISH;
@@ -138,6 +122,7 @@ static void copy_buffer(UINT32 const target_buf, UINT32 const src_buf,
 	}
 next_state_mapping:
 	task->target_sectors = target_sectors;
+	task->segment_has_holes = 0;
 	task->state = STATE_MAPPING;
 	return TASK_CONTINUED;
 }
@@ -147,85 +132,120 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 
-	/* Iterate all segments in the logical page */
 	UINT8	num_segments = 0;
-	UINT32 	lspn, sectors_remain, sector_i;
-	UINT8	offset_in_sp, num_sectors_in_sp;
-	FOR_EACH_SUB_PAGE(task, lspn, offset_in_sp, num_sectors_in_sp,
-			  sectors_remain, sector_i) {
-		UINT8 	sp_mask = (task->target_sectors >> sector_i);
-		if (sp_mask == 0) continue;
-
-		vp_t	vp;
-		pmt_fetch(lspn, &vp);
-
-		/* Try from read buffer */
-		UINT32	buf;
-		read_buffer_get(vp, &buf);
-		if (buf) {
-			// TODO: we can make this more efficient by merge 
-			// memory copies from the same buffer
-			mem_copy(SATA_RD_BUF_PTR(task_buf_id(task))
-					+ sector_i * BYTES_PER_SECTOR,
-				 buf + sector_i * BYTES_PER_SECTOR,
-				 num_sectors_in_sp * BYTES_PER_SECTOR);
-		
-			sectors_mask_t copied_sectors = 
-				init_mask(sector_i, SECTORS_PER_SUB_PAGE);
-			task->target_sectors &= ~copied_sectors;
+	/* Iterate each sub-page */ 
+	UINT32	lspn_base = lpn2lspn(task->lpn);
+	UINT8	begin_sp  = begin_subpage(task->target_sectors),
+		end_sp	  = end_subpage(task->target_sectors);
+	UINT8 	sp_i;
+	BOOL8	force_new_segment = TRUE;
+	for (sp_i = begin_sp; sp_i < end_sp; sp_i++) {
+		UINT8 	sector_i = sp_i * SECTORS_PER_SUB_PAGE,
+			sp_mask  = (task->target_sectors >> sector_i);
+		if (sp_mask == 0) {
+			force_new_segment = TRUE;
 			continue;
 		}
-
-		/* Save segment information */	
-		if (num_segments == 0 || 
+		
+		UINT32	lspn	 = lspn_base + sp_i;
+		vp_t	vp;
+		pmt_fetch(lspn, &vp);
+		
+		/* Gather segment information */	
+		if (force_new_segment || 
 		    vp_not_equal(task->segment_vp[num_segments - 1], vp)) {
 			task->segment_vp[num_segments] 		= vp;	
 			task->segment_offset[num_segments] 	= sector_i; 
 			task->segment_num_sectors[num_segments] = 0; 
 			num_segments++;
-		}
-		task->segment_num_sectors[num_segments-1] += num_sectors_in_sp; 
-	}
 
-	task->waiting_banks = 0;
-	task->num_segments  = num_segments;
-	task->state 	    = STATE_FLASH;
+			force_new_segment = FALSE;
+		}
+		task->segment_num_sectors[num_segments-1] += SECTORS_PER_SUB_PAGE; 
+	
+		/* if this sub-page has holes, then the segment has holes */
+		if (sp_mask != 0xFF)
+			mask_set(task->segment_has_holes, num_segments-1);
+	}
+	
+	task->waiting_banks 	 = 0;
+	task->num_segments  	 = num_segments;
+	task->segment_cmd_issued = 0;
+	task->segment_cmd_done	 = 0;
+	task->state 	    	 = STATE_FLASH;
 	return TASK_CONTINUED;
 }
+
+#define is_cmd_issued(seg_i, task)	mask_is_set(task->segment_cmd_issued, seg_i)
+#define set_cmd_issued(seg_i, task)	mask_set(task->segment_cmd_issued, seg_i)
+#define is_cmd_done(seg_i, task)	mask_is_set(task->segment_cmd_done, seg_i)
+#define set_cmd_done(seg_i, task)	mask_set(task->segment_cmd_done, seg_i)
+#define has_holes(seg_i, task)		mask_is_set(task->segment_has_holes, seg_i)
 
 static task_res_t flash_state_handler	(task_t* _task, 
 					 banks_mask_t* idle_banks)
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 
-	UINT32 	buf = SATA_RD_BUF_PTR(task_buf_id(task));
-	UINT8 	segment_i, num_segments = task->num_segments;
-	for (segment_i = 0; segment_i < num_segments; segment_i++) {
-		vp_t		vp  	  = task->segment_vp[segment_i];
+	UINT32 	sata_buf = SATA_RD_BUF_PTR(task_buf_id(task));
+	UINT8 	seg_i, num_segments = task->num_segments;
+	for (seg_i = 0; seg_i < num_segments; seg_i++) {
+		if (is_cmd_done(seg_i, task)) continue;
+
+		vp_t		vp  	  = task->segment_vp[seg_i];
 		banks_mask_t 	this_bank = (1 << vp.bank);
 
 		/* if the flash read cmd for the segment has been sent */
-		if (task->segment_num_sectors[segment_i] == 0) {
-			if ((*idle_banks & this_bank))
-				task->waiting_banks &= ~this_bank;
+		if (is_cmd_issued(seg_i, task)) {
+			if ((*idle_banks & this_bank) == 0) continue;	
+
+			if (has_holes(seg_i, task)) {
+				sectors_mask_t segment_target_sectors = 
+					init_mask(task->segment_offset[seg_i],
+						  task->segment_num_sectors[seg_i]);
+				segment_target_sectors &= task->target_sectors;
+
+				copy_buffer(sata_buf, FTL_RD_BUF(vp.bank), 
+					    segment_target_sectors); 
+			}
+
+			task->waiting_banks &= ~this_bank;
+			set_cmd_done(seg_i, task);
 			continue;
 		}
-		
+
+		/* Try to reader buffer */
+		UINT32 read_buf;
+		read_buffer_get(vp, &read_buf);
+		if (read_buf) {
+			sectors_mask_t segment_target_sectors = 
+				init_mask(task->segment_offset[seg_i],
+					  task->segment_num_sectors[seg_i]);
+			segment_target_sectors &= task->target_sectors;
+
+			copy_buffer(sata_buf, read_buf, segment_target_sectors); 
+				
+			set_cmd_done(seg_i, task);
+			continue;
+		}
+
+		/* We have to read from flash */
 		task->waiting_banks |= this_bank;
 
 		/* if the bank is not avilable for now, skip the segment */
 		if ((this_bank & *idle_banks) == 0) continue;
 
+		read_buf = has_holes(seg_i, task) ? FTL_RD_BUF(vp.bank) : sata_buf;
 		nand_page_ptread(vp.bank,
 				 vp.vpn / PAGES_PER_VBLK,
 				 vp.vpn % PAGES_PER_VBLK,
-				 task->segment_offset[segment_i],
-				 task->segment_num_sectors[segment_i],
-				 buf,
+				 task->segment_offset[seg_i],
+				 task->segment_num_sectors[seg_i],
+				 read_buf,
 				 RETURN_ON_ISSUE);
-		
+
+		set_cmd_issued(seg_i, task);
 		*idle_banks &= ~this_bank;
-		task->segment_num_sectors[segment_i] = 0;
 	}
 
 	if (task->waiting_banks) return TASK_PAUSED;
