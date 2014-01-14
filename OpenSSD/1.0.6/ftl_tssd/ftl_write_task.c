@@ -163,12 +163,13 @@ static task_res_t flash_read_state_handler(task_t* _task,
 		end_sp	 = end_subpage(task->wb_valid_sectors);
 	UINT8 	sp_i;
 	for (sp_i = begin_sp; sp_i < end_sp; sp_i++) {
+		/* TODO: rename macro */
 		if (mask_is_set(task->wb_sp_cmd_done, sp_i)) continue;	
 		
 		UINT8	sp_mask = (task->wb_valid_sectors >> 
 					(SECTORS_PER_SUB_PAGE * sp_i));
 
-		/* all sectors are valid; skip this sub-page*/
+		/* all sectors are valid; skip this sub-page */
 		if (sp_mask == 0xFF) {
 			mask_set(task->wb_sp_cmd_done, sp_i);
 			continue;
@@ -248,9 +249,14 @@ static task_res_t flash_write_state_handler(task_t* _task,
 	if (task->waiting_banks == 0) {
 		if (!banks_has(*idle_banks, bank)) return TASK_PAUSED;
 
+		/* offset and num_sectors must align with sub-page */	
 		UINT32	vpn 		= task->wb_vp.vpn,
-			offset 	   	= begin_sector(task->wb_valid_sectors),
-			num_sectors 	= end_sector(task->wb_valid_sectors) - offset;
+			begin_i		= begin_subpage(task->wb_valid_sectors) 
+					* SECTORS_PER_SUB_PAGE,
+			end_i		= end_subpage(task->wb_valid_sectors)
+					* SECTORS_PER_SUB_PAGE,
+			offset 	   	= begin_i,
+			num_sectors 	= end_i - begin_i;
 		nand_page_ptprogram(bank, 
 				    vpn / PAGES_PER_VBLK, 
 				    vpn % PAGES_PER_VBLK,
