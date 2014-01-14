@@ -15,8 +15,9 @@
 #define NUM_PC_BUFFERS		128	
 //#define NUM_PC_BUFFERS		1
 #define NUM_PC_SUB_PAGES	(NUM_PC_BUFFERS * SUB_PAGES_PER_PAGE)
-#define PC_BYTES		(NUM_PC_BUFFERS * BYTES_PER_PAGE)
-#define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * (i))
+#define PC_BYTES		(BYTES_PER_PAGE + NUM_PC_BUFFERS * BYTES_PER_PAGE)
+#define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_PAGE + BYTES_PER_SUB_PAGE * (i))
+#define PC_TEMP_BUF		PC_ADDR
 
 /* ========================================================================= *
  * Buffer Cache  
