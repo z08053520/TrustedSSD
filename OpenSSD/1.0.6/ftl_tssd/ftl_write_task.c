@@ -27,8 +27,8 @@ typedef struct {
 	UINT8		offset;
 	UINT8		num_sectors;
 	/* write buffer */
-	UINT8		wb_sp_cmd_issued;
-	UINT8		wb_sp_cmd_done;
+	UINT8		wb_cmd_issued;
+	UINT8		wb_cmd_done;
 	vp_t		wb_vp;
 	UINT32		wb_buf;
 	sectors_mask_t 	wb_valid_sectors;
@@ -148,8 +148,8 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	
 	task->waiting_banks 	= 0;
 	task->state 		= STATE_FLASH_READ;
-	task->wb_sp_cmd_issued 	= 0;
-	task->wb_sp_cmd_done 	= 0;
+	task->wb_cmd_issued 	= 0;
+	task->wb_cmd_done 	= 0;
 	return TASK_CONTINUED;
 }
 
@@ -164,14 +164,14 @@ static task_res_t flash_read_state_handler(task_t* _task,
 	UINT8 	sp_i;
 	for (sp_i = begin_sp; sp_i < end_sp; sp_i++) {
 		/* TODO: rename macro */
-		if (mask_is_set(task->wb_sp_cmd_done, sp_i)) continue;	
+		if (mask_is_set(task->wb_cmd_done, sp_i)) continue;	
 		
 		UINT8	sp_mask = (task->wb_valid_sectors >> 
 					(SECTORS_PER_SUB_PAGE * sp_i));
 
 		/* all sectors are valid; skip this sub-page */
 		if (sp_mask == 0xFF) {
-			mask_set(task->wb_sp_cmd_done, sp_i);
+			mask_set(task->wb_cmd_done, sp_i);
 			continue;
 		}
 
@@ -179,13 +179,13 @@ static task_res_t flash_read_state_handler(task_t* _task,
 		if (sp_mask == 0x00) {
 			mem_set_dram(task->wb_buf + sp_i * BYTES_PER_SUB_PAGE, 
 				     0xFFFFFFFF, BYTES_PER_SUB_PAGE);	
-			mask_set(task->wb_sp_cmd_done, sp_i);
+			mask_set(task->wb_cmd_done, sp_i);
 			continue;
 		}
 
 		UINT8 bank = task->wb_old_vp[sp_i].bank;
 		/* issue flash cmd to fill the paritial sub-page */
-		if (!mask_is_set(task->wb_sp_cmd_issued, sp_i)) {
+		if (!mask_is_set(task->wb_cmd_issued, sp_i)) {
 			vp_t vp    = task->wb_old_vp[sp_i];
 
 			/* if this sub-page is never written before */
@@ -199,7 +199,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 					});
 				FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler, sp_mask);
 
-				mask_set(task->wb_sp_cmd_done, sp_i);
+				mask_set(task->wb_cmd_done, sp_i);
 				continue;
 			}
 		
@@ -214,7 +214,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 				.vspn = vp.vpn * SUB_PAGES_PER_PAGE + sp_i
 			};
 			fu_read_sub_page(vsp, FTL_RD_BUF(bank), FU_ASYNC);
-			mask_set(task->wb_sp_cmd_issued, sp_i);
+			mask_set(task->wb_cmd_issued, sp_i);
 		}
 		/* if flash cmd is done */
 		else if (banks_has(*idle_banks, bank)) {
@@ -229,7 +229,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 			FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler, sp_mask);
 
 			banks_del(task->waiting_banks, bank);
-			mask_set(task->wb_sp_cmd_done, sp_i);
+			mask_set(task->wb_cmd_done, sp_i);
 		}
 	}
 
@@ -237,16 +237,18 @@ static task_res_t flash_read_state_handler(task_t* _task,
 	if (task->waiting_banks) return TASK_PAUSED;
 
 	task->state = STATE_FLASH_WRITE;
+	task->wb_cmd_issued = FALSE;
+	bank_add(task->waiting_banks, task->vp.bank);
 	return TASK_CONTINUED;
 }
 
 static task_res_t flash_write_state_handler(task_t* _task, 
 					    banks_mask_t* idle_banks)
 {
-	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
+	ftl_write_task_t *task 	= (ftl_write_task_t*) _task;	
 
 	UINT8	bank		= task->wb_vp.bank;
-	if (task->waiting_banks == 0) {
+	if (!task->wb_cmd_issued) {
 		if (!banks_has(*idle_banks, bank)) return TASK_PAUSED;
 
 		/* offset and num_sectors must align with sub-page */	
@@ -263,8 +265,8 @@ static task_res_t flash_write_state_handler(task_t* _task,
 				    offset, num_sectors,
 				    task->wb_buf);
 
-		banks_add(task->waiting_banks, bank);
 		banks_del(*idle_banks, bank);
+		task->wb_cmd_issued = TRUE;
 		return TASK_PAUSED;
 	}
 	else if (banks_has(*idle_banks, bank)) {
