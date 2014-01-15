@@ -73,7 +73,7 @@ void ftl_test()
 		vsp_t		vsp = int2vsp.as_vsp;	
 		UINT32		val = get_val(num_vsp);
 
-		fu_read_sub_page(vsp, COPY_BUF_ADDR);
+		fu_read_sub_page(vsp, COPY_BUF_ADDR, FU_SYNC);
 		
 		UINT8		sector_offset = vsp.vspn % SUB_PAGES_PER_PAGE * SECTORS_PER_SUB_PAGE;
 		UINT8		wrong = is_buff_wrong(COPY_BUF_ADDR, 
