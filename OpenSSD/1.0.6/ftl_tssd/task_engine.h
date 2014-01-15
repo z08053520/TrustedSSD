@@ -2,8 +2,8 @@
 #define __TASK_ENGINE_H
 #include "jasmine.h"
 
-#define MAX_NUM_TASK_TYPES_LOG2		2
-#define MAX_NUM_TASK_STATES_LOG2	6
+#define MAX_NUM_TASK_TYPES_LOG2		3	
+#define MAX_NUM_TASK_STATES_LOG2	5	
 #define MAX_NUM_TASK_TYPES		(1 << MAX_NUM_TASK_TYPES_LOG2)
 #define MAX_NUM_TASK_STATES		(1 << MAX_NUM_TASK_STATES_LOG2)
 
@@ -33,7 +33,7 @@ typedef UINT16		banks_mask_t;
 typedef struct {
 	TASK_PUBLIC_FIELDS
 	/* TODO: make this smaller */
-	UINT8		private_data[32];
+	UINT8		private_data[92];
 } task_t;
 
 typedef task_res_t (*task_handler_t)(task_t *task, banks_mask_t *idle_banks);

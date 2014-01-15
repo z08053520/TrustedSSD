@@ -238,7 +238,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 
 	task->state = STATE_FLASH_WRITE;
 	task->wb_cmd_issued = FALSE;
-	bank_add(task->waiting_banks, task->vp.bank);
+	task->waiting_banks = 1 << task->wb_vp.bank;
 	return TASK_CONTINUED;
 }
 
@@ -273,6 +273,7 @@ static task_res_t flash_write_state_handler(task_t* _task,
 		task->state = STATE_FINISH;
 		return TASK_CONTINUED;
 	}
+	return TASK_PAUSED;
 }
 
 static task_res_t finish_state_handler	(task_t* _task, 
@@ -305,6 +306,9 @@ static task_res_t finish_state_handler	(task_t* _task,
 
 void ftl_write_task_register()
 {
+	uart_printf("sizeof(ftl_write_task_t) = %u, sizeof(task_t) = %u\r\n", 
+		    sizeof(ftl_write_task_t), sizeof(task_t));
+
 	BUG_ON("ftl write task structure is too large to fit into "
 	       "general task structure", sizeof(ftl_write_task_t) > sizeof(task_t));
 	

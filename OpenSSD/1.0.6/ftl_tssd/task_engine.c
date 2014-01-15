@@ -5,7 +5,7 @@
  *  Macros, Types and Variables  
  * =========================================================================*/
 
-#define MAX_NUM_TASKS		32
+#define MAX_NUM_TASKS		4	
 
 /* Allocate memory for tasks using slab */
 define_slab_interface(task, task_t);
@@ -105,7 +105,7 @@ BOOL8 	task_engine_run()
 	while (task) {
 		if (idle_banks && ((task->waiting_banks & idle_banks) == 0)) 
 			goto next_task;
-
+		
 		task_res_t res;
 		do {
 			res = run_task(task, &idle_banks);
@@ -117,6 +117,8 @@ BOOL8 	task_engine_run()
 		if (res == TASK_FINISHED) {
 			set_next_task(pre, get_next_task(task));
 			task_deallocate(task);
+
+			if (task == tail) tail = pre;
 		}
 		/* TASK_PAUSED */
 		else {

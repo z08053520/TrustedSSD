@@ -94,8 +94,8 @@ task_res_t preparation_state_handler(task_t* _task,
 	task->seq_id	= g_num_ftl_read_tasks_submitted++;
 
 	UINT32 read_buf_id	= task_buf_id(task);
-	UINT32 next_read_buf_id = (read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
 #if OPTION_FTL_TEST == 0
+	UINT32 next_read_buf_id = (read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
 	if (next_read_buf_id == GETREG(SATA_RBUF_PTR)) return TASK_BLOCKED;
 #endif
 
@@ -284,6 +284,9 @@ static task_res_t finish_state_handler	(task_t* _task,
 
 void ftl_read_task_register()
 {
+	uart_printf("sizeof(ftl_read_task_t) = %u, sizeof(task_t) = %u\r\n", 
+		    sizeof(ftl_read_task_t), sizeof(task_t));
+
 	BUG_ON("ftl read task structure is too large to fit into "
 	       "general task structure", sizeof(ftl_read_task_t) > sizeof(task_t));
 

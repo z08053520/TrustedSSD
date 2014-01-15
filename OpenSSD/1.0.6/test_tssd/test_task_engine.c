@@ -8,6 +8,7 @@
 #include "dram.h"
 #include "gc.h"
 #include "test_util.h"
+#include "ftl_task.h"
 #include <stdlib.h>
 
 /* ===========================================================================
@@ -20,7 +21,7 @@
 SETUP_BUF(vsp, 			VSP_BUF_ADDR, 		SECTORS_PER_PAGE);
 
 #define NUM_WRITE_PAGE_TASKS		(MAX_NUM_SP / SUB_PAGES_PER_PAGE)
-#define NUM_VERIFY_SUB_PAGE_TASKS	(NUM_WRITE_TASKS * SUB_PAGES_PER_PAGE)
+#define NUM_VERIFY_SUB_PAGE_TASKS	(NUM_WRITE_PAGE_TASKS * SUB_PAGES_PER_PAGE)
 
 typedef enum {
 	STATE_INIT,
@@ -84,25 +85,30 @@ static task_res_t wp_init_handler	(task_t* _task, banks_mask_t* idle_banks)
 	if (*idle_banks == 0) return TASK_BLOCKED;
 	
 	write_page_task_t *task = (write_page_task_t*) _task;
+
+	/* uart_printf("init: seq_id = %u, ", task->seq_id); */
 	
 	UINT8	idle_bank = auto_idle_bank(idle_banks);
+	BUG_ON("no idle banks!", idle_bank >= NUM_BANKS);
 	UINT32	vpn	  = gc_allocate_new_vpn(idle_bank);
 	task->vp.bank	  = idle_bank;
 	task->vp.vpn	  = vpn;
 
 	task->state	  = STATE_SUBMIT;
+	/* uart_printf("bank = %u, vpn = %u\r\n", idle_bank, vpn); */
+
 	return TASK_CONTINUED;
 }
 
 static task_res_t wp_submit_handler	(task_t* _task, banks_mask_t* idle_banks)
 {
 	write_page_task_t *task = (write_page_task_t*) _task;
-
+	
 	UINT8	bank		= task->vp.bank;
 	UINT32	vspn_base	= task->vp.vpn * SUB_PAGES_PER_PAGE;
 	UINT32	wr_buf		= FTL_WR_BUF(bank);
 
-	UITN32	vspn;
+	UINT32	vspn;
 	UINT8 	sp_i;
 	UINT32 	val;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
@@ -111,7 +117,7 @@ static task_res_t wp_submit_handler	(task_t* _task, banks_mask_t* idle_banks)
 
 		vsp_t	vsp = {.bank = bank, .vspn = vspn};
 		vsp_or_int vsp_int = {.as_vsp = vsp};
-		set_vsp(task->seq_id + sp_i, vsp_int.as_int);
+		set_vsp(task->seq_id * SUB_PAGES_PER_PAGE + sp_i, vsp_int.as_int);
 
 		mem_set_dram(wr_buf + sp_i * BYTES_PER_SUB_PAGE,
 			     val, BYTES_PER_SUB_PAGE);
@@ -130,7 +136,7 @@ static task_res_t wp_wait_handler	(task_t* _task, banks_mask_t* idle_banks)
 	write_page_task_t *task = (write_page_task_t*) _task;
 
 	if (!banks_has(*idle_banks, task->vp.bank)) return TASK_PAUSED;
-
+	
 	return TASK_FINISHED;
 }
 
@@ -204,8 +210,9 @@ static task_res_t vsp_wait_handler	(task_t* _task, banks_mask_t* idle_banks)
 {
 	verify_subpage_task_t *task = (verify_subpage_task_t*) _task;
 
-	if (!banks_has(*idle_banks, task->vp.bank)) return TASK_PAUSED;
+	if (!banks_has(*idle_banks, task->vsp.bank)) return TASK_PAUSED;
 
+	vsp_t	vsp	      = task->vsp;
 	UINT8	bank	      = vsp.bank;
 	UINT8	sector_offset = vsp.vspn % SUB_PAGES_PER_PAGE * SECTORS_PER_SUB_PAGE;
 	UINT32	val	      = vsp.vspn;
@@ -225,7 +232,10 @@ void ftl_test()
 {
 	uart_print("Start testing task engine");
 
-	init_task_handlers();
+	init_vsp_buf(0);
+
+	write_page_task_register();
+	verify_subpage_task_register();
 
 	UINT32 	task_i;	
 	BOOL8	is_idle;
@@ -233,12 +243,12 @@ void ftl_test()
 	/* Do write page tasks */
 	uart_print("Do write page task...");
 	for (task_i = 0; task_i < NUM_WRITE_PAGE_TASKS; task_i++) {
-		while (!task_engine_can_allocate(1))
+		while (!task_can_allocate(1))
 			task_engine_run();
-		
+	
 		task_t *task = task_allocate();	
 		BUG_ON("allocation task failed", task == NULL);
-		write_page_task_init(task, task_id);		
+		write_page_task_init(task, task_i);		
 		task_engine_submit(task);
 		task_engine_run();
 	}
@@ -251,12 +261,12 @@ void ftl_test()
 	/* Do verification sub-page tasks */
 	uart_print("Do verification sub-page task...");
 	for (task_i = 0; task_i < NUM_VERIFY_SUB_PAGE_TASKS; task_i++) {
-		while (!task_engine_can_allocate(1))
+		while (!task_can_allocate(1))
 			task_engine_run();
 		
 		task_t *task = task_allocate();	
 		BUG_ON("allocation task failed", task == NULL);
-		verify_subpage_task_init(task, task_id);	
+		verify_subpage_task_init(task, task_i);	
 		task_engine_submit(task);
 		task_engine_run();
 	}
