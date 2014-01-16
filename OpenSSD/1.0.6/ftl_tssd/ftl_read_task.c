@@ -56,32 +56,6 @@ UINT32 	g_num_ftl_read_tasks_finished;
 UINT32	g_next_finishing_task_seq_id;
 
 /* ===========================================================================
- *  Private Functions 
- * =========================================================================*/
-
-static void copy_buffer(UINT32 const target_buf, UINT32 const src_buf, 
-			sectors_mask_t const valid_sectors)
-{
-	UINT8 sector_i = 0;
-	while (sector_i < SECTORS_PER_PAGE) {
-		// find the first sector to copy
-		while (sector_i < SECTORS_PER_PAGE && 
-		       ((valid_sectors >> sector_i) & 1) == 0) sector_i++;
-		if (sector_i == SECTORS_PER_PAGE) break;
-		UINT8 begin_sector = sector_i++;
-
-		// find the last sector to copy
-		while (sector_i < SECTORS_PER_PAGE && 
-		       ((valid_sectors >> sector_i) & 1) == 1) sector_i++;
-		UINT8 end_sector = sector_i++;
-
-		mem_copy(target_buf + begin_sector * BYTES_PER_SECTOR,
-			 src_buf    + begin_sector * BYTES_PER_SECTOR,
-			 (end_sector - begin_sector) * BYTES_PER_SECTOR);
-	}
-}
-
-/* ===========================================================================
  *  Task Handlers
  * =========================================================================*/
 
@@ -110,7 +84,7 @@ task_res_t preparation_state_handler(task_t* _task,
 
 	sectors_mask_t	common_sectors = valid_sectors & target_sectors;
 	if (common_sectors) {
-		copy_buffer(SATA_RD_BUF_PTR(read_buf_id),
+		fu_copy_buffer(SATA_RD_BUF_PTR(read_buf_id),
 			    buf, common_sectors);
 		
 		target_sectors &= ~common_sectors;
@@ -205,7 +179,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 						  task->segment_num_sectors[seg_i]);
 				segment_target_sectors &= task->target_sectors;
 
-				copy_buffer(sata_buf, FTL_RD_BUF(vp.bank), 
+				fu_copy_buffer(sata_buf, FTL_RD_BUF(vp.bank), 
 					    segment_target_sectors); 
 			}
 
@@ -223,7 +197,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 					  task->segment_num_sectors[seg_i]);
 			segment_target_sectors &= task->target_sectors;
 
-			copy_buffer(sata_buf, read_buf, segment_target_sectors); 
+			fu_copy_buffer(sata_buf, read_buf, segment_target_sectors); 
 				
 			set_cmd_done(seg_i, task);
 			continue;

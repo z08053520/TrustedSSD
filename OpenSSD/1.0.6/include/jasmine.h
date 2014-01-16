@@ -237,6 +237,8 @@ typedef struct _vsp_t {
 	UINT32	vspn  :27; 
 } vsp_t; 
 
+#define NULL_LSPN			0xFFFFFFFF
+
 #define vsp_is_equal(vsp0, vsp1)	( ((vsp0).bank == (vsp1).bank) && \
 				  	  ((vsp0).vspn == (vsp1).vspn) )
 

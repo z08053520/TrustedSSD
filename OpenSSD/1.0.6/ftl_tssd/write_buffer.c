@@ -103,7 +103,8 @@ static buf_id_t find_fullest_buffer()
 	
 	return max_buf_id;
 }
-/*  
+ 
+/*
 static void dump_state()
 {
 	UINT8 i = 0;
@@ -133,7 +134,7 @@ static void dump_state()
 		if (lpns[i] == NULL_LPN) continue;
 
 		uart_printf("[%u] lpn = %u, buf_id = %u, mask = ", 
-			    i, lpns[i], buf_ids[i]);
+			    i, lpns[i], lp_buf_ids[i]);
 		uart_print_hex_64(lp_masks[i]);
 	}
 	uart_print("");
@@ -153,28 +154,6 @@ static UINT8 allocate_buffer_for(sectors_mask_t const mask)
 	} while (new_buf_id != head_buf_id);
 	BUG_ON("no free buffer to allocate", 1);
 	return NULL_BID;
-}
-
-static void copy_to_buffer(UINT32 const target_buf, UINT32 const src_buf, 
-			   sectors_mask_t const mask)
-{
-	UINT8 sector_i = 0;
-	while (sector_i < SECTORS_PER_PAGE) {
-		// find the first sector to copy
-		while (sector_i < SECTORS_PER_PAGE && 
-		       ((mask >> sector_i) & 1) == 0) sector_i++;
-		if (sector_i == SECTORS_PER_PAGE) break;
-		UINT8 begin_sector = sector_i++;
-
-		// find the last sector to copy
-		while (sector_i < SECTORS_PER_PAGE && 
-		       ((mask >> sector_i) & 1) == 1) sector_i++;
-		UINT8 end_sector = sector_i++;
-
-		mem_copy(target_buf + begin_sector * BYTES_PER_SECTOR,
-			 src_buf    + begin_sector * BYTES_PER_SECTOR,
-			 (end_sector - begin_sector) * BYTES_PER_SECTOR);
-	}
 }
 
 static UINT32 get_free_lpn_index()
@@ -267,7 +246,7 @@ void write_buffer_put(UINT32 const lpn,
 
 			// move useful part of old data to new buffer 
 			sectors_mask_t old_useful_mask = lp_old_mask & rvs_common_mask;
-			copy_to_buffer(WRITE_BUF(new_buf_id),
+			fu_copy_buffer(WRITE_BUF(new_buf_id),
 				       WRITE_BUF(old_buf_id),
 				       old_useful_mask);
 
@@ -296,7 +275,7 @@ void write_buffer_put(UINT32 const lpn,
 	}
 		
 	// Do insertion 
-	copy_to_buffer(WRITE_BUF(new_buf_id),
+	fu_copy_buffer(WRITE_BUF(new_buf_id),
 		       buf,
 		       lp_new_mask);
 	buf_mask_add(new_buf_id, lp_new_mask);
@@ -307,6 +286,9 @@ void write_buffer_put(UINT32 const lpn,
 	/* uart_printf("lp_new_mask = ");uart_print_hex_64(lp_new_mask); */
 	/* uart_printf("buf_masks[new_buf_id] = ");uart_print_hex_64(buf_masks[new_buf_id]); */
 	/* uart_printf("buf_sizes[new_buf_id] = %u\r\n", buf_sizes[new_buf_id]); */
+
+	/* uart_print("after put"); */
+	/* dump_state(); */
 }
 
 BOOL8 write_buffer_is_full()
@@ -336,6 +318,11 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 	BUG_ON("flush any empty buffer", buf_sizes[buf_id] == 0);
 	*valid_sectors 	= buf_masks[buf_id];
 
+	/* uart_print("before flush"); */
+	/* dump_state(); */
+	
+	mem_set_sram(lspns, NULL_LSPN, sizeof(UINT32) * SUB_PAGES_PER_PAGE);
+
 	UINT32  lpn_i   = 0;
 	// Iterate each lpn in the victim buffer
 	while (lpn_i < MAX_NUM_LPNS)  {
@@ -357,7 +344,7 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 		while (lspn < end_lspn) {
 			UINT8	lsp_mask = (lp_mask >> (SECTORS_PER_SUB_PAGE * sp_offset));
 			
-			lspns[sp_offset] = lsp_mask ? lspn : 0;	
+			lspns[sp_offset] = lsp_mask ? lspn : NULL_LSPN;	
 			
 			lspn++;
 			sp_offset++;
@@ -382,6 +369,9 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 	num_clean_buffers++;
 	if (buf_id == head_buf_id) 
 		head_buf_id = next_buf_id(head_buf_id);
+	
+	/* uart_print("after flush"); */
+	/* dump_state(); */
 }
 
 // Debug
