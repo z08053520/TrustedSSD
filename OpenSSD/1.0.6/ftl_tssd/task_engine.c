@@ -5,7 +5,7 @@
  *  Macros, Types and Variables  
  * =========================================================================*/
 
-#define MAX_NUM_TASKS		4	
+#define MAX_NUM_TASKS		2	
 
 /* Allocate memory for tasks using slab */
 define_slab_interface(task, task_t);
