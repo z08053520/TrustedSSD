@@ -19,8 +19,8 @@ RM	= rm
 #TEST = page_cache
 #TEST = perf
 #TEST = sot
-#TEST = write_buffer
-TEST = task_engine
+TEST = write_buffer
+#TEST = task_engine
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size
