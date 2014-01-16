@@ -23,6 +23,7 @@
 			write_dram_32(addr + offset, val);\
 		}
 
+
 /* ===========================================================================
  * Timer Utility 
  * =========================================================================*/
@@ -36,6 +37,15 @@ void perf_monitor_reset();
 void perf_monitor_set_output_threshold(UINT32 const num_bytes);
 void perf_monitor_report();
 void perf_monitor_update(UINT32 const num_sectors);
+
+/* ===========================================================================
+ * Buffer Utility 
+ * =========================================================================*/
+void clear_vals(UINT32 *sector_vals, UINT32 const val);
+void set_vals(UINT32 *sector_vals, UINT32 const base_val, 
+	      UINT8  const offset, UINT8 const num_sectors);
+void fill_buffer(UINT32 const buf, UINT8  const offset, 
+		 UINT8  const num_sectors, UINT32 *sectors_val);
 
 /* ===========================================================================
  * Misc 

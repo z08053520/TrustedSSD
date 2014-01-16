@@ -4,6 +4,7 @@
 #include "jasmine.h"
 
 #define lpn2lspn(lpn)		(lpn * SUB_PAGES_PER_PAGE)
+#define vpn2vspn(vpn)		(vpn * SUB_PAGES_PER_PAGE)
 
 #define begin_subpage(mask)	(begin_sector(mask) / SECTORS_PER_SUB_PAGE)
 #define end_subpage(mask)	COUNT_BUCKETS(end_sector(mask), SECTORS_PER_SUB_PAGE)

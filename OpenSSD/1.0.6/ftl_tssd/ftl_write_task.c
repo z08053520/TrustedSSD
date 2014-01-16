@@ -333,3 +333,29 @@ void ftl_write_task_init(task_t *task, UINT32 const lpn,
 	write_task->offset	= offset;
 	write_task->num_sectors	= num_sectors;
 }
+
+#if OPTION_FTL_TEST
+extern void write_buffer_set_mode(BOOL8 const use_single_buffer);
+
+void ftl_write_task_force_flush()
+{
+	write_buffer_set_mode(TRUE);
+
+	while (!task_can_allocate(1)) task_engine_run();
+	
+	/* Submit a empty write task to force write buffer to flush */
+	task_t	*task	= task_allocate();
+	UINT32	lpn	= 0;
+	UINT8	offset	= 0;
+	UINT8	num_sectors = 0;
+	ftl_write_task_init(task, lpn, offset, num_sectors);
+	task_engine_submit(task);
+
+	BOOL8 idle;
+	do {
+		idle = task_engine_run();
+	} while (!idle):
+
+	write_buffer_set_mode(FALSE);
+}
+#endif

@@ -291,9 +291,24 @@ void write_buffer_put(UINT32 const lpn,
 	/* dump_state(); */
 }
 
+
+#if OPTION_FTL_TEST
+static BOOL8	single_buffer_mode = FALSE;
+void write_buffer_set_mode(BOOL8 const use_single_buffer)
+{
+	single_buffer_mode = use_single_buffer;
+}
+#endif
+
 BOOL8 write_buffer_is_full()
 {
+#if OPTION_FTL_TEST
+	return 	num_lpns == MAX_NUM_LPNS || 
+		(single_buffer_mode  && num_clean_buffers < NUM_WRITE_BUFFERS) || 
+		(!single_buffer_mode && num_clean_buffers == 0);
+#else
 	return num_lpns == MAX_NUM_LPNS || num_clean_buffers == 0;
+#endif
 }
 
 void write_buffer_drop(UINT32 const lpn)

@@ -107,6 +107,34 @@ void perf_monitor_update(UINT32 const num_sectors)
 }
 
 /* ===========================================================================
+ *  Buffer Utility 
+ * =========================================================================*/
+
+void clear_vals(UINT32 *sector_vals, UINT32 const val) 
+{
+	mem_set_sram(sector_vals, val, sizeof(UINT32) * SECTORS_PER_PAGE);
+}
+
+void set_vals(UINT32 *sector_vals, UINT32 const base_val, 
+	      UINT8  const offset, UINT8 const num_sectors)
+{
+	UINT8 sect_i, sect_end = offset + num_sectors;
+	for (sect_i = offset; sect_i < sect_end; sect_i++)
+		sector_vals[sect_i] = base_val + sect_i;
+}
+
+void fill_buffer(UINT32 const buf, 
+		 UINT8  const offset, 
+		 UINT8  const num_sectors, 
+		 UINT32 *sectors_val)
+{
+	UINT8	sect_i, sect_end = offset + num_sectors;
+	for (sect_i = offset; sect_i < sect_end; sect_i++) 
+		mem_set_dram(buf + sect_i * BYTES_PER_SECTOR,
+			     sectors_val[sect_i], BYTES_PER_SECTOR);
+}
+
+/* ===========================================================================
  * Misc 
  * =========================================================================*/
 
