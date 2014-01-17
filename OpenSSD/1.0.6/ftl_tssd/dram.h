@@ -62,13 +62,23 @@
 #define GTD_END			(GTD_ADDR + GTD_BYTES)
 
 /* ========================================================================= *
+ *  Task Engine 
+ * ========================================================================= */
+#define TASK_SWAP_ADDR		GTD_END
+#define TASK_SWAP_BYTES		BYTES_PER_PAGE
+#define TASK_SWAP_END		(TASK_SWAP_ADDR + TASK_SWAP_BYTES)
+#define MAX_NUM_TASKS		2
+#define SWAP_BYTES_PER_TASK	(TASK_SWAP_BYTES / MAX_NUM_TASKS)
+#define TASK_SWAP_BUF(task_id)	(TASK_SWAP_ADDR + task_id * SWAP_BYTES_PER_TASK)
+
+/* ========================================================================= *
  * Read and Write Buffers
  * ========================================================================= */
 
 #define NUM_READ_BUFFERS	1
 #define NUM_WRITE_BUFFERS	8
 
-#define READ_BUF_ADDR		GTD_END	
+#define READ_BUF_ADDR		TASK_SWAP_END	
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)
 #define READ_BUF_END		(READ_BUF_ADDR + READ_BUF_BYTES)
 
@@ -122,7 +132,8 @@
 				 NUM_HIL_BUFFERS + NUM_TEMP_BUFFERS + \
 				 NUM_READ_BUFFERS + NUM_WRITE_BUFFERS)
 #define NON_SATA_BUF_BYTES	(NUM_NON_SATA_BUFFERS * BYTES_PER_PAGE)
-#define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + PC_BYTES + BC_BYTES + BAD_BLK_BMP_BYTES + GTD_BYTES)
+#define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + PC_BYTES + BC_BYTES +\
+				 BAD_BLK_BMP_BYTES + GTD_BYTES + TASK_SWAP_BYTES)
 
 #define NUM_SATA_RW_BUFFERS	((DRAM_SIZE - DRAM_BYTES_OTHER) / BYTES_PER_PAGE - 1)
 #define NUM_SATA_RD_BUFFERS	(COUNT_BUCKETS(NUM_SATA_RW_BUFFERS / 8, NUM_BANKS) * NUM_BANKS)
