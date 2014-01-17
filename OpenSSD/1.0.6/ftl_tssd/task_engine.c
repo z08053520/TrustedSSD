@@ -1,11 +1,10 @@
 #include "task_engine.h"
+#include "dram.h"
 #include "slab.h"
 
 /* ===========================================================================
  *  Macros, Types and Variables  
  * =========================================================================*/
-
-#define MAX_NUM_TASKS		2	
 
 /* Allocate memory for tasks using slab */
 define_slab_interface(task, task_t);
@@ -59,12 +58,33 @@ task_t* task_allocate()
 	task_t* task =  slab_allocate_task();
 	task->_next_id = NULL_TASK_ID;
 	task->waiting_banks = ALL_BANKS;
+	task->swapped_out = FALSE;
 	return task;
 }
 
 void	task_deallocate(task_t *task)
 {
 	return slab_deallocate_task(task);
+}
+
+void	task_swap_out(task_t *task, void *data, UINT32 const bytes)
+{
+	if (task->swapped_out) return;
+
+	task_id_t task_id  = task2id(task);	
+	UINT32	  swap_buf = TASK_SWAP_BUF(task_id);
+	mem_copy(swap_buf, data, bytes);
+	task->swapped_out = TRUE;
+}
+
+void	task_swap_in (task_t *task, void *data, UINT32 const bytes)
+{
+	if (!task->swapped_out) return;
+
+	task_id_t task_id  = task2id(task);	
+	UINT32	  swap_buf = TASK_SWAP_BUF(task_id);
+	mem_copy(data, swap_buf, bytes);
+	task->swapped_out = FALSE;
 }
 
 void 	task_engine_init()

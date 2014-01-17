@@ -22,11 +22,16 @@ typedef enum {
 
 typedef struct {
 	TASK_PUBLIC_FIELDS
+	/* TODO: is it really necessary to use a 32-bit word to store seq_id? */
+	/* TODO: What if seq_id overflow? */
 	UINT32		seq_id;
 	UINT32		lpn;
 	UINT8		offset;
 	UINT8		num_sectors;
-	/* write buffer */
+	UINT16		_reserved;
+} ftl_write_task_t;
+
+typedef struct {
 	UINT8		wb_cmd_issued;
 	UINT8		wb_cmd_done;
 	vp_t		wb_vp;
@@ -34,7 +39,10 @@ typedef struct {
 	sectors_mask_t 	wb_valid_sectors;
 	UINT32		wb_lspn[SUB_PAGES_PER_PAGE];
 	vp_t		wb_old_vp[SUB_PAGES_PER_PAGE];
-} ftl_write_task_t;
+} wr_buf_t;
+
+wr_buf_t	_wr_buf;
+wr_buf_t	*wr_buf;
 
 #define task_buf_id(task)	((task->seq_id) % NUM_SATA_WR_BUFFERS)
 
@@ -79,9 +87,6 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
-	/* Assign an unique id to each task */
-	task->seq_id		= g_num_ftl_write_tasks_submitted++;
-
 	UINT32 write_buf_id	= task_buf_id(task);
 	// FIXME: this waiting may not be necessary
 	// Wait for SATA transfer completion
@@ -89,19 +94,19 @@ static task_res_t preparation_state_handler(task_t* _task,
 	if (write_buf_id == GETREG(SATA_WBUF_PTR)) return TASK_BLOCKED;
 #endif
 
-	task->wb_buf		= NULL;
+	wr_buf->buf		= NULL;
 	/* Insert and merge into write buffer */
 	if (task->num_sectors < SECTORS_PER_PAGE) {
 		if (write_buffer_is_full()) {
 			if (*idle_banks == 0) return TASK_BLOCKED;
 
 			UINT8 idle_bank  = auto_idle_bank(idle_banks);
-			task->wb_vp.bank = idle_bank;
-			task->wb_vp.vpn  = gc_allocate_new_vpn(idle_bank);
-			task->wb_buf	 = FTL_WR_BUF(idle_bank);	
+			wr_buf->vp.bank = idle_bank;
+			wr_buf->vp.vpn  = gc_allocate_new_vpn(idle_bank);
+			wr_buf->buf	 = FTL_WR_BUF(idle_bank);	
 
-			write_buffer_flush(task->wb_buf, task->wb_lspn, 
-					   &task->wb_valid_sectors);
+			write_buffer_flush(wr_buf->buf, wr_buf->lspn, 
+					   &wr_buf->valid_sectors);
 		}
 
 		write_buffer_put(task->lpn, task->offset, task->num_sectors, 
@@ -112,20 +117,20 @@ static task_res_t preparation_state_handler(task_t* _task,
 		if (*idle_banks == 0) return TASK_BLOCKED;
 
 		UINT8 idle_bank  = auto_idle_bank(idle_banks);
-		task->wb_vp.bank = idle_bank;
-		task->wb_vp.vpn  = gc_allocate_new_vpn(idle_bank);
-		task->wb_buf	 = SATA_WR_BUF_PTR(write_buf_id);
-		task->wb_valid_sectors = FULL_MASK;
+		wr_buf->vp.bank = idle_bank;
+		wr_buf->vp.vpn  = gc_allocate_new_vpn(idle_bank);
+		wr_buf->buf	 = SATA_WR_BUF_PTR(write_buf_id);
+		wr_buf->valid_sectors = FULL_MASK;
 
 		UINT32 lspn_base = lpn2lspn(task->lpn);
 		UINT8 sp_i;
 		for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++)
-			task->wb_lspn[sp_i] = lspn_base + sp_i;
+			wr_buf->lspn[sp_i] = lspn_base + sp_i;
 
 		write_buffer_drop(task->lpn);
 	}
 
-	if (task->wb_buf == NULL) {
+	if (wr_buf->buf == NULL) {
 		task->state = STATE_FINISH;
 		return TASK_CONTINUED;
 	}
@@ -141,15 +146,15 @@ static task_res_t mapping_state_handler	(task_t* _task,
 
 	UINT8 sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
-		UINT32 lspn = task->wb_lspn[sp_i];
-		pmt_fetch(lspn, & task->wb_old_vp[sp_i]);		
-		pmt_update(lspn, task->wb_vp);
+		UINT32 lspn = wr_buf->lspn[sp_i];
+		pmt_fetch(lspn, & wr_buf->old_vp[sp_i]);		
+		pmt_update(lspn, wr_buf->vp);
 	}
 	
 	task->waiting_banks 	= 0;
 	task->state 		= STATE_FLASH_READ;
-	task->wb_cmd_issued 	= 0;
-	task->wb_cmd_done 	= 0;
+	wr_buf->cmd_issued 	= 0;
+	wr_buf->cmd_done 	= 0;
 	return TASK_CONTINUED;
 }
 
@@ -157,40 +162,42 @@ static task_res_t flash_read_state_handler(task_t* _task,
 					   banks_mask_t* idle_banks)
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
+		
+	task_swap_in(task, wr_buf, sizeof(*wr_buf));
 
-	BUG_ON("no valid sectors in write buffer", task->wb_valid_sectors == 0);
-	UINT8	begin_sp = begin_subpage(task->wb_valid_sectors),
-		end_sp	 = end_subpage(task->wb_valid_sectors);
+	BUG_ON("no valid sectors in write buffer", wr_buf->valid_sectors == 0);
+	UINT8	begin_sp = begin_subpage(wr_buf->valid_sectors),
+		end_sp	 = end_subpage(wr_buf->valid_sectors);
 	UINT8 	sp_i;
 	for (sp_i = begin_sp; sp_i < end_sp; sp_i++) {
 		/* TODO: rename macro */
-		if (mask_is_set(task->wb_cmd_done, sp_i)) continue;	
+		if (mask_is_set(wr_buf->cmd_done, sp_i)) continue;	
 		
-		UINT8	sp_mask = (task->wb_valid_sectors >> 
+		UINT8	sp_mask = (wr_buf->valid_sectors >> 
 					(SECTORS_PER_SUB_PAGE * sp_i));
 
 		/* all sectors are valid; skip this sub-page */
 		if (sp_mask == 0xFF) {
-			mask_set(task->wb_cmd_done, sp_i);
+			mask_set(wr_buf->cmd_done, sp_i);
 			continue;
 		}
 
 		/* fill "hole" with 0xFF..FF */
 		if (sp_mask == 0x00) {
-			mem_set_dram(task->wb_buf + sp_i * BYTES_PER_SUB_PAGE, 
+			mem_set_dram(wr_buf->buf + sp_i * BYTES_PER_SUB_PAGE, 
 				     0xFFFFFFFF, BYTES_PER_SUB_PAGE);	
-			mask_set(task->wb_cmd_done, sp_i);
+			mask_set(wr_buf->cmd_done, sp_i);
 			continue;
 		}
 
-		UINT8 bank = task->wb_old_vp[sp_i].bank;
+		UINT8 bank = wr_buf->old_vp[sp_i].bank;
 		/* issue flash cmd to fill the paritial sub-page */
-		if (!mask_is_set(task->wb_cmd_issued, sp_i)) {
-			vp_t vp    = task->wb_old_vp[sp_i];
+		if (!mask_is_set(wr_buf->cmd_issued, sp_i)) {
+			vp_t vp    = wr_buf->old_vp[sp_i];
 
 			/* if this sub-page is never written before */
 			if (vp.vpn == 0) {
-				UINT32 sp_target_buf = task->wb_buf + BYTES_PER_SUB_PAGE * sp_i;
+				UINT32 sp_target_buf = wr_buf->buf + BYTES_PER_SUB_PAGE * sp_i;
 				void (*segment_handler) (UINT8 const, UINT8 const) = 
 					/* fill missing sectors from begin_i to end_i */
 					lambda (void, (UINT8 const begin_i, UINT8 const end_i) {
@@ -199,7 +206,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 					});
 				FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler, sp_mask);
 
-				mask_set(task->wb_cmd_done, sp_i);
+				mask_set(wr_buf->cmd_done, sp_i);
 				continue;
 			}
 		
@@ -214,11 +221,11 @@ static task_res_t flash_read_state_handler(task_t* _task,
 				.vspn = vp.vpn * SUB_PAGES_PER_PAGE + sp_i
 			};
 			fu_read_sub_page(vsp, FTL_RD_BUF(bank), FU_ASYNC);
-			mask_set(task->wb_cmd_issued, sp_i);
+			mask_set(wr_buf->cmd_issued, sp_i);
 		}
 		/* if flash cmd is done */
 		else if (banks_has(*idle_banks, bank)) {
-			UINT32 	sp_target_buf = task->wb_buf + sp_i * BYTES_PER_SUB_PAGE,
+			UINT32 	sp_target_buf = wr_buf->buf + sp_i * BYTES_PER_SUB_PAGE,
 				sp_src_buf    = FTL_RD_BUF(bank)+ sp_i * BYTES_PER_SUB_PAGE; 
 			void (*segment_handler) (UINT8 const, UINT8 const) = 
 				lambda (void, (UINT8 const begin_i, const UINT8 end_i) {
@@ -229,33 +236,40 @@ static task_res_t flash_read_state_handler(task_t* _task,
 			FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler, sp_mask);
 
 			banks_del(task->waiting_banks, bank);
-			mask_set(task->wb_cmd_done, sp_i);
+			mask_set(wr_buf->cmd_done, sp_i);
 		}
 	}
 
 	/* if some sub-pages are not filled, pause this task */
-	if (task->waiting_banks) return TASK_PAUSED;
+	if (task->waiting_banks) return_TASK_PAUSED_and_swap;
 
 	task->state = STATE_FLASH_WRITE;
-	task->wb_cmd_issued = FALSE;
-	task->waiting_banks = 1 << task->wb_vp.bank;
+	wr_buf->cmd_issued = FALSE;
+	task->waiting_banks = 1 << wr_buf->vp.bank;
 	return TASK_CONTINUED;
 }
+
+#define return_TASK_PAUSED_and_swap	do {			\
+	task_swap_out(task, wr_buf, sizeof(*wr_buf));		\
+	return TASK_PAUSED;					\
+} while(0);
 
 static task_res_t flash_write_state_handler(task_t* _task, 
 					    banks_mask_t* idle_banks)
 {
 	ftl_write_task_t *task 	= (ftl_write_task_t*) _task;	
 
-	UINT8	bank		= task->wb_vp.bank;
-	if (!task->wb_cmd_issued) {
-		if (!banks_has(*idle_banks, bank)) return TASK_PAUSED;
+	task_swap_in(task, wr_buf, sizeof(*wr_buf));
+
+	UINT8	bank		= wr_buf->vp.bank;
+	if (!wr_buf->cmd_issued) {
+		if (!banks_has(*idle_banks, bank)) return_TASK_PAUSED_and_swap;
 
 		/* offset and num_sectors must align with sub-page */	
-		UINT32	vpn 		= task->wb_vp.vpn,
-			begin_i		= begin_subpage(task->wb_valid_sectors) 
+		UINT32	vpn 		= wr_buf->vp.vpn,
+			begin_i		= begin_subpage(wr_buf->valid_sectors) 
 					* SECTORS_PER_SUB_PAGE,
-			end_i		= end_subpage(task->wb_valid_sectors)
+			end_i		= end_subpage(wr_buf->valid_sectors)
 					* SECTORS_PER_SUB_PAGE,
 			offset 	   	= begin_i,
 			num_sectors 	= end_i - begin_i;
@@ -263,17 +277,17 @@ static task_res_t flash_write_state_handler(task_t* _task,
 				    vpn / PAGES_PER_VBLK, 
 				    vpn % PAGES_PER_VBLK,
 				    offset, num_sectors,
-				    task->wb_buf);
+				    wr_buf->buf);
 
 		banks_del(*idle_banks, bank);
-		task->wb_cmd_issued = TRUE;
-		return TASK_PAUSED;
+		wr_buf->cmd_issued = TRUE;
+		return_TASK_PAUSED_and_swap;
 	}
 	else if (banks_has(*idle_banks, bank)) {
 		task->state = STATE_FINISH;
 		return TASK_CONTINUED;
 	}
-	return TASK_PAUSED;
+	return_TASK_PAUSED_and_swap;
 }
 
 static task_res_t finish_state_handler	(task_t* _task, 
@@ -316,6 +330,8 @@ void ftl_write_task_register()
 	g_num_ftl_write_tasks_finished  = 0;
 	g_next_finishing_task_seq_id 	= 0;
 
+	wb_buf = &_wb_buf;
+
 	BOOL8 res = task_engine_register_task_type(
 			&ftl_write_task_type, handlers);
 	BUG_ON("failed to register FTL write task", res);
@@ -332,6 +348,9 @@ void ftl_write_task_init(task_t *task, UINT32 const lpn,
 	write_task->lpn 	= lpn;
 	write_task->offset	= offset;
 	write_task->num_sectors	= num_sectors;
+	
+	/* Assign an unique id to each task */
+	write_task->seq_id	= g_num_ftl_write_tasks_submitted++;
 }
 
 #if OPTION_FTL_TEST
