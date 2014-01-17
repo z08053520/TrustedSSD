@@ -32,13 +32,13 @@ typedef struct {
 } ftl_write_task_t;
 
 typedef struct {
-	UINT8		wb_cmd_issued;
-	UINT8		wb_cmd_done;
-	vp_t		wb_vp;
-	UINT32		wb_buf;
-	sectors_mask_t 	wb_valid_sectors;
-	UINT32		wb_lspn[SUB_PAGES_PER_PAGE];
-	vp_t		wb_old_vp[SUB_PAGES_PER_PAGE];
+	UINT8		cmd_issued;
+	UINT8		cmd_done;
+	vp_t		vp;
+	UINT32		buf;
+	sectors_mask_t 	valid_sectors;
+	UINT32		lspn[SUB_PAGES_PER_PAGE];
+	vp_t		old_vp[SUB_PAGES_PER_PAGE];
 } wr_buf_t;
 
 wr_buf_t	_wr_buf;
@@ -65,6 +65,11 @@ static task_handler_t handlers[NUM_STATES] = {
 UINT32	g_num_ftl_write_tasks_submitted;
 UINT32	g_num_ftl_write_tasks_finished;
 UINT32	g_next_finishing_task_seq_id;
+
+#define return_TASK_PAUSED_and_swap	do {			\
+	task_swap_out(task, wr_buf, sizeof(*wr_buf));		\
+	return TASK_PAUSED;					\
+} while(0);
 
 /* ===========================================================================
  *  Task Handlers
@@ -146,11 +151,11 @@ static task_res_t mapping_state_handler	(task_t* _task,
 
 	UINT8 sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
-		UINT32 lspn = task->wb_lspn[sp_i];
+		UINT32 lspn = wr_buf->lspn[sp_i];
 		if (lspn == NULL_LSPN) continue;
 		
-		pmt_fetch(lspn, & task->wb_old_vp[sp_i]);		
-		pmt_update(lspn, task->wb_vp);
+		pmt_fetch(lspn, & wr_buf->old_vp[sp_i]);		
+		pmt_update(lspn, wr_buf->vp);
 	}
 	
 	task->waiting_banks 	= 0;
@@ -251,11 +256,6 @@ static task_res_t flash_read_state_handler(task_t* _task,
 	return TASK_CONTINUED;
 }
 
-#define return_TASK_PAUSED_and_swap	do {			\
-	task_swap_out(task, wr_buf, sizeof(*wr_buf));		\
-	return TASK_PAUSED;					\
-} while(0);
-
 static task_res_t flash_write_state_handler(task_t* _task, 
 					    banks_mask_t* idle_banks)
 {
@@ -332,7 +332,7 @@ void ftl_write_task_register()
 	g_num_ftl_write_tasks_finished  = 0;
 	g_next_finishing_task_seq_id 	= 0;
 
-	wb_buf = &_wb_buf;
+	wr_buf = &_wr_buf;
 
 	BOOL8 res = task_engine_register_task_type(
 			&ftl_write_task_type, handlers);

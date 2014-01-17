@@ -100,7 +100,7 @@ task_res_t preparation_state_handler(task_t* _task,
 		}
 	}
 next_state_mapping:
-	segments->target_sectors = target_sectors;
+	segments->task_target_sectors = target_sectors;
 	segments->has_holes = 0;
 	task->state = STATE_MAPPING;
 	return TASK_CONTINUED;
@@ -114,13 +114,13 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	UINT8	num_segments = 0;
 	/* Iterate each sub-page */ 
 	UINT32	lspn_base = lpn2lspn(task->lpn);
-	UINT8	begin_sp  = begin_subpage(segments->target_sectors),
-		end_sp	  = end_subpage(segments->target_sectors);
+	UINT8	begin_sp  = begin_subpage(segments->task_target_sectors),
+		end_sp	  = end_subpage(segments->task_target_sectors);
 	UINT8 	sp_i;
 	BOOL8	force_new_segment = TRUE;
 	for (sp_i = begin_sp; sp_i < end_sp; sp_i++) {
 		UINT8 	sector_i = sp_i * SECTORS_PER_SUB_PAGE,
-			sp_mask  = (segments->target_sectors >> sector_i);
+			sp_mask  = (segments->task_target_sectors >> sector_i);
 		if (sp_mask == 0) {
 			force_new_segment = TRUE;
 			continue;
@@ -171,27 +171,27 @@ static task_res_t flash_state_handler	(task_t* _task,
 	UINT32 	sata_buf = SATA_RD_BUF_PTR(task_buf_id(task));
 	UINT8 	seg_i, num_segments = segments->num_segments;
 	for (seg_i = 0; seg_i < num_segments; seg_i++) {
-		if (is_cmd_done(seg_i, task)) continue;
+		if (is_cmd_done(seg_i, segments)) continue;
 
 		vp_t		vp  	  = segments->vp[seg_i];
 		banks_mask_t 	this_bank = (1 << vp.bank);
 
 		/* if the flash read cmd for the segment has been sent */
-		if (is_cmd_issued(seg_i, task)) {
+		if (is_cmd_issued(seg_i, segments)) {
 			if ((*idle_banks & this_bank) == 0) continue;	
 
-			if (has_holes(seg_i, task)) {
+			if (has_holes(seg_i, segments)) {
 				sectors_mask_t segment_target_sectors = 
 					init_mask(segments->offset[seg_i],
 						  segments->num_sectors[seg_i]);
-				segment_target_sectors &= segments->target_sectors;
+				segment_target_sectors &= segments->task_target_sectors;
 
 				fu_copy_buffer(sata_buf, FTL_RD_BUF(vp.bank), 
 					    segment_target_sectors); 
 			}
 
 			task->waiting_banks &= ~this_bank;
-			set_cmd_done(seg_i, task);
+			set_cmd_done(seg_i, segments);
 			continue;
 		}
 
@@ -202,11 +202,11 @@ static task_res_t flash_state_handler	(task_t* _task,
 			sectors_mask_t segment_target_sectors = 
 				init_mask(segments->offset[seg_i],
 					  segments->num_sectors[seg_i]);
-			segment_target_sectors &= segments->target_sectors;
+			segment_target_sectors &= segments->task_target_sectors;
 
 			fu_copy_buffer(sata_buf, read_buf, segment_target_sectors); 
 				
-			set_cmd_done(seg_i, task);
+			set_cmd_done(seg_i, segments);
 			continue;
 		}
 
@@ -216,7 +216,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 		/* if the bank is not avilable for now, skip the segment */
 		if ((this_bank & *idle_banks) == 0) continue;
 
-		read_buf = has_holes(seg_i, task) ? FTL_RD_BUF(vp.bank) : sata_buf;
+		read_buf = has_holes(seg_i, segments) ? FTL_RD_BUF(vp.bank) : sata_buf;
 		nand_page_ptread(vp.bank,
 				 vp.vpn / PAGES_PER_VBLK,
 				 vp.vpn % PAGES_PER_VBLK,
@@ -225,7 +225,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 				 read_buf,
 				 RETURN_ON_ISSUE);
 
-		set_cmd_issued(seg_i, task);
+		set_cmd_issued(seg_i, segments);
 		*idle_banks &= ~this_bank;
 	}
 

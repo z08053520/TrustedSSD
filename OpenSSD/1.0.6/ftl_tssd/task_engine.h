@@ -18,7 +18,7 @@ typedef enum {
 	TASK_FINISHED
 } task_res_t;
 
-#define NULL_TASK_ID	0xFF
+#define NULL_TASK_ID	0x7F
 typedef UINT8		task_id_t;
 
 #define ALL_BANKS	0xFFFF
@@ -27,7 +27,7 @@ typedef UINT16		banks_mask_t;
 #define TASK_PUBLIC_FIELDS					\
 	UINT8		type:MAX_NUM_TASK_TYPES_LOG2;		\
 	UINT8		state:MAX_NUM_TASK_STATES_LOG2;		\
-	BOOL8		swapped_out:1				\
+	BOOL8		swapped_out:1;				\
 	task_id_t	_next_id:7;				\
 	banks_mask_t	waiting_banks;
 
@@ -43,8 +43,10 @@ BOOL8	task_can_allocate(UINT8 const num_tasks);
 task_t* task_allocate();
 void	task_deallocate(task_t *task);
 
-void	task_swap_out(task_t *task, void *data, UINT32 const bytes);
-void	task_swap_in (task_t *task, void *data, UINT32 const bytes);
+#define task_swap_out(task, data, bytes)	_task_swap_out((task_t*)task, data, bytes);
+#define task_swap_in(task, data, bytes)		_task_swap_in ((task_t*)task, data, bytes);
+void	_task_swap_out(task_t *task, void *data, UINT32 const bytes);
+void	_task_swap_in (task_t *task, void *data, UINT32 const bytes);
 
 void 	task_engine_init();
 BOOL8 	task_engine_register_task_type(UINT8 *type, 

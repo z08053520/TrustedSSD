@@ -67,7 +67,7 @@ void	task_deallocate(task_t *task)
 	return slab_deallocate_task(task);
 }
 
-void	task_swap_out(task_t *task, void *data, UINT32 const bytes)
+void	_task_swap_out(task_t *task, void *data, UINT32 const bytes)
 {
 	if (task->swapped_out) return;
 
@@ -77,7 +77,7 @@ void	task_swap_out(task_t *task, void *data, UINT32 const bytes)
 	task->swapped_out = TRUE;
 }
 
-void	task_swap_in (task_t *task, void *data, UINT32 const bytes)
+void	_task_swap_in (task_t *task, void *data, UINT32 const bytes)
 {
 	if (!task->swapped_out) return;
 
