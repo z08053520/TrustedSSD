@@ -79,9 +79,6 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
-	/* Assign an unique id to each task */
-	task->seq_id		= g_num_ftl_write_tasks_submitted++;
-
 	UINT32 write_buf_id	= task_buf_id(task);
 	// FIXME: this waiting may not be necessary
 	// Wait for SATA transfer completion
@@ -142,6 +139,8 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	UINT8 sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
 		UINT32 lspn = task->wb_lspn[sp_i];
+		if (lspn == NULL_LSPN) continue;
+		
 		pmt_fetch(lspn, & task->wb_old_vp[sp_i]);		
 		pmt_update(lspn, task->wb_vp);
 	}
@@ -332,6 +331,9 @@ void ftl_write_task_init(task_t *task, UINT32 const lpn,
 	write_task->lpn 	= lpn;
 	write_task->offset	= offset;
 	write_task->num_sectors	= num_sectors;
+	
+	/* Assign an unique id to each task */
+	write_task->seq_id	= g_num_ftl_write_tasks_submitted++;
 }
 
 #if OPTION_FTL_TEST
@@ -354,7 +356,7 @@ void ftl_write_task_force_flush()
 	BOOL8 idle;
 	do {
 		idle = task_engine_run();
-	} while (!idle):
+	} while (!idle);
 
 	write_buffer_set_mode(FALSE);
 }

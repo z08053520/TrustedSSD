@@ -331,7 +331,7 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 	/* find a vicitim buffer */
 	buf_id_t buf_id = find_fullest_buffer();
 	BUG_ON("flush any empty buffer", buf_sizes[buf_id] == 0);
-	*valid_sectors 	= buf_masks[buf_id];
+	*valid_sectors 	= 0;
 
 	/* uart_print("before flush"); */
 	/* dump_state(); */
@@ -348,6 +348,8 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 
 		UINT32 		lpn 	= lpns[lpn_i];
 		sectors_mask_t 	lp_mask = lp_masks[lpn_i];
+
+		*valid_sectors |= lp_mask;
 
 		UINT8  begin_sp	   = begin_subpage(lp_mask),
 		       end_sp	   = end_subpage(lp_mask);

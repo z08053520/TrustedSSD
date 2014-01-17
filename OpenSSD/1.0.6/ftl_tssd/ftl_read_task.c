@@ -64,9 +64,6 @@ task_res_t preparation_state_handler(task_t* _task,
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 
-	/* Assign an unique id to each task */
-	task->seq_id	= g_num_ftl_read_tasks_submitted++;
-
 	UINT32 read_buf_id	= task_buf_id(task);
 #if OPTION_FTL_TEST == 0
 	UINT32 next_read_buf_id = (read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
@@ -284,4 +281,7 @@ void ftl_read_task_init(task_t *task, UINT32 const lpn,
 	read_task->lpn 		= lpn;
 	read_task->offset	= offset;
 	read_task->num_sectors	= num_sectors;
+	
+	/* Assign an unique id to each task */
+	read_task->seq_id	= g_num_ftl_read_tasks_submitted++;
 }
