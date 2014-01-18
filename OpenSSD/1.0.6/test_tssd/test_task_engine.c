@@ -276,7 +276,7 @@ void ftl_test()
 	} while(!is_idle);
 	uart_print("Done");
 
-	uart_print("Task engine passed the unit test");
+	uart_print("Task engine passed the unit test ^_^");
 }
 
 #endif

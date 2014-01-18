@@ -94,8 +94,8 @@ void 	task_engine_init()
 	num_task_types = 0;
 	mem_set_sram(task_handlers, NULL, sizeof(task_handler_t*) * MAX_NUM_TASK_TYPES);
 
-	head->_next_id = NULL_TASK_ID;
 	tail = head = &_head;
+	head->_next_id = NULL_TASK_ID;
 }
 
 BOOL8 	task_engine_register_task_type(UINT8 *type, 
@@ -111,6 +111,8 @@ BOOL8 	task_engine_register_task_type(UINT8 *type,
 void 	task_engine_submit(task_t *task)
 {
 	BUG_ON("task is null!", task == NULL);
+
+	/* DEBUG("task_engine", "submit task"); */
 
 	set_next_task(tail, task);
 	tail = task;
@@ -136,9 +138,8 @@ BOOL8 	task_engine_run()
 		/* Remove task that is done */
 		if (res == TASK_FINISHED) {
 			set_next_task(pre, get_next_task(task));
-			task_deallocate(task);
-
 			if (task == tail) tail = pre;
+			task_deallocate(task);
 		}
 		/* TASK_PAUSED */
 		else {
@@ -147,6 +148,6 @@ next_task:
 		}
 		task = get_next_task(pre);
 	}
-
+	
 	return is_engine_idle();
 }

@@ -12,7 +12,7 @@ RM	= rm
 # withour any SATA communication; otherwise, a normal firmware that can handle 
 # SATA request will be generated.
 #TEST = flash_util
-#TEST = ftl
+TEST = ftl
 #TEST = gc
 #TEST = gtd
 #TEST = pmt
@@ -21,7 +21,7 @@ RM	= rm
 #TEST = sot
 #TEST = write_buffer
 #TEST = task_engine
-TEST = ftl_read_task
+#TEST = ftl_read_task
 #TEST = ftl_write_task
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd

@@ -288,16 +288,25 @@ void ftl_open(void) {
 }
 
 
+static CMD_T sata_cmd = {.lba = 0, .sector_count = 0, .cmd_type = 0};
+
+BOOL8 ftl_all_sata_cmd_accepted()
+{
+	return sata_cmd.sector_count == 0 && !sata_has_next_rw_cmd();
+}
+
 BOOL8 ftl_main(void)
 {
-	static CMD_T sata_cmd = {.lba = 0, .sector_count = 0, .cmd_type = 0};
-
 	/* Accept new SATA read/write requests if we can */
 	while (task_can_allocate(1)) {
 		/* Make sure we have a SATA request to process */
 		if (sata_cmd.sector_count == 0) {
 			if (!sata_has_next_rw_cmd()) break;
 			sata_get_next_rw_cmd(&sata_cmd);
+
+			/* uart_printf("> new %s cmd: lba = %u, sector_count = %u\r\n", */
+			/* 	    sata_cmd.cmd_type == READ ? "READ" : "WRITE", */
+			/* 	    sata_cmd.lba, sata_cmd.sector_count); */
 		}
 
 		/* Process one page at a time */
@@ -307,6 +316,9 @@ BOOL8 ftl_main(void)
 				offset + sata_cmd.sector_count <= SECTORS_PER_PAGE ?
 					sata_cmd.sector_count :	
 					SECTORS_PER_PAGE - offset;
+		/* uart_printf("> %s one page: lpn = %u, offset = %u, num_sectors = %u\r\n", */
+		/* 	   sata_cmd.cmd_type == READ ? "READ" : "WRITE", */ 
+		/* 	   lpn, offset, num_sectors); */
 
 		/* Submit a new task */
 		task_t *task = task_allocate();		
@@ -322,7 +334,7 @@ BOOL8 ftl_main(void)
 	}
 
 	BOOL8 is_idle = task_engine_run();
-	return is_idle;
+	return is_idle && ftl_all_sata_cmd_accepted();
 }
 
 /* #if OPTION_ACL */

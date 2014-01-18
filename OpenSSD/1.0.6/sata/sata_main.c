@@ -25,7 +25,52 @@ sata_ncq_t			g_sata_ncq;
 volatile UINT32		g_sata_action_flags;
 
 #define HW_EQ_SIZE		128
-#define HW_EQ_MARGIN	4
+#define HW_EQ_MARGIN		4
+
+#if OPTION_FTL_TEST
+
+#define	CMD_QUEUE_SIZE		12
+static CMD_T	queue[CMD_QUEUE_SIZE];	
+static UINT8	queue_size = 0;
+static UINT8	queue_head = 0;
+static UINT8	queue_tail = 0;
+
+static UINT32 eventq_get_count(void)
+{
+	return queue_size;
+}
+
+static void eventq_get(CMD_T* cmd) 
+{
+	if (queue_size == 0) {
+		cmd->sector_count = 0;
+		return;
+	}
+
+	CMD_T *head_cmd = &queue[queue_head];
+	cmd->lba 	  = head_cmd->lba;
+	cmd->sector_count = head_cmd->sector_count;
+	cmd->cmd_type 	  = head_cmd->cmd_type;
+
+	queue_head = (queue_head + 1) % CMD_QUEUE_SIZE;
+	queue_size--;
+}
+
+BOOL8 eventq_put(UINT32 const lba, UINT32 const sector_count, UINT32 const cmd_type)
+{
+	if (queue_size == CMD_QUEUE_SIZE) return TRUE;
+
+	CMD_T *tail_cmd = &queue[queue_tail];
+	tail_cmd->lba	= lba;
+	tail_cmd->sector_count = sector_count;
+	tail_cmd->cmd_type = cmd_type;
+
+	queue_tail = (queue_tail + 1) % CMD_QUEUE_SIZE;
+	queue_size++;
+	return FALSE;
+}
+
+#else
 
 static UINT32 eventq_get_count(void)
 {
@@ -67,6 +112,8 @@ static void eventq_get(CMD_T* cmd)
 	enable_fiq();
 }
 
+#endif
+
 __inline ATA_FUNCTION_T search_ata_function(UINT32 command_code)
 {
 	UINT32 index;
@@ -82,10 +129,9 @@ __inline ATA_FUNCTION_T search_ata_function(UINT32 command_code)
 	return ata_function;
 }
 
-
 BOOL8 sata_has_next_rw_cmd()
 {
-	return eventq_get_count();
+	return eventq_get_count() > 0;
 }
 
 void  sata_get_next_rw_cmd(CMD_T *cmd)

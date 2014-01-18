@@ -104,7 +104,7 @@ static buf_id_t find_fullest_buffer()
 	return max_buf_id;
 }
  
-/*
+
 static void dump_state()
 {
 	UINT8 i = 0;
@@ -139,7 +139,6 @@ static void dump_state()
 	}
 	uart_print("");
 }
-*/
 
 static UINT8 allocate_buffer_for(sectors_mask_t const mask)
 {
@@ -192,6 +191,9 @@ void write_buffer_init()
 	for (i = 0; i < NUM_WRITE_BUFFERS; i++) {
 		buf_sizes[i] = 0;
 	}
+
+	/* uart_print("after init"); */
+	/* dump_state(); */
 }
 
 void write_buffer_get(UINT32 const lpn, 
@@ -303,9 +305,12 @@ void write_buffer_set_mode(BOOL8 const use_single_buffer)
 BOOL8 write_buffer_is_full()
 {
 #if OPTION_FTL_TEST
-	return 	num_lpns == MAX_NUM_LPNS || 
-		(single_buffer_mode  && num_clean_buffers < NUM_WRITE_BUFFERS) || 
-		(!single_buffer_mode && num_clean_buffers == 0);
+	/* uart_print("is full"); */
+	/* dump_state(); */
+
+	return 	(num_lpns == MAX_NUM_LPNS) || 
+		(single_buffer_mode  && (num_clean_buffers < NUM_WRITE_BUFFERS)) || 
+		(!single_buffer_mode && (num_clean_buffers == 0));
 #else
 	return num_lpns == MAX_NUM_LPNS || num_clean_buffers == 0;
 #endif

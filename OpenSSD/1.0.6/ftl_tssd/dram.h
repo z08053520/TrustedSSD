@@ -67,7 +67,7 @@
 #define TASK_SWAP_ADDR		GTD_END
 #define TASK_SWAP_BYTES		BYTES_PER_PAGE
 #define TASK_SWAP_END		(TASK_SWAP_ADDR + TASK_SWAP_BYTES)
-#define MAX_NUM_TASKS		32
+#define MAX_NUM_TASKS		2	
 #define SWAP_BYTES_PER_TASK	(TASK_SWAP_BYTES / MAX_NUM_TASKS)
 #define TASK_SWAP_BUF(task_id)	(TASK_SWAP_ADDR + task_id * SWAP_BYTES_PER_TASK)
 
@@ -76,7 +76,7 @@
  * ========================================================================= */
 
 #define NUM_READ_BUFFERS	1
-#define NUM_WRITE_BUFFERS	8
+#define NUM_WRITE_BUFFERS	2	
 
 #define READ_BUF_ADDR		TASK_SWAP_END	
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)

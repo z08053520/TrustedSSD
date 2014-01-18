@@ -4,18 +4,29 @@
 
 #include "jasmine.h"
 #if OPTION_FTL_TEST
+#include "dram.h"
 #include "ftl.h"
 #include "misc.h"
 #include "test_util.h"
+#include "task_engine.h"
+#include "ftl_read_task.h"
+#include "ftl_write_task.h"
 #include <stdlib.h>
 
-#define RAND_SEED	1234
+#include "flash_util.h"
+#include "pmt.h"
+
+#define RAND_SEED	1234567
 #define MAX_NUM_SECTORS 512
 //#define MAX_NUM_SECTORS SECTORS_PER_PAGE
 #define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES
-/* #define MAX_NUM_REQS	1 */	
+/* #define MAX_NUM_REQS	16 */	
 
-extern UINT32 		g_ftl_read_buf_id, g_ftl_write_buf_id;
+extern UINT32	g_num_ftl_write_tasks_submitted;
+extern UINT32	g_num_ftl_read_tasks_submitted;
+
+extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors, 
+			   UINT32 const cmd_type);
 
 /* ===========================================================================
  * DRAM buffer to store lbas and req_sizes 
@@ -49,14 +60,33 @@ static void init_dram()
  * Fake SATA R/W requests 
  * =========================================================================*/
 
+static void finish_all()
+{
+	BOOL8 idle;
+	do {
+		idle = ftl_main();
+	} while(!idle);
+}
+
+extern BOOL8 ftl_all_sata_cmd_accepted();
+
+static void accept_all()
+{
+	do {
+		ftl_main();
+	} while(!ftl_all_sata_cmd_accepted());
+}
+
 static void do_flash_write(UINT32 const lba, UINT32 const req_sectors, 
 			   UINT32 const sata_val, BOOL8 use_val_buf) 
 {
+	ftl_main();
+
 	UINT32 lpn          = lba / SECTORS_PER_PAGE;
 	UINT32 sect_offset  = lba % SECTORS_PER_PAGE;
 	UINT32 num_sectors;
 	UINT32 remain_sects = req_sectors;
-	UINT32 sata_buf_id  = g_ftl_write_buf_id;
+	UINT32 sata_buf_id  = g_num_ftl_write_tasks_submitted % NUM_SATA_WR_BUFFERS;
 	UINT32 sata_buf     = SATA_WR_BUF_PTR(sata_buf_id);
 	UINT32 tmp_lba, sect_limit;
 
@@ -66,16 +96,24 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 		    num_sectors = remain_sects;
 		else
 		    num_sectors = SECTORS_PER_PAGE - sect_offset;
-
-		mem_set_dram(sata_buf + BYTES_PER_SECTOR * sect_offset,
-			     sata_val,  BYTES_PER_SECTOR * num_sectors);
+		
+		UINT32 sector_vals[SECTORS_PER_PAGE];
+		clear_vals(sector_vals, lpn);
+		set_vals(sector_vals, lpn * SECTORS_PER_PAGE, sect_offset, num_sectors);
+		fill_buffer(sata_buf, 0, SECTORS_PER_PAGE, sector_vals);
+		/* mem_set_dram(sata_buf + BYTES_PER_SECTOR * sect_offset, */
+		/* 	     sata_val,  BYTES_PER_SECTOR * num_sectors); */
 	
+		uart_printf("> lpn = %u, offset = %u, num_sectors = %u\r\n", 
+			    lpn, sect_offset, num_sectors);
+
 		if (use_val_buf) {
 			for (tmp_lba = lpn * SECTORS_PER_PAGE + sect_offset,
 			     sect_limit = sect_offset + num_sectors;
 			     sect_offset < sect_limit; 
 			     sect_offset++, tmp_lba++) 
-				set_val(tmp_lba, sata_val);
+				/* set_val(tmp_lba, sata_val); */
+				set_val(tmp_lba, sector_vals[sect_offset]);
 		}
 
 		lpn++;
@@ -86,27 +124,26 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 	}
 
 	// write to flash
-	ftl_write(lba, req_sectors);
+	while(eventq_put(lba, req_sectors, WRITE))
+		ftl_main();
+	accept_all();
 }
 
 static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors, 
 			    UINT32 sata_val,  BOOL8 const use_val_buf) 
 {
 	// read from flash 
-	ftl_read(lba, req_sectors);
-	flash_finish();
+	while(eventq_put(lba, req_sectors, READ)) ftl_main();
+	finish_all();	
 
 	UINT32 lpn          = lba / SECTORS_PER_PAGE;
 	UINT32 sect_offset  = lba % SECTORS_PER_PAGE;
 	UINT32 remain_sects = req_sectors;
 	UINT32 num_sectors;
 	UINT32 num_bufs_rd  = COUNT_BUCKETS(req_sectors + sect_offset, SECTORS_PER_PAGE);
-	UINT32 sata_buf_id  = g_ftl_read_buf_id >= num_bufs_rd ? 
-					g_ftl_read_buf_id - num_bufs_rd : 
-					NUM_SATA_RD_BUFFERS + g_ftl_read_buf_id - num_bufs_rd;	
+	UINT32 sata_buf_id  = (g_num_ftl_read_tasks_submitted - num_bufs_rd) % NUM_SATA_RD_BUFFERS;
 	UINT32 sata_buf     = SATA_RD_BUF_PTR(sata_buf_id);
-	UINT32 tmp_lba, sect_limit;
-	
+	UINT32 tmp_lba, sect_limit;	
 	
 	// verify data by iterating each page in the SATA buffer 
 	while (remain_sects) {
@@ -174,12 +211,14 @@ static void seq_rw_test()
 		total_sectors = 0;
 		perf_monitor_reset();
 		for (i = 0; i < num_requests; i++) {
+			/* uart_printf("i = %u\r\n", i); */
 			val 	= lba;
 			do_flash_write(lba, req_sectors, val, FALSE);
 
 			lba += req_sectors;
 			total_sectors += req_sectors;
 		}
+		finish_all();
 		perf_monitor_update(total_sectors);
 	}
 
@@ -207,7 +246,8 @@ static void rnd_rw_test()
 {
 	uart_print("random read/write test");
 	
-	UINT32 num_requests = MAX_NUM_REQS;
+	/* UINT32 num_requests = MAX_NUM_REQS; */
+	UINT32 num_requests = 23;
 	UINT32 lba, req_size, val;
 	UINT32 i;
 	UINT32 total_sectors;
@@ -220,12 +260,17 @@ static void rnd_rw_test()
 	perf_monitor_reset();
 	total_sectors = 0;
 	for (i = 0; i < num_requests; i++) {
-		/* uart_printf("i = %u\r\n", i); */
 		lba 	  = random(0, MAX_LBA_LIMIT_BY_VAL_BUF);
 		val 	  = lba;
-		req_size  = random(1, MAX_NUM_SECTORS); 
+		/* req_size  = random(1, MAX_NUM_SECTORS); */ 
+		req_size  = random(1, 64); 
 		if (lba + req_size > MAX_LBA_LIMIT_BY_VAL_BUF)
 			req_size = MAX_LBA_LIMIT_BY_VAL_BUF - lba + 1;
+
+		if (i<13) continue;
+		
+		uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", 
+			    i, lba, req_size, val);
 
 		do_flash_write(lba, req_size, val, TRUE);
 
@@ -234,7 +279,18 @@ static void rnd_rw_test()
 	
 		total_sectors += req_size;
 	}
+	finish_all();
 	perf_monitor_update(total_sectors);	
+
+	lba = 4800;
+	UINT32	lspn = lba / SECTORS_PER_SUB_PAGE;
+	vp_t	vp;
+	pmt_fetch(lspn, &vp);
+	vsp_t	vsp = {.bank = vp.bank, .vspn = vp.vpn * SUB_PAGES_PER_PAGE};
+	fu_read_sub_page(vsp, COPY_BUF(0), FU_SYNC);
+	uart_printf("!!lspn = %u, bank = %u, vpn = %u, vspn = %u\r\n", 
+		    lspn, vp.bank, vp.vpn, vsp.vspn);
+	uart_printf("!!content of sector lba %u = %u\r\n", lba, read_dram_32(COPY_BUF(0)));
 
 	uart_print("random read and verify");
 	perf_monitor_reset();
@@ -243,7 +299,8 @@ static void rnd_rw_test()
 		lba	 = get_lba(i);
 		req_size = get_req_size(i);
 		
-		/* uart_printf("i = %u\r\n", i); */
+		if (i<13) continue;
+		uart_printf("> i = %u\r\n", i);
 
 		do_flash_verify(lba, req_size, 0, TRUE);
 		total_sectors += req_size;		
@@ -283,6 +340,7 @@ static void long_seq_rw_test()
 					pattern_i + 1 : 0;
 		num_bytes_so_far += req_sectors * BYTES_PER_SECTOR;
 	}
+	finish_all();
 	perf_monitor_update(num_bytes_so_far / BYTES_PER_SECTOR);
 
 	uart_print("long seqential read and verify");
@@ -314,11 +372,11 @@ void ftl_test()
 
 	srand(RAND_SEED);
 
-	seq_rw_test();
+	/* seq_rw_test(); */
 	rnd_rw_test();
 	
-  	long_seq_rw_test();	
-	long_seq_rw_test();
+  	/* long_seq_rw_test(); */	
+	/* long_seq_rw_test(); */
 
 	uart_print("FTL passed unit test ^_^");
 }

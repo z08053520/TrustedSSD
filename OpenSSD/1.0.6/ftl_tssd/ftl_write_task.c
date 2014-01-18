@@ -92,6 +92,8 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
+	/* DEBUG("write_task_handler>preparation", "task_id = %u", task->seq_id); */
+
 	UINT32 write_buf_id	= task_buf_id(task);
 	// FIXME: this waiting may not be necessary
 	// Wait for SATA transfer completion
@@ -102,6 +104,9 @@ static task_res_t preparation_state_handler(task_t* _task,
 	wr_buf->buf		= NULL;
 	/* Insert and merge into write buffer */
 	if (task->num_sectors < SECTORS_PER_PAGE) {
+		write_buffer_put(task->lpn, task->offset, task->num_sectors, 
+				 SATA_WR_BUF_PTR(write_buf_id));
+
 		if (write_buffer_is_full()) {
 			if (*idle_banks == 0) return TASK_BLOCKED;
 
@@ -113,9 +118,6 @@ static task_res_t preparation_state_handler(task_t* _task,
 			write_buffer_flush(wr_buf->buf, wr_buf->lspn, 
 					   &wr_buf->valid_sectors);
 		}
-
-		write_buffer_put(task->lpn, task->offset, task->num_sectors, 
-				 SATA_WR_BUF_PTR(write_buf_id));
 	}
 	/* Bypass write buffer and use SATA buffer directly */
 	else {
@@ -149,6 +151,8 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
+	/* DEBUG("write_task_handler>mapping", "task_id = %u", task->seq_id); */
+
 	UINT8 sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
 		UINT32 lspn = wr_buf->lspn[sp_i];
@@ -156,6 +160,8 @@ static task_res_t mapping_state_handler	(task_t* _task,
 		
 		pmt_fetch(lspn, & wr_buf->old_vp[sp_i]);		
 		pmt_update(lspn, wr_buf->vp);
+		/* uart_printf("pmt update: lspn %u --> bank %u, vpn %u\r\n", */ 
+		/* 	    lspn, wr_buf->vp.bank, wr_buf->vp.vpn); */
 	}
 	
 	task->waiting_banks 	= 0;
@@ -170,6 +176,8 @@ static task_res_t flash_read_state_handler(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 		
+	/* DEBUG("write_task_handler>read", "task_id = %u", task->seq_id); */
+
 	task_swap_in(task, wr_buf, sizeof(*wr_buf));
 
 	BUG_ON("no valid sectors in write buffer", wr_buf->valid_sectors == 0);
@@ -260,6 +268,8 @@ static task_res_t flash_write_state_handler(task_t* _task,
 					    banks_mask_t* idle_banks)
 {
 	ftl_write_task_t *task 	= (ftl_write_task_t*) _task;	
+	
+	/* DEBUG("write_task_handler>write", "task_id = %u", task->seq_id); */
 
 	task_swap_in(task, wr_buf, sizeof(*wr_buf));
 
@@ -296,6 +306,42 @@ static task_res_t finish_state_handler	(task_t* _task,
 					 banks_mask_t* idle_banks)
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
+	
+	/* DEBUG("write_task_handler>finish", "task_id = %u", task->seq_id); */
+	// DEBUG	
+	/* task_swap_in(task, wr_buf, sizeof(*wr_buf)); */
+	/* if (wr_buf->buf) { */
+	/* 	uart_print("write buffer = ["); */
+	/* 	UINT8	sp_i; */
+	/* 	UINT8	count = 0; */
+	/* 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) { */
+	/* 		UINT32 lspn = wr_buf->lspn[sp_i]; */
+	/* 		if (lspn == NULL_LSPN) continue; */
+
+	/* 		UINT8  sp_offset = (lspn % SUB_PAGES_PER_PAGE */ 
+	/* 					 * SECTORS_PER_SUB_PAGE); */
+	/* 		UINT8  sp_mask = wr_buf->valid_sectors >> sp_offset; */ 
+	/* 					; */
+	/* 		if (sp_mask == 0) continue; */
+
+	/* 		UINT32 lba  = lspn * SECTORS_PER_SUB_PAGE; */
+	/* 		UINT8  sect_i; */
+	/* 		for (sect_i = 0; sect_i < SECTORS_PER_SUB_PAGE; sect_i++, lba++) { */
+	/* 			if ((sp_mask & (1 << sect_i)) == 0) continue; */
+
+	/* 			uart_printf("\tlba %u(%u): %u\t", */
+	/* 				lba, lba % SECTORS_PER_PAGE, */
+	/* 				read_dram_32(wr_buf->buf + (sp_offset + sect_i) * BYTES_PER_SECTOR)); */
+	/* 			count++; */
+	/* 			if (count % 5 == 0)  uart_print(""); */
+	/* 		} */
+	/* 	} */
+	/* 	if (count % 5 != 0)  uart_print(""); */
+	/* 	uart_print("]"); */
+	/* } */
+	/* else { */
+	/* 	uart_print("in write buffer"); */
+	/* } */
 
 	g_num_ftl_write_tasks_finished++;
 
