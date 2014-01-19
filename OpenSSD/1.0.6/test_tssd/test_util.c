@@ -175,6 +175,7 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 	
 	// Debug
 	//dump_buffer(buff_addr, offset, num_sectors);
+	BOOL8 res = FALSE;
 	
 	buff_addr    	    = buff_addr + BYTES_PER_SECTOR * offset;
 	UINT32 buff_entries = BYTES_PER_SECTOR * num_sectors / sizeof(UINT32);
@@ -185,7 +186,7 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 	UINT32 min_val  = read_dram_32(buff_addr + min_idx * sizeof(UINT32));
 	if (min_val != val) {
 		uart_printf("expect min val to be %u but was %u, at position %u\r\n", val, min_val, min_idx);
-		return TRUE;
+		res |= TRUE;
 	}
     	
 	UINT32 max_idx  = mem_search_min_max(
@@ -194,9 +195,9 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 	UINT32 max_val  = read_dram_32(buff_addr + max_idx * sizeof(UINT32));
 	if (max_val != val) {
 		uart_printf("expect max val to be %u but was %u, at position %u\r\n", val, max_val, max_idx);
-		return TRUE;
+		res |= TRUE;
 	}
 
-	return FALSE;
+	return res;
 }
 #endif

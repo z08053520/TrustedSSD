@@ -125,7 +125,7 @@ BOOL8 	task_engine_run()
 	task_t *pre = head, *task = get_next_task(head);
 
 	while (task) {
-		if (idle_banks && ((task->waiting_banks & idle_banks) == 0)) 
+		if ((task->waiting_banks & idle_banks) == 0) 
 			goto next_task;
 		
 		task_res_t res;

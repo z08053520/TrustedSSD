@@ -18,10 +18,6 @@
  * Macros, Data Structure and Gloal Variables 
  * ========================================================================= */
 
-typedef struct {
-
-} ftl_metadata;
-
 #define _KB 	1024
 #define _MB 	(_KB * _KB)
 #define PRINT_SIZE(name, size)	do {\
@@ -44,7 +40,6 @@ static void sanity_check(void)
 		+ BAD_BLK_BMP_BYTES + BC_BYTES;
 
 	BUG_ON("DRAM is over-utilized", dram_requirement >= DRAM_SIZE);
-	BUG_ON("ftl_metadata is too larget", sizeof(ftl_metadata) > BYTES_PER_PAGE);
 	BUG_ON("Address of SATA buffers must be a integer multiple of " 
 	       "SATA_BUF_PAGE_SIZE, which is set as BYTES_PER_PAGE when started", 
 			SATA_RD_BUF_ADDR   % BYTES_PER_PAGE != 0 || 

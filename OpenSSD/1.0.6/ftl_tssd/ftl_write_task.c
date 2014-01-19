@@ -104,28 +104,28 @@ static task_res_t preparation_state_handler(task_t* _task,
 	wr_buf->buf		= NULL;
 	/* Insert and merge into write buffer */
 	if (task->num_sectors < SECTORS_PER_PAGE) {
-		write_buffer_put(task->lpn, task->offset, task->num_sectors, 
-				 SATA_WR_BUF_PTR(write_buf_id));
-
 		if (write_buffer_is_full()) {
 			if (*idle_banks == 0) return TASK_BLOCKED;
 
 			UINT8 idle_bank  = auto_idle_bank(idle_banks);
-			wr_buf->vp.bank = idle_bank;
-			wr_buf->vp.vpn  = gc_allocate_new_vpn(idle_bank);
+			wr_buf->vp.bank  = idle_bank;
+			wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank);
 			wr_buf->buf	 = FTL_WR_BUF(idle_bank);	
 
 			write_buffer_flush(wr_buf->buf, wr_buf->lspn, 
 					   &wr_buf->valid_sectors);
 		}
+		
+		write_buffer_put(task->lpn, task->offset, task->num_sectors, 
+				 SATA_WR_BUF_PTR(write_buf_id));
 	}
 	/* Bypass write buffer and use SATA buffer directly */
 	else {
 		if (*idle_banks == 0) return TASK_BLOCKED;
 
 		UINT8 idle_bank  = auto_idle_bank(idle_banks);
-		wr_buf->vp.bank = idle_bank;
-		wr_buf->vp.vpn  = gc_allocate_new_vpn(idle_bank);
+		wr_buf->vp.bank  = idle_bank;
+		wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank);
 		wr_buf->buf	 = SATA_WR_BUF_PTR(write_buf_id);
 		wr_buf->valid_sectors = FULL_MASK;
 
@@ -186,7 +186,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 	UINT8 	sp_i;
 	for (sp_i = begin_sp; sp_i < end_sp; sp_i++) {
 		/* TODO: rename macro */
-		if (mask_is_set(wr_buf->cmd_done, sp_i)) continue;	
+		if (mask_is_set(wr_buf->cmd_done, sp_i)) continue;
 		
 		UINT8	sp_mask = (wr_buf->valid_sectors >> 
 					(SECTORS_PER_SUB_PAGE * sp_i));
@@ -204,6 +204,8 @@ static task_res_t flash_read_state_handler(task_t* _task,
 			mask_set(wr_buf->cmd_done, sp_i);
 			continue;
 		}
+
+		BUG_ON("lspn is null but mask is not", wr_buf->lspn[sp_i] == NULL_LSPN);
 
 		UINT8 bank = wr_buf->old_vp[sp_i].bank;
 		/* issue flash cmd to fill the paritial sub-page */
@@ -230,6 +232,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 
 			/* skip if bank is not available */
 			if (!banks_has(*idle_banks, bank)) continue;
+			banks_del(*idle_banks, bank);
 
 			vsp_t vsp = {
 				.bank = vp.bank, 
@@ -272,33 +275,36 @@ static task_res_t flash_write_state_handler(task_t* _task,
 	/* DEBUG("write_task_handler>write", "task_id = %u", task->seq_id); */
 
 	task_swap_in(task, wr_buf, sizeof(*wr_buf));
-
 	UINT8	bank		= wr_buf->vp.bank;
-	if (!wr_buf->cmd_issued) {
-		if (!banks_has(*idle_banks, bank)) return_TASK_PAUSED_and_swap;
 
-		/* offset and num_sectors must align with sub-page */	
-		UINT32	vpn 		= wr_buf->vp.vpn,
-			begin_i		= begin_subpage(wr_buf->valid_sectors) 
-					* SECTORS_PER_SUB_PAGE,
-			end_i		= end_subpage(wr_buf->valid_sectors)
-					* SECTORS_PER_SUB_PAGE,
-			offset 	   	= begin_i,
-			num_sectors 	= end_i - begin_i;
-		nand_page_ptprogram(bank, 
-				    vpn / PAGES_PER_VBLK, 
-				    vpn % PAGES_PER_VBLK,
-				    offset, num_sectors,
-				    wr_buf->buf);
-
-		banks_del(*idle_banks, bank);
-		wr_buf->cmd_issued = TRUE;
+	if (wr_buf->cmd_issued) {
+		if (banks_has(*idle_banks, bank)) {
+			task->state = STATE_FINISH;
+			return TASK_CONTINUED;
+		}
 		return_TASK_PAUSED_and_swap;
 	}
-	else if (banks_has(*idle_banks, bank)) {
-		task->state = STATE_FINISH;
-		return TASK_CONTINUED;
-	}
+	
+	if (!banks_has(*idle_banks, bank)) return_TASK_PAUSED_and_swap;
+
+	/* offset and num_sectors must align with sub-page */	
+	UINT32	vpn 		= wr_buf->vp.vpn,
+		begin_i		= begin_subpage(wr_buf->valid_sectors) 
+				* SECTORS_PER_SUB_PAGE,
+		end_i		= end_subpage(wr_buf->valid_sectors)
+				* SECTORS_PER_SUB_PAGE,
+		offset 	   	= begin_i,
+		num_sectors 	= end_i - begin_i;
+	nand_page_ptprogram(bank, 
+			    vpn / PAGES_PER_VBLK, 
+			    vpn % PAGES_PER_VBLK,
+			    offset, num_sectors,
+			    wr_buf->buf);
+	/* uart_printf("!!ptprogram--bank=%u, vpn=%u, offset=%u, num_sectors=%u", */
+	/* 	    bank, vpn, offset, num_sectors); */
+
+	banks_del(*idle_banks, bank);
+	wr_buf->cmd_issued = TRUE;
 	return_TASK_PAUSED_and_swap;
 }
 
