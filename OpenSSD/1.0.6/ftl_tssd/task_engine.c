@@ -38,12 +38,6 @@ static 	banks_mask_t probe_idle_banks()
 	return idle_banks;
 }
 
-static 	inline task_res_t run_task(task_t *task, banks_mask_t *idle_banks)
-{
-	task_handler_t handler = task_handlers[task->type][task->state];
-	return (*handler)(task, idle_banks);
-}
-
 /* ===========================================================================
  *  Public Interface
  * =========================================================================*/
@@ -120,20 +114,33 @@ void 	task_engine_submit(task_t *task)
 
 BOOL8 	task_engine_run()
 {
-	// wait until the new command is accepted by the target bank
+	static task_context_t context = {
+		.idle_banks = 0,
+		.events = {
+			.completed_banks = 0,
+			.written_vpns = {0}
+		}
+	};
+
+	/* Wait for all flash commands are accepted */
 	while ((GETREG(WR_STAT) & 0x00000001) != 0);
 
-	banks_mask_t idle_banks = probe_idle_banks();
+	/* Gather events */
+	banks_mask_t used_banks = ~context.idle_banks;
+	context.idle_banks	= probe_idle_banks();
+	context.events.completed_banks = used_banks & context.idle_banks;
+	mem_set_sram(context.events.written_vpns, 0, sizeof(UINT32) * NUM_BANKS);
 
+	/* Iterate each task */
 	task_t *pre = head, *task = get_next_task(head);
-
 	while (task) {
-		if ((task->waiting_banks & idle_banks) == 0) 
+		if ((task->waiting_banks & context.idle_banks) == 0) 
 			goto next_task;
 		
 		task_res_t res;
 		do {
-			res = run_task(task, &idle_banks);
+			task_handler_t handler = task_handlers[task->type][task->state];
+			res = (*handler)(task, &context);
 		} while (res == TASK_CONTINUED);
 
 		if (res == TASK_BLOCKED) break;

@@ -47,10 +47,10 @@ segments_t	*segments;
 
 static UINT8		ftl_read_task_type;
 
-static task_res_t preparation_state_handler	(task_t*, banks_mask_t*);
-static task_res_t mapping_state_handler		(task_t*, banks_mask_t*);
-static task_res_t flash_state_handler		(task_t*, banks_mask_t*);
-static task_res_t finish_state_handler		(task_t*, banks_mask_t*);
+static task_res_t preparation_state_handler	(task_t*, task_context_t*);
+static task_res_t mapping_state_handler		(task_t*, task_context_t*);
+static task_res_t flash_state_handler		(task_t*, task_context_t*);
+static task_res_t finish_state_handler		(task_t*, task_context_t*);
 
 static task_handler_t handlers[NUM_STATES] = {
 	preparation_state_handler,
@@ -68,7 +68,7 @@ UINT32	g_next_finishing_task_seq_id;
  * =========================================================================*/
 
 task_res_t preparation_state_handler(task_t* _task, 
-				     banks_mask_t* idle_banks)
+				     task_context_t* context)
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 
@@ -111,7 +111,7 @@ next_state_mapping:
 }
 
 static task_res_t mapping_state_handler	(task_t* _task, 
-					 banks_mask_t* idle_banks)
+					 task_context_t* context)
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 
@@ -171,7 +171,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 #define has_holes(seg_i, segments)	mask_is_set(segments->has_holes, seg_i)
 
 static task_res_t flash_state_handler	(task_t* _task, 
-					 banks_mask_t* idle_banks)
+					 task_context_t* context)
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 	
@@ -192,7 +192,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 
 		/* if the flash read cmd for the segment has been sent */
 		if (is_cmd_issued(seg_i, segments)) {
-			if ((*idle_banks & this_bank) == 0) continue;	
+			if ((context->events.completed_banks & this_bank) == 0) continue;	
 
 			/* uart_printf("segment %u is done\r\n", seg_i); */
 
@@ -234,7 +234,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 		task->waiting_banks |= this_bank;
 
 		/* if the bank is not avilable for now, skip the segment */
-		if ((this_bank & *idle_banks) == 0) continue;
+		if ((this_bank & context->idle_banks) == 0) continue;
 
 		read_buf = has_holes(seg_i, segments) ? FTL_RD_BUF(vp.bank) : sata_buf;
 		nand_page_ptread(vp.bank,
@@ -249,7 +249,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 		/* 	    vp.bank, vp.vpn, segments->offset[seg_i], segments->num_sectors[seg_i]); */
 
 		set_cmd_issued(seg_i, segments);
-		*idle_banks &= ~this_bank;
+		context->idle_banks &= ~this_bank;
 	}
 
 	if (task->waiting_banks) {
@@ -262,7 +262,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 }
 
 static task_res_t finish_state_handler	(task_t* _task, 
-					 banks_mask_t* idle_banks)
+					 task_context_t* context)
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 	

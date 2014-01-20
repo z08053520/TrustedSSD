@@ -37,7 +37,15 @@ typedef struct {
 	UINT8		private_data[12];
 } task_t;
 
-typedef task_res_t (*task_handler_t)(task_t *task, banks_mask_t *idle_banks);
+typedef struct {
+	banks_mask_t	idle_banks;
+	struct {
+		banks_mask_t	completed_banks;
+		UINT32		written_vpns[NUM_BANKS];	
+	} events;
+} task_context_t;
+
+typedef task_res_t (*task_handler_t)(task_t *task, task_context_t *context);
 
 BOOL8	task_can_allocate(UINT8 const num_tasks);
 task_t* task_allocate();

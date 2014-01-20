@@ -48,11 +48,11 @@ wr_buf_t	*wr_buf;
 
 static UINT8		ftl_write_task_type;
 
-static task_res_t preparation_state_handler	(task_t*, banks_mask_t*);
-static task_res_t mapping_state_handler		(task_t*, banks_mask_t*);
-static task_res_t flash_read_state_handler	(task_t*, banks_mask_t*);
-static task_res_t flash_write_state_handler	(task_t*, banks_mask_t*);
-static task_res_t finish_state_handler		(task_t*, banks_mask_t*);
+static task_res_t preparation_state_handler	(task_t*, task_context_t*);
+static task_res_t mapping_state_handler		(task_t*, task_context_t*);
+static task_res_t flash_read_state_handler	(task_t*, task_context_t*);
+static task_res_t flash_write_state_handler	(task_t*, task_context_t*);
+static task_res_t finish_state_handler		(task_t*, task_context_t*);
 
 static task_handler_t handlers[NUM_STATES] = {
 	preparation_state_handler,
@@ -75,20 +75,20 @@ UINT32	g_next_finishing_task_seq_id;
  *  Task Handlers
  * =========================================================================*/
 
-static UINT8	auto_idle_bank(banks_mask_t* idle_banks)
+static UINT8	auto_idle_bank(banks_mask_t const idle_banks)
 {
 	static UINT8 bank_i = NUM_BANKS - 1;
 
 	UINT8 i;
 	for (i = 0; i < NUM_BANKS; i++) {
 		bank_i = (bank_i + 1) % NUM_BANKS;
-		if (banks_has(*idle_banks, bank_i)) return bank_i;
+		if (banks_has(idle_banks, bank_i)) return bank_i;
 	}
 	return NUM_BANKS;
 }
 
 static task_res_t preparation_state_handler(task_t* _task, 
-					    banks_mask_t* idle_banks)
+					    task_context_t* context)
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
@@ -105,9 +105,9 @@ static task_res_t preparation_state_handler(task_t* _task,
 	/* Insert and merge into write buffer */
 	if (task->num_sectors < SECTORS_PER_PAGE) {
 		if (write_buffer_is_full()) {
-			if (*idle_banks == 0) return TASK_BLOCKED;
+			if (context->idle_banks == 0) return TASK_BLOCKED;
 
-			UINT8 idle_bank  = auto_idle_bank(idle_banks);
+			UINT8 idle_bank  = auto_idle_bank(context->idle_banks);
 			wr_buf->vp.bank  = idle_bank;
 			wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank);
 			wr_buf->buf	 = FTL_WR_BUF(idle_bank);	
@@ -121,9 +121,9 @@ static task_res_t preparation_state_handler(task_t* _task,
 	}
 	/* Bypass write buffer and use SATA buffer directly */
 	else {
-		if (*idle_banks == 0) return TASK_BLOCKED;
+		if (context->idle_banks == 0) return TASK_BLOCKED;
 
-		UINT8 idle_bank  = auto_idle_bank(idle_banks);
+		UINT8 idle_bank  = auto_idle_bank(context->idle_banks);
 		wr_buf->vp.bank  = idle_bank;
 		wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank);
 		wr_buf->buf	 = SATA_WR_BUF_PTR(write_buf_id);
@@ -147,7 +147,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 }
 
 static task_res_t mapping_state_handler	(task_t* _task, 
-					 banks_mask_t* idle_banks)
+					 task_context_t* context)
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
@@ -172,7 +172,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 }
 
 static task_res_t flash_read_state_handler(task_t* _task, 
-					   banks_mask_t* idle_banks)
+					   task_context_t* context)
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 		
@@ -231,8 +231,8 @@ static task_res_t flash_read_state_handler(task_t* _task,
 			banks_add(task->waiting_banks, bank);
 
 			/* skip if bank is not available */
-			if (!banks_has(*idle_banks, bank)) continue;
-			banks_del(*idle_banks, bank);
+			if (!banks_has(context->idle_banks, bank)) continue;
+			banks_del(context->idle_banks, bank);
 
 			vsp_t vsp = {
 				.bank = vp.bank, 
@@ -242,7 +242,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 			mask_set(wr_buf->cmd_issued, sp_i);
 		}
 		/* if flash cmd is done */
-		else if (banks_has(*idle_banks, bank)) {
+		else if (banks_has(context->events.completed_banks, bank)) {
 			UINT32 	sp_target_buf = wr_buf->buf + sp_i * BYTES_PER_SUB_PAGE,
 				sp_src_buf    = FTL_RD_BUF(bank)+ sp_i * BYTES_PER_SUB_PAGE; 
 			void (*segment_handler) (UINT8 const, UINT8 const) = 
@@ -268,7 +268,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 }
 
 static task_res_t flash_write_state_handler(task_t* _task, 
-					    banks_mask_t* idle_banks)
+					    task_context_t* context)
 {
 	ftl_write_task_t *task 	= (ftl_write_task_t*) _task;	
 	
@@ -278,14 +278,17 @@ static task_res_t flash_write_state_handler(task_t* _task,
 	UINT8	bank		= wr_buf->vp.bank;
 
 	if (wr_buf->cmd_issued) {
-		if (banks_has(*idle_banks, bank)) {
+		if (banks_has(context->events.completed_banks, bank)) {
+			/* Notify other tasks that this page is written */
+			context->events.written_vpns[bank] = wr_buf->vp.vpn;
+
 			task->state = STATE_FINISH;
 			return TASK_CONTINUED;
 		}
 		return_TASK_PAUSED_and_swap;
 	}
 	
-	if (!banks_has(*idle_banks, bank)) return_TASK_PAUSED_and_swap;
+	if (!banks_has(context->idle_banks, bank)) return_TASK_PAUSED_and_swap;
 
 	/* offset and num_sectors must align with sub-page */	
 	UINT32	vpn 		= wr_buf->vp.vpn,
@@ -303,13 +306,13 @@ static task_res_t flash_write_state_handler(task_t* _task,
 	/* uart_printf("!!ptprogram--bank=%u, vpn=%u, offset=%u, num_sectors=%u", */
 	/* 	    bank, vpn, offset, num_sectors); */
 
-	banks_del(*idle_banks, bank);
+	banks_del(context->idle_banks, bank);
 	wr_buf->cmd_issued = TRUE;
 	return_TASK_PAUSED_and_swap;
 }
 
 static task_res_t finish_state_handler	(task_t* _task, 
-					 banks_mask_t* idle_banks)
+					 task_context_t* context)
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 	
