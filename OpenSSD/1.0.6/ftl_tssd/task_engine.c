@@ -120,6 +120,9 @@ void 	task_engine_submit(task_t *task)
 
 BOOL8 	task_engine_run()
 {
+	// wait until the new command is accepted by the target bank
+	while ((GETREG(WR_STAT) & 0x00000001) != 0);
+
 	banks_mask_t idle_banks = probe_idle_banks();
 
 	task_t *pre = head, *task = get_next_task(head);

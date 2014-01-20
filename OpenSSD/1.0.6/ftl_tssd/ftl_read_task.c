@@ -78,7 +78,7 @@ task_res_t preparation_state_handler(task_t* _task,
 	if (next_read_buf_id == GETREG(SATA_RBUF_PTR)) return TASK_BLOCKED;
 #endif
 	
-	uart_printf("preparation > seq_id = %u\r\n", task->seq_id);
+	/* uart_printf("preparation > seq_id = %u\r\n", task->seq_id); */
 
 	sectors_mask_t	target_sectors = init_mask(task->offset, 
 						   task->num_sectors);
@@ -91,7 +91,7 @@ task_res_t preparation_state_handler(task_t* _task,
 
 	sectors_mask_t	common_sectors = valid_sectors & target_sectors;
 	if (common_sectors) {
-		uart_print("found data in write buffer");
+		/* uart_print("found data in write buffer"); */
 		
 		fu_copy_buffer(SATA_RD_BUF_PTR(read_buf_id),
 			    buf, common_sectors);
@@ -115,7 +115,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 
-	uart_printf("mapping > seq_id = %u\r\n", task->seq_id);
+	/* uart_printf("mapping > seq_id = %u\r\n", task->seq_id); */
 
 	UINT8	num_segments = 0;
 	/* Iterate each sub-page */ 
@@ -136,8 +136,8 @@ static task_res_t mapping_state_handler	(task_t* _task,
 		vp_t	vp;
 		pmt_fetch(lspn, &vp);
 
-		uart_printf("pmt fetch: lspn %u --> bank %u, vpn %u\r\n", 
-			    lspn, vp.bank, vp.vpn);
+		/* uart_printf("pmt fetch: lspn %u --> bank %u, vpn %u\r\n", */ 
+		/* 	    lspn, vp.bank, vp.vpn); */
 		
 		/* Gather segment information */	
 		if (force_new_segment || 
@@ -175,7 +175,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 	
-	uart_printf("flash > seq_id = %u\r\n", task->seq_id);
+	/* uart_printf("flash > seq_id = %u\r\n", task->seq_id); */
 		
 	task_swap_in(task, segments, sizeof(*segments));
 
@@ -187,8 +187,8 @@ static task_res_t flash_state_handler	(task_t* _task,
 		vp_t		vp  	  = segments->vp[seg_i];
 		banks_mask_t 	this_bank = (1 << vp.bank);
 
-		uart_printf("seg_i = %u, bank = %u, vpn = %u\r\n", 
-			   seg_i, vp.bank, vp.vpn);
+		/* uart_printf("seg_i = %u, bank = %u, vpn = %u\r\n", */ 
+		/* 	   seg_i, vp.bank, vp.vpn); */
 
 		/* if the flash read cmd for the segment has been sent */
 		if (is_cmd_issued(seg_i, segments)) {
@@ -205,7 +205,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 				fu_copy_buffer(sata_buf, FTL_RD_BUF(vp.bank), 
 					       segment_target_sectors); 
 
-				uart_printf("has holes, copy data from FTL_RD_BUF to SATA_RD_BUF\r\n");
+				/* uart_printf("has holes, copy data from FTL_RD_BUF to SATA_RD_BUF\r\n"); */
 			}
 
 			task->waiting_banks &= ~this_bank;
@@ -245,8 +245,8 @@ static task_res_t flash_state_handler	(task_t* _task,
 				 read_buf,
 				 RETURN_ON_ISSUE);
 		
-		uart_printf("issue flash read to bank %u, vpn %u, offset %u, num_sectors %u\r\n",
-			    vp.bank, vp.vpn, segments->offset[seg_i], segments->num_sectors[seg_i]);
+		/* uart_printf("issue flash read to bank %u, vpn %u, offset %u, num_sectors %u\r\n", */
+		/* 	    vp.bank, vp.vpn, segments->offset[seg_i], segments->num_sectors[seg_i]); */
 
 		set_cmd_issued(seg_i, segments);
 		*idle_banks &= ~this_bank;
@@ -266,7 +266,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 	
-	uart_printf("finish > seq_id = %u\r\n", task->seq_id);
+	/* uart_printf("finish > seq_id = %u\r\n", task->seq_id); */
 
 	g_num_ftl_read_tasks_finished++;
 
