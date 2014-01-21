@@ -192,7 +192,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 
 		/* if the flash read cmd for the segment has been sent */
 		if (is_cmd_issued(seg_i, segments)) {
-			if ((context->events.completed_banks & this_bank) == 0) continue;	
+			if ((context->completed_banks & this_bank) == 0) continue;	
 
 			/* uart_printf("segment %u is done\r\n", seg_i); */
 
@@ -233,8 +233,11 @@ static task_res_t flash_state_handler	(task_t* _task,
 		/* We have to read from flash */
 		task->waiting_banks |= this_bank;
 
-		/* if the bank is not avilable for now, skip the segment */
+		/* skip if the bank is not available */
 		if ((this_bank & context->idle_banks) == 0) continue;
+
+		/* skip if the page is being written */
+		if (is_any_task_writing_page(vp)) continue;
 
 		read_buf = has_holes(seg_i, segments) ? FTL_RD_BUF(vp.bank) : sata_buf;
 		nand_page_ptread(vp.bank,

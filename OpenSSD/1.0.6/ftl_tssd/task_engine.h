@@ -1,6 +1,7 @@
 #ifndef __TASK_ENGINE_H
 #define __TASK_ENGINE_H
 #include "jasmine.h"
+#include "dram.h"
 
 #define MAX_NUM_TASK_TYPES_LOG2		3	
 #define MAX_NUM_TASK_STATES_LOG2	5	
@@ -39,10 +40,7 @@ typedef struct {
 
 typedef struct {
 	banks_mask_t	idle_banks;
-	struct {
-		banks_mask_t	completed_banks;
-		UINT32		written_vpns[NUM_BANKS];	
-	} events;
+	banks_mask_t	completed_banks;
 } task_context_t;
 
 typedef task_res_t (*task_handler_t)(task_t *task, task_context_t *context);
@@ -63,4 +61,13 @@ void 	task_engine_submit(task_t *task);
 /* return true if task engine is idle */
 BOOL8 	task_engine_run();
 
+/* The following three functions together prevents pages that is being written to
+flash is read by tasks */
+BOOL8 	is_any_task_writing_page(vp_t const vp);
+#define task_starts_writing_page(vp, task)	\
+				_task_starts_writing_page(vp, (task_t*)task)
+void 	_task_starts_writing_page(vp_t const vp, task_t *task);
+#define task_ends_writing_page(vp, task)	\
+				_task_ends_writing_page(vp, (task_t*)task)
+void 	_task_ends_writing_page(vp_t const vp, task_t *task);
 #endif

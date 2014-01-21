@@ -72,7 +72,7 @@ UINT32	g_next_finishing_task_seq_id;
 } while(0);
 
 /* ===========================================================================
- *  Task Handlers
+ *  Helper Functions 
  * =========================================================================*/
 
 static UINT8	auto_idle_bank(banks_mask_t const idle_banks)
@@ -86,6 +86,10 @@ static UINT8	auto_idle_bank(banks_mask_t const idle_banks)
 	}
 	return NUM_BANKS;
 }
+
+/* ===========================================================================
+ *  Task Handlers
+ * =========================================================================*/
 
 static task_res_t preparation_state_handler(task_t* _task, 
 					    task_context_t* context)
@@ -142,6 +146,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 		return TASK_CONTINUED;
 	}
 
+	task_starts_writing_page(wr_buf->vp, task);
 	task->state = STATE_MAPPING;
 	return TASK_CONTINUED;
 }
@@ -232,6 +237,10 @@ static task_res_t flash_read_state_handler(task_t* _task,
 
 			/* skip if bank is not available */
 			if (!banks_has(context->idle_banks, bank)) continue;
+
+			/* skip if the page is being written */
+			if (is_any_task_writing_page(vp)) continue;
+
 			banks_del(context->idle_banks, bank);
 
 			vsp_t vsp = {
@@ -242,7 +251,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 			mask_set(wr_buf->cmd_issued, sp_i);
 		}
 		/* if flash cmd is done */
-		else if (banks_has(context->events.completed_banks, bank)) {
+		else if (banks_has(context->completed_banks, bank)) {
 			UINT32 	sp_target_buf = wr_buf->buf + sp_i * BYTES_PER_SUB_PAGE,
 				sp_src_buf    = FTL_RD_BUF(bank)+ sp_i * BYTES_PER_SUB_PAGE; 
 			void (*segment_handler) (UINT8 const, UINT8 const) = 
@@ -278,10 +287,7 @@ static task_res_t flash_write_state_handler(task_t* _task,
 	UINT8	bank		= wr_buf->vp.bank;
 
 	if (wr_buf->cmd_issued) {
-		if (banks_has(context->events.completed_banks, bank)) {
-			/* Notify other tasks that this page is written */
-			context->events.written_vpns[bank] = wr_buf->vp.vpn;
-
+		if (banks_has(context->completed_banks, bank)) {
 			task->state = STATE_FINISH;
 			return TASK_CONTINUED;
 		}
@@ -351,8 +357,8 @@ static task_res_t finish_state_handler	(task_t* _task,
 	/* else { */
 	/* 	uart_print("in write buffer"); */
 	/* } */
-
 	g_num_ftl_write_tasks_finished++;
+	if (wr_buf->vp.vpn) task_ends_writing_page(wr_buf->vp, task);
 
 	if (g_next_finishing_task_seq_id == task->seq_id)
 		g_next_finishing_task_seq_id++;
