@@ -226,7 +226,6 @@ static task_res_t flash_state_handler	(task_t* _task,
 				
 			set_cmd_done(seg_i, segments);
 
-			uart_print("read buffer HIT!");
 			continue;
 		}
 

@@ -9,6 +9,9 @@
 #include "gc.h"
 #include "test_util.h"
 
+extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors, 
+			   UINT32 const cmd_type);
+
 static void sram_perf_test()
 {
 	uart_print("SRAM performance test begins...");
@@ -228,6 +231,26 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 
 static UINT32 g_seq_total_mb = 0;
 
+static void ftl_finish_all()
+{
+	BOOL8 idle;
+	do {
+		idle = ftl_main();
+	} while(!idle);
+}
+
+static void ftl_read(UINT32 const lba, UINT32 const req_sectors)
+{
+	while(eventq_put(lba, req_sectors, READ))
+		ftl_main();
+}
+
+static void ftl_write(UINT32 const lba, UINT32 const req_sectors)
+{
+	while(eventq_put(lba, req_sectors, WRITE))
+		ftl_main();
+}
+
 static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 {
 	uart_printf("FTL **sequential** read/write test (unit = %u bytes) begins...\r\n", 
@@ -249,9 +272,11 @@ static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 	perf_monitor_reset();
 	while (lba < end_lba) {
 		ftl_write(lba, num_sectors);
+		ftl_main();
 	
 		lba += num_sectors;
 	}
+	ftl_finish_all();
 	perf_monitor_update(total_sectors);
 
 	// read
@@ -260,9 +285,11 @@ static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 	perf_monitor_reset();
 	while (lba < end_lba) {
 		ftl_read(lba, num_sectors);
+		ftl_main();
 
 		lba += num_sectors;
 	}
+	ftl_finish_all();
 	perf_monitor_update(total_sectors);
 
 	uart_print("Done");
@@ -285,9 +312,11 @@ static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 		lba = lba / num_sectors * num_sectors; // align with req size
 
 		ftl_write(lba, num_sectors);
+		ftl_main();
 	
 		num_sectors_so_far += num_sectors;
 	}
+	ftl_finish_all();
 	perf_monitor_update(total_num_sectors);
 
 	// read
@@ -299,9 +328,11 @@ static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 		lba = lba / num_sectors * num_sectors; // align with req size
 
 		ftl_read(lba, num_sectors);
+		ftl_main();
 
 		num_sectors_so_far += num_sectors;;
 	}
+	ftl_finish_all();
 	perf_monitor_update(total_num_sectors);
 
 	uart_print("Done");

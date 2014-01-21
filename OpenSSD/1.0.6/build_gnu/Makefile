@@ -12,12 +12,12 @@ RM	= rm
 # withour any SATA communication; otherwise, a normal firmware that can handle 
 # SATA request will be generated.
 #TEST = flash_util
-TEST = ftl
+#TEST = ftl
 #TEST = gc
 #TEST = gtd
 #TEST = pmt
 #TEST = page_cache
-#TEST = perf
+TEST = perf
 #TEST = sot
 #TEST = write_buffer
 #TEST = task_engine
