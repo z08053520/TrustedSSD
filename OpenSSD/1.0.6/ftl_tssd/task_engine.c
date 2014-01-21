@@ -97,8 +97,12 @@ void 	task_engine_init()
 	
 	context.idle_banks = ALL_BANKS;
 	context.completed_banks = 0;
-	
-	mem_set_sram(tasks_writing_vps, 0, MAX_NUM_TASKS * sizeof(vp_t));
+
+	UINT8	vp_i;
+	for (vp_i = 0; vp_i < MAX_NUM_TASKS; vp_i++) {
+		tasks_writing_vps[vp_i].bank = NUM_BANKS;
+		tasks_writing_vps[vp_i].vpn  = 0;
+	}
 }
 
 BOOL8 	task_engine_register_task_type(UINT8 *type, 
@@ -189,6 +193,17 @@ void _task_ends_writing_page(vp_t const vp, task_t *task)
 	UINT8 	vp_idx 			= task2id(task);
 	BUG_ON("not start writing page yet or finished already", 
 		tasks_writing_vps[vp_idx].vpn == 0);
-	tasks_writing_vps[vp_idx].bank	= 0;
+	tasks_writing_vps[vp_idx].bank	= NUM_BANKS;
 	tasks_writing_vps[vp_idx].vpn  	= 0;
+}
+
+BOOL8	is_there_any_earlier_writing(vp_t const vp)
+{
+	UINT8 vp_i;
+	for (vp_i = 0; vp_i < MAX_NUM_TASKS; vp_i++) {
+		if (tasks_writing_vps[vp_i].bank == vp.bank &&
+		    tasks_writing_vps[vp_i].vpn < vp.vpn)
+			return TRUE;
+	}
+	return FALSE;
 }

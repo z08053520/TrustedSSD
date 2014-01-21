@@ -3,6 +3,7 @@
 #include "gtd.h"
 #include "dram.h"
 #include "flash_util.h"
+#include "task_engine.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
@@ -139,6 +140,11 @@ static void flush_merge_buffer()
 		// Now this page buffer can be reused
 		cached_keys[page_idx] = NULL_KEY;	
 	}
+
+	// DEBUG
+	#warning permanently fix this issue
+	BUG_ON("conflicting out of order flash writes", 
+		is_there_any_earlier_writing(vp));
 
 	// Write to flash
 	fu_write_page(vp, FTL_WR_BUF(bank));

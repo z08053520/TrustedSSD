@@ -96,7 +96,9 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
-	/* DEBUG("write_task_handler>preparation", "task_id = %u", task->seq_id); */
+	/* DEBUG("write_task_handler>preparation", */ 
+	/*       "task_id = %u, lpn = %u, offset = %u, num_sectors = %u", */ 
+	/*       task->seq_id, task->lpn, task->offset, task->num_sectors); */
 
 	UINT32 write_buf_id	= task_buf_id(task);
 	// FIXME: this waiting may not be necessary
@@ -195,7 +197,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 		
 		UINT8	sp_mask = (wr_buf->valid_sectors >> 
 					(SECTORS_PER_SUB_PAGE * sp_i));
-
+		
 		/* all sectors are valid; skip this sub-page */
 		if (sp_mask == 0xFF) {
 			mask_set(wr_buf->cmd_done, sp_i);
@@ -295,6 +297,8 @@ static task_res_t flash_write_state_handler(task_t* _task,
 	}
 	
 	if (!banks_has(context->idle_banks, bank)) return_TASK_PAUSED_and_swap;
+	
+	if (is_there_any_earlier_writing(wr_buf->vp)) return_TASK_PAUSED_and_swap;
 
 	/* offset and num_sectors must align with sub-page */	
 	UINT32	vpn 		= wr_buf->vp.vpn,
@@ -358,7 +362,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 	/* 	uart_print("in write buffer"); */
 	/* } */
 	g_num_ftl_write_tasks_finished++;
-	if (wr_buf->vp.vpn) task_ends_writing_page(wr_buf->vp, task);
+	if (wr_buf->buf) task_ends_writing_page(wr_buf->vp, task);
 
 	if (g_next_finishing_task_seq_id == task->seq_id)
 		g_next_finishing_task_seq_id++;

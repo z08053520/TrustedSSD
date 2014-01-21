@@ -62,7 +62,7 @@ void 	task_engine_submit(task_t *task);
 BOOL8 	task_engine_run();
 
 /* The following three functions together prevents pages that is being written to
-flash is read by tasks */
+flash is read by other tasks */
 BOOL8 	is_any_task_writing_page(vp_t const vp);
 #define task_starts_writing_page(vp, task)	\
 				_task_starts_writing_page(vp, (task_t*)task)
@@ -70,4 +70,8 @@ void 	_task_starts_writing_page(vp_t const vp, task_t *task);
 #define task_ends_writing_page(vp, task)	\
 				_task_ends_writing_page(vp, (task_t*)task)
 void 	_task_ends_writing_page(vp_t const vp, task_t *task);
+
+/*  Prevent pages with greater vpn is written earlier than one with less vpn 
+in the same bank */
+BOOL8	is_there_any_earlier_writing(vp_t const vp);
 #endif

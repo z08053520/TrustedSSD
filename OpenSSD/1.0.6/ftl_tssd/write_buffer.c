@@ -191,9 +191,6 @@ void write_buffer_init()
 	for (i = 0; i < NUM_WRITE_BUFFERS; i++) {
 		buf_sizes[i] = 0;
 	}
-
-	/* uart_print("after init"); */
-	/* dump_state(); */
 }
 
 void write_buffer_get(UINT32 const lpn, 
@@ -305,9 +302,6 @@ void write_buffer_set_mode(BOOL8 const use_single_buffer)
 BOOL8 write_buffer_is_full()
 {
 #if OPTION_FTL_TEST
-	/* uart_print("is full"); */
-	/* dump_state(); */
-
 	return 	(num_lpns == MAX_NUM_LPNS) || 
 		(single_buffer_mode  && (num_clean_buffers < NUM_WRITE_BUFFERS)) || 
 		(!single_buffer_mode && (num_clean_buffers == 0));
@@ -335,12 +329,10 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 {
 	/* find a vicitim buffer */
 	buf_id_t buf_id = find_fullest_buffer();
-	BUG_ON("flush any empty buffer", buf_sizes[buf_id] == 0);
+	BUG_ON("flush any empty/invliad  buffer", buf_sizes[buf_id] == 0 ||
+						  buf_id >= NUM_WRITE_BUFFERS);
 	*valid_sectors 	= 0;
 
-	/* uart_print("before flush"); */
-	/* dump_state(); */
-	
 	mem_set_sram(lspns, NULL_LSPN, sizeof(UINT32) * SUB_PAGES_PER_PAGE);
 
 	UINT32  lpn_i   = 0;
@@ -365,8 +357,8 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 		       end_lspn	   = lspn_base + end_sp;
 		while (lspn < end_lspn) {
 			UINT8	lsp_mask = (lp_mask >> (SECTORS_PER_SUB_PAGE * sp_offset));
-			
-			lspns[sp_offset] = lsp_mask ? lspn : NULL_LSPN;	
+		
+			if (lsp_mask) lspns[sp_offset] = lspn;	
 			
 			lspn++;
 			sp_offset++;
