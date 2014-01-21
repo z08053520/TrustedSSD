@@ -43,7 +43,7 @@ typedef struct {
 segments_t	_segments;
 segments_t	*segments;
 
-#define task_buf_id(task)	((task->seq_id) % NUM_SATA_RD_BUFFERS)
+#define task_buf_id(task)	(((task)->seq_id) % NUM_SATA_RD_BUFFERS)
 
 static UINT8		ftl_read_task_type;
 
@@ -73,10 +73,6 @@ task_res_t preparation_state_handler(task_t* _task,
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 
 	UINT32 read_buf_id	= task_buf_id(task);
-#if OPTION_FTL_TEST == 0
-	UINT32 next_read_buf_id = (read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
-	if (next_read_buf_id == GETREG(SATA_RBUF_PTR)) return TASK_BLOCKED;
-#endif
 	
 	/* uart_printf("preparation > seq_id = %u\r\n", task->seq_id); */
 

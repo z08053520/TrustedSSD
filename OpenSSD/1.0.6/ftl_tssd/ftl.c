@@ -290,6 +290,9 @@ BOOL8 ftl_all_sata_cmd_accepted()
 	return sata_cmd.sector_count == 0 && !sata_has_next_rw_cmd();
 }
 
+extern UINT32	g_num_ftl_read_tasks_submitted;
+extern UINT32	g_num_ftl_write_tasks_submitted;
+
 BOOL8 ftl_main(void)
 {
 	/* Accept new SATA read/write requests if we can */
@@ -304,6 +307,22 @@ BOOL8 ftl_main(void)
 			/* 	    sata_cmd.lba, sata_cmd.sector_count); */
 		}
 
+#if OPTION_FTL_TEST == 0
+		/* Check whether SATA buffer is ready */
+		if (sata_cmd.cmd_type == READ) {
+			UINT32	next_read_buf_id = 
+					(g_num_ftl_read_tasks_submitted + 1) % 
+					NUM_SATA_RD_BUFFERS;
+			if (next_read_buf_id == GETREG(SATA_RBUF_PTR)) break;
+		}
+		else {
+			UINT32	write_buf_id	=
+					g_num_ftl_write_tasks_submitted %
+					NUM_SATA_WR_BUFFERS;
+			if (write_buf_id == GETREG(SATA_WBUF_PTR)) break;
+		}
+#endif
+
 		/* Process one page at a time */
 		UINT32 	lpn 	= sata_cmd.lba / SECTORS_PER_PAGE;
 		UINT8	offset 	= sata_cmd.lba % SECTORS_PER_PAGE;
@@ -314,6 +333,7 @@ BOOL8 ftl_main(void)
 		/* uart_printf("> %s one page: lpn = %u, offset = %u, num_sectors = %u\r\n", */
 		/* 	   sata_cmd.cmd_type == READ ? "READ" : "WRITE", */ 
 		/* 	   lpn, offset, num_sectors); */
+
 
 		/* Submit a new task */
 		task_t *task = task_allocate();		

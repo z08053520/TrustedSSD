@@ -44,7 +44,7 @@ typedef struct {
 wr_buf_t	_wr_buf;
 wr_buf_t	*wr_buf;
 
-#define task_buf_id(task)	((task->seq_id) % NUM_SATA_WR_BUFFERS)
+#define task_buf_id(task)	(((task)->seq_id) % NUM_SATA_WR_BUFFERS)
 
 static UINT8		ftl_write_task_type;
 
@@ -101,11 +101,6 @@ static task_res_t preparation_state_handler(task_t* _task,
 	/*       task->seq_id, task->lpn, task->offset, task->num_sectors); */
 
 	UINT32 write_buf_id	= task_buf_id(task);
-	// FIXME: this waiting may not be necessary
-	// Wait for SATA transfer completion
-#if OPTION_FTL_TEST == 0
-	if (write_buf_id == GETREG(SATA_WBUF_PTR)) return TASK_BLOCKED;
-#endif
 
 	wr_buf->buf		= NULL;
 	/* Insert and merge into write buffer */
