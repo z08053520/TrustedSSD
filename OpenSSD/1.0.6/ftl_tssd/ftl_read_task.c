@@ -5,6 +5,7 @@
 #include "write_buffer.h"
 #include "flash_util.h"
 #include "ftl_task.h"
+#include "fde.h"
 
 /* ===========================================================================
  *  Macros, types and global variables
@@ -265,6 +266,11 @@ static task_res_t finish_state_handler	(task_t* _task,
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 	
 	/* uart_printf("finish > seq_id = %u\r\n", task->seq_id); */
+#if OPTION_FDE
+	/* Add decryption overhead */
+	fde_decrypt(COPY_BUF(0) + task->offset * BYTES_PER_SECTOR, 
+		    task->num_sectors, 0);
+#endif
 
 	g_num_ftl_read_tasks_finished++;
 

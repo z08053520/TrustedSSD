@@ -6,6 +6,7 @@
 #include "write_buffer.h"
 #include "flash_util.h"
 #include "ftl_task.h"
+#include "fde.h"
 
 /* ===========================================================================
  *  Macros, types and global variables
@@ -142,6 +143,12 @@ static task_res_t preparation_state_handler(task_t* _task,
 		task->state = STATE_FINISH;
 		return TASK_CONTINUED;
 	}
+
+#if OPTION_FDE
+	/* Add encryption overhead */
+	fde_encrypt(COPY_BUF(0) + task->offset * BYTES_PER_SECTOR, 
+		    task->num_sectors, 0);
+#endif
 
 	task_starts_writing_page(wr_buf->vp, task);
 	task->state = STATE_MAPPING;

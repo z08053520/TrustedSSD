@@ -23,6 +23,7 @@ RM	= rm
 #TEST = task_engine
 #TEST = ftl_read_task
 #TEST = ftl_write_task
+TEST = fde
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size
@@ -52,6 +53,13 @@ PROFILING =
 ifdef PROFILING
 CFLAGS += -D OPTION_PROFILING
 SRCS   += profiler.c
+endif
+
+# FDE = Full Disk Encryption
+FDE = y
+ifdef FDE 
+CFLAGS += -D OPTION_FDE
+SRCS   += fde.c
 endif
 
 $(TARGETBIN): $(TARGETELF)
