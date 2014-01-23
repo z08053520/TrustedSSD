@@ -18,6 +18,7 @@
  * Macros, Data Structure and Gloal Variables 
  * ========================================================================= */
 
+
 UINT32 g_ftl_read_buf_id;
 UINT32 g_ftl_write_buf_id;
 
@@ -163,8 +164,6 @@ static void read_page(UINT32 const lpn,
 
 #if OPTION_FDE
 	/* Add decryption overhead */
-	fde_decrypt(COPY_BUF(0) + sector_offset * BYTES_PER_SECTOR, 
-		    num_sectors_to_read, 0);
 #endif
 
 	UINT32	buff;
@@ -317,8 +316,6 @@ static void write_page(UINT32 const lpn,
 	
 #if OPTION_FDE
 	/* Add encryption overhead */
-	fde_encrypt(COPY_BUF(0) + sect_offset * BYTES_PER_SECTOR, 
-		    num_sectors_to_write, 0);
 #endif
 
 	// Write full page to flash directly

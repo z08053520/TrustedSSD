@@ -45,17 +45,24 @@ void ftl_test()
 {
 	uart_print("Start testing FDE...");
 
-	srand(RAND_SEED);
-
-	UINT8	trial_i;
+	UINT8 trial_i;
 	for (trial_i = 0; trial_i < NUM_TRIALS; trial_i++) {
-		fde_key_t key 	  = rand();
 		UINT8 num_sectors = random(1, SECTORS_PER_PAGE);
 		fill_buffer_randomly(PLAINTEXT_BUF, num_sectors);
 		
+		srand(RAND_SEED);
+		fde_key_t key, wrong_key;
+		int j;
+		for (j = 0; j < 32; ++j) {
+			int t = rand();
+			t = (t > 0) ? t : (-t);
+			key.key[j] = (t + 'c') % 256;
+			wrong_key.key[j] = (t + 'j') % 256;
+		}
+
 		/* Using wrong key to decrypt should NOT work */
-		fde_key_t wrong_key = rand();
 		copy_buffer(ENCRYPTED_BUF, PLAINTEXT_BUF, num_sectors);
+		
 		fde_encrypt(ENCRYPTED_BUF, num_sectors, key);
 		fde_decrypt(ENCRYPTED_BUF, num_sectors, wrong_key);
 
@@ -65,6 +72,7 @@ void ftl_test()
 
 		/* Using correct key to decrypt should work */
 		copy_buffer(ENCRYPTED_BUF, PLAINTEXT_BUF, num_sectors);
+
 		fde_encrypt(ENCRYPTED_BUF, num_sectors, key);
 		fde_decrypt(ENCRYPTED_BUF, num_sectors, key);
 
@@ -72,7 +80,6 @@ void ftl_test()
 		       "the origin plain text", 
 		       !is_buffer_same(ENCRYPTED_BUF, PLAINTEXT_BUF, num_sectors));
 	}
-	
 
 	uart_print("FDE passed the unit test ^_^");
 }
