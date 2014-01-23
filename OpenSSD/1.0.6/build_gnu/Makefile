@@ -20,6 +20,9 @@ RM	= rm
 #TEST = perf
 #TEST = sot
 #TEST = write_buffer
+#TEST = task_engine
+#TEST = ftl_read_task
+#TEST = ftl_write_task
 TEST = fde
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
@@ -46,7 +49,7 @@ VPATH  += :../test_tssd
 SRCS   += test_${TEST}.c test_util.c
 endif
 
-PROFILING = y
+PROFILING =
 ifdef PROFILING
 CFLAGS += -D OPTION_PROFILING
 SRCS   += profiler.c

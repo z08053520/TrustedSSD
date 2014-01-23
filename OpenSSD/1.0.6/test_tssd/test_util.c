@@ -107,6 +107,34 @@ void perf_monitor_update(UINT32 const num_sectors)
 }
 
 /* ===========================================================================
+ *  Buffer Utility 
+ * =========================================================================*/
+
+void clear_vals(UINT32 *sector_vals, UINT32 const val) 
+{
+	mem_set_sram(sector_vals, val, sizeof(UINT32) * SECTORS_PER_PAGE);
+}
+
+void set_vals(UINT32 *sector_vals, UINT32 const base_val, 
+	      UINT8  const offset, UINT8 const num_sectors)
+{
+	UINT8 sect_i, sect_end = offset + num_sectors;
+	for (sect_i = offset; sect_i < sect_end; sect_i++)
+		sector_vals[sect_i] = base_val + sect_i;
+}
+
+void fill_buffer(UINT32 const buf, 
+		 UINT8  const offset, 
+		 UINT8  const num_sectors, 
+		 UINT32 *sectors_val)
+{
+	UINT8	sect_i, sect_end = offset + num_sectors;
+	for (sect_i = offset; sect_i < sect_end; sect_i++) 
+		mem_set_dram(buf + sect_i * BYTES_PER_SECTOR,
+			     sectors_val[sect_i], BYTES_PER_SECTOR);
+}
+
+/* ===========================================================================
  * Misc 
  * =========================================================================*/
 
@@ -147,6 +175,7 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 	
 	// Debug
 	//dump_buffer(buff_addr, offset, num_sectors);
+	BOOL8 res = FALSE;
 	
 	buff_addr    	    = buff_addr + BYTES_PER_SECTOR * offset;
 	UINT32 buff_entries = BYTES_PER_SECTOR * num_sectors / sizeof(UINT32);
@@ -157,7 +186,7 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 	UINT32 min_val  = read_dram_32(buff_addr + min_idx * sizeof(UINT32));
 	if (min_val != val) {
 		uart_printf("expect min val to be %u but was %u, at position %u\r\n", val, min_val, min_idx);
-		return TRUE;
+		res |= TRUE;
 	}
     	
 	UINT32 max_idx  = mem_search_min_max(
@@ -166,9 +195,9 @@ BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 	UINT32 max_val  = read_dram_32(buff_addr + max_idx * sizeof(UINT32));
 	if (max_val != val) {
 		uart_printf("expect max val to be %u but was %u, at position %u\r\n", val, max_val, max_idx);
-		return TRUE;
+		res |= TRUE;
 	}
 
-	return FALSE;
+	return res;
 }
 #endif

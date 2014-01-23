@@ -25,7 +25,52 @@ sata_ncq_t			g_sata_ncq;
 volatile UINT32		g_sata_action_flags;
 
 #define HW_EQ_SIZE		128
-#define HW_EQ_MARGIN	4
+#define HW_EQ_MARGIN		4
+
+#if OPTION_FTL_TEST
+
+#define	CMD_QUEUE_SIZE		12
+static CMD_T	queue[CMD_QUEUE_SIZE];	
+static UINT8	queue_size = 0;
+static UINT8	queue_head = 0;
+static UINT8	queue_tail = 0;
+
+static UINT32 eventq_get_count(void)
+{
+	return queue_size;
+}
+
+static void eventq_get(CMD_T* cmd) 
+{
+	if (queue_size == 0) {
+		cmd->sector_count = 0;
+		return;
+	}
+
+	CMD_T *head_cmd = &queue[queue_head];
+	cmd->lba 	  = head_cmd->lba;
+	cmd->sector_count = head_cmd->sector_count;
+	cmd->cmd_type 	  = head_cmd->cmd_type;
+
+	queue_head = (queue_head + 1) % CMD_QUEUE_SIZE;
+	queue_size--;
+}
+
+BOOL8 eventq_put(UINT32 const lba, UINT32 const sector_count, UINT32 const cmd_type)
+{
+	if (queue_size == CMD_QUEUE_SIZE) return TRUE;
+
+	CMD_T *tail_cmd = &queue[queue_tail];
+	tail_cmd->lba	= lba;
+	tail_cmd->sector_count = sector_count;
+	tail_cmd->cmd_type = cmd_type;
+
+	queue_tail = (queue_tail + 1) % CMD_QUEUE_SIZE;
+	queue_size++;
+	return FALSE;
+}
+
+#else
 
 static UINT32 eventq_get_count(void)
 {
@@ -67,6 +112,8 @@ static void eventq_get(CMD_T* cmd)
 	enable_fiq();
 }
 
+#endif
+
 __inline ATA_FUNCTION_T search_ata_function(UINT32 command_code)
 {
 	UINT32 index;
@@ -82,50 +129,41 @@ __inline ATA_FUNCTION_T search_ata_function(UINT32 command_code)
 	return ata_function;
 }
 
+BOOL8 sata_has_next_rw_cmd()
+{
+	return eventq_get_count() > 0;
+}
+
+void  sata_get_next_rw_cmd(CMD_T *cmd)
+{
+	return eventq_get(cmd);
+}
+
+static BOOL8 sata_has_slow_cmd()
+{
+	return g_sata_context.slow_cmd.status == SLOW_CMD_STATUS_PENDING;
+}
+
+static void  sata_handle_slow_cmd()
+{
+	void (*ata_function)(UINT32 lba, UINT32 sector_count);
+
+	slow_cmd_t* slow_cmd = &g_sata_context.slow_cmd;
+	slow_cmd->status = SLOW_CMD_STATUS_BUSY;
+
+	ata_function = search_ata_function(slow_cmd->code);
+	ata_function(slow_cmd->lba, slow_cmd->sector_count);
+
+	slow_cmd->status = SLOW_CMD_STATUS_NONE;
+}
+
 void Main(void)
 {
-	while (1)
-	{
-		if (eventq_get_count())
-		{
-			CMD_T cmd;
+	while (1) {
+		BOOL8 idle = ftl_main();
 
-			eventq_get(&cmd);
-
-			if (cmd.cmd_type == READ)
-			{
-#if OPTION_ACL
-				ftl_read(cmd.lba, cmd.sector_count, cmd.session_key);
-#else
-				ftl_read(cmd.lba, cmd.sector_count);
-#endif
-
-			}
-			else
-			{
-#if OPTION_ACL
-				ftl_write(cmd.lba, cmd.sector_count, cmd.session_key);
-#else
-				ftl_write(cmd.lba, cmd.sector_count);
-#endif
-			}
-		}
-		else if (g_sata_context.slow_cmd.status == SLOW_CMD_STATUS_PENDING)
-		{
-			void (*ata_function)(UINT32 lba, UINT32 sector_count);
-
-			slow_cmd_t* slow_cmd = &g_sata_context.slow_cmd;
-			slow_cmd->status = SLOW_CMD_STATUS_BUSY;
-
-			ata_function = search_ata_function(slow_cmd->code);
-			ata_function(slow_cmd->lba, slow_cmd->sector_count);
-
-			slow_cmd->status = SLOW_CMD_STATUS_NONE;
-		}
-		else
-		{
-			// idle time operations
-		}
+		if (idle && sata_has_slow_cmd())
+			sata_handle_slow_cmd();
 	}
 }
 

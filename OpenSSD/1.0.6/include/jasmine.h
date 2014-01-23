@@ -27,7 +27,7 @@
 #define	BANK_BMP		0x00FF00FF
 #define	CLOCK_SPEED		175000000
 
-#define OPTION_ENABLE_ASSERT		1	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
+#define OPTION_ENABLE_ASSERT		0	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
 #define OPTION_UART_DEBUG		1	// 1 = enable UART message output, 0 = disable
 #define OPTION_SLOW_SATA		0	// 1 = SATA 1.5Gbps, 0 = 3Gbps
 #define OPTION_SUPPORT_NCQ		0	// 1 = support SATA NCQ (=FPDMA) for AHCI hosts, 0 = support only DMA mode
@@ -243,6 +243,8 @@ typedef struct _vsp_t {
 	UINT32	vspn  :27; 
 } vsp_t; 
 
+#define NULL_LSPN			0xFFFFFFFF
+
 #define vsp_is_equal(vsp0, vsp1)	( ((vsp0).bank == (vsp1).bank) && \
 				  	  ((vsp0).vspn == (vsp1).vspn) )
 
@@ -350,6 +352,12 @@ scan_list_t;
 			while(1);\
 		}\
 	} while(0);
+	/* #define BUG_ON(MESSAGE, COND) do {\ */
+	/* 	if (COND) {\ */
+	/* 		uart_print("bug_on");	\ */
+	/* 		while(1);\ */
+	/* 	}\ */
+	/* } while(0); */
 	
 #else
 	#define LOG(label, ...)

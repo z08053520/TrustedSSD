@@ -8,7 +8,7 @@
 
 typedef struct _gc_metadata
 {
-    UINT32 cur_write_vpn; // physical page for new write
+    UINT32 next_write_vpn; // physical page for new write
     UINT32 num_free_pages;
 } gc_metadata; 
 
@@ -43,7 +43,7 @@ void gc_init(void)
 
 	FOR_EACH_BANK(bank) {
 		num_skipped_pages = PAGES_PER_VBLK * user_data_from_vblk;
-		_metadata[bank].cur_write_vpn  = num_skipped_pages;
+		_metadata[bank].next_write_vpn  = num_skipped_pages;
 		_metadata[bank].num_free_pages = PAGES_PER_BANK  
 					       - bb_get_num(bank)
 					       - num_skipped_pages;
@@ -59,14 +59,14 @@ UINT32 gc_allocate_new_vpn(UINT32 const bank)
 		gc_get_num_free_pages(bank) == 0);
 
 	/* if need to find a new block */
-	if (_metadata[bank].cur_write_vpn % PAGES_PER_VBLK == 0) {
-		next_good_vblk = _metadata[bank].cur_write_vpn / PAGES_PER_VBLK;
+	if (_metadata[bank].next_write_vpn % PAGES_PER_VBLK == 0) {
+		next_good_vblk = _metadata[bank].next_write_vpn / PAGES_PER_VBLK;
 		find_next_good_vblk(bank, &next_good_vblk);
 
-		_metadata[bank].cur_write_vpn = next_good_vblk * PAGES_PER_VBLK;
+		_metadata[bank].next_write_vpn = next_good_vblk * PAGES_PER_VBLK;
 	}
 	_metadata[bank].num_free_pages--;
-	return _metadata[bank].cur_write_vpn ++;
+	return _metadata[bank].next_write_vpn ++;
 }
 
 UINT32 gc_get_num_free_pages(UINT32 const bank)

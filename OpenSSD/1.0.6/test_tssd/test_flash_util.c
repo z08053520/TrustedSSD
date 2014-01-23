@@ -42,6 +42,8 @@ void ftl_test()
 		UINT32 vpn 	    = gc_allocate_new_vpn(bank);
 		vp_t   vp	    = {.bank = bank, .vpn = vpn};
 
+		uart_printf("write to bank %u, vpn %u\r\n", bank, vpn);
+
 		UINT32 vspn  	    = vpn * SUB_PAGES_PER_PAGE;
 		UINT8  vsp_offset   = 0;	
 		while (vsp_offset < SUB_PAGES_PER_PAGE && num_vsp < total_vsp) {
@@ -73,7 +75,12 @@ void ftl_test()
 		vsp_t		vsp = int2vsp.as_vsp;	
 		UINT32		val = get_val(num_vsp);
 
-		fu_read_sub_page(vsp, COPY_BUF_ADDR);
+		uart_printf("read from bank %u, vpn %u, sp_i %u\r\n", 
+			    vsp.bank, 
+			    vsp.vspn / SUB_PAGES_PER_PAGE, 
+			    vsp.vspn % SUB_PAGES_PER_PAGE);
+
+		fu_read_sub_page(vsp, COPY_BUF_ADDR, FU_SYNC);
 		
 		UINT8		sector_offset = vsp.vspn % SUB_PAGES_PER_PAGE * SECTORS_PER_SUB_PAGE;
 		UINT8		wrong = is_buff_wrong(COPY_BUF_ADDR, 

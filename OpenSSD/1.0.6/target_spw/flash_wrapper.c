@@ -23,9 +23,6 @@
 // If you feel it is difficult to use the flash_xxx() functions,
 // you can use nand_xxx() functions which are easier to use.
 
-extern UINT32 g_ftl_read_buf_id;
-extern UINT32 g_ftl_write_buf_id;
-
 #if	OPTION_PERF_TUNING
 	// statistics about flash operations
 	UINT32 g_flash_read_count	= 0;
@@ -90,75 +87,6 @@ void nand_page_ptread(UINT32 const bank, UINT32 const vblock, UINT32 const page_
     // RETURN_ON_ISSUE, RETURN_WHEN_DONE, RETURN_ON_ACCEPT
     flash_issue_cmd(bank, issue_flag);
 }
-void nand_page_read_to_host(UINT32 const bank, UINT32 const vblock, UINT32 const page_num)
-{
-    UINT32 row;
-
-    ASSERT(bank < NUM_BANKS);
-    ASSERT(vblock < VBLKS_PER_BANK);
-    ASSERT(page_num < PAGES_PER_BLK);
-
-#if OPTION_PERF_TUNING 
-	g_flash_read_count++;	
-#endif
-
-    row = (vblock * PAGES_PER_BLK) + page_num;
-
-    SETREG(FCP_CMD, FC_COL_ROW_READ_OUT);
-    SETREG(FCP_DMA_ADDR, SATA_RD_BUF_PTR(g_ftl_read_buf_id));
-    SETREG(FCP_DMA_CNT, BYTES_PER_PAGE);
-
-    SETREG(FCP_COL, 0);
-#if OPTION_FTL_TEST == TRUE
-    SETREG(FCP_OPTION, FO_P | FO_E);
-#else
-    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_SATA_R);
-#endif
-    SETREG(FCP_ROW_L(bank), row);
-    SETREG(FCP_ROW_H(bank), row);
-
-    g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
-
-#if OPTION_FTL_TEST == FALSE
-    while (g_ftl_read_buf_id == GETREG(SATA_RBUF_PTR)) ;
-#endif
-    flash_issue_cmd(bank, RETURN_ON_ISSUE);
-}
-// partial page read to host
-void nand_page_ptread_to_host(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors)
-{
-    UINT32 row;
-
-    ASSERT(bank < NUM_BANKS);
-    ASSERT(vblock < VBLKS_PER_BANK);
-    ASSERT(page_num < PAGES_PER_BLK);
-
-#if OPTION_PERF_TUNING 
-	g_flash_read_count++;	
-#endif
-
-    row = (vblock * PAGES_PER_BLK) + page_num;
-
-    SETREG(FCP_CMD, FC_COL_ROW_READ_OUT);
-    SETREG(FCP_DMA_ADDR, SATA_RD_BUF_PTR(g_ftl_read_buf_id));
-    SETREG(FCP_DMA_CNT, num_sectors * BYTES_PER_SECTOR);
-
-    SETREG(FCP_COL, sect_offset);
-#if OPTION_FTL_TEST == TRUE
-    SETREG(FCP_OPTION, FO_P | FO_E);
-#else
-    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_SATA_R);
-#endif
-    SETREG(FCP_ROW_L(bank), row);
-    SETREG(FCP_ROW_H(bank), row);
-
-    g_ftl_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
-
-#if OPTION_FTL_TEST == FALSE
-    while (g_ftl_read_buf_id == GETREG(SATA_RBUF_PTR)) ;
-#endif
-   flash_issue_cmd(bank, RETURN_ON_ISSUE);
-}
 void nand_page_program(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const buf_addr)
 {
     UINT32 row;
@@ -206,68 +134,6 @@ void nand_page_ptprogram(UINT32 const bank, UINT32 const vblock, UINT32 const pa
     SETREG(FCP_ROW_H(bank), row);
 
     flash_issue_cmd(bank, RETURN_ON_ISSUE);
-}
-void nand_page_program_from_host(UINT32 const bank, UINT32 const vblock, UINT32 const page_num)
-{
-    UINT32 row;
-
-    ASSERT(bank < NUM_BANKS);
-    ASSERT(vblock < VBLKS_PER_BANK);
-    ASSERT(page_num < PAGES_PER_BLK);
-
-#if OPTION_PERF_TUNING 
-	g_flash_write_count++;	
-#endif
-
-    row = (vblock * PAGES_PER_BLK) + page_num;
-
-    SETREG(FCP_CMD, FC_COL_ROW_IN_PROG);
-#if OPTION_FTL_TEST == TRUE
-    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_W_DRDY);
-#else
-    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_SATA_W);
-#endif
-    SETREG(FCP_DMA_ADDR, SATA_WR_BUF_PTR(g_ftl_write_buf_id));
-    SETREG(FCP_DMA_CNT, BYTES_PER_PAGE);
-
-    SETREG(FCP_COL, 0);
-    SETREG(FCP_ROW_L(bank), row);
-    SETREG(FCP_ROW_H(bank), row);
-
-    flash_issue_cmd(bank, RETURN_ON_ISSUE);
-
-    g_ftl_write_buf_id = ((g_ftl_write_buf_id) + 1) % NUM_SATA_WR_BUFFERS;
-}
-void nand_page_ptprogram_from_host(UINT32 const bank, UINT32 const vblock, UINT32 const page_num, UINT32 const sect_offset, UINT32 const num_sectors)
-{
-    UINT32 row;
-
-    ASSERT(bank < NUM_BANKS);
-    ASSERT(vblock < VBLKS_PER_BANK);
-    ASSERT(page_num < PAGES_PER_BLK);
-
-#if OPTION_PERF_TUNING 
-	g_flash_write_count++;	
-#endif
-
-    row = (vblock * PAGES_PER_BLK) + page_num;
-
-    SETREG(FCP_CMD, FC_COL_ROW_IN_PROG);
-#if OPTION_FTL_TEST == TRUE
-    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_W_DRDY);
-#else
-    SETREG(FCP_OPTION, FO_P | FO_E | FO_B_SATA_W);
-#endif
-    SETREG(FCP_DMA_ADDR, SATA_WR_BUF_PTR(g_ftl_write_buf_id));
-    SETREG(FCP_DMA_CNT, num_sectors * BYTES_PER_SECTOR);
-
-    SETREG(FCP_COL, sect_offset);
-    SETREG(FCP_ROW_L(bank), row);
-    SETREG(FCP_ROW_H(bank), row);
-
-    flash_issue_cmd(bank, RETURN_ON_ISSUE);
-
-    g_ftl_write_buf_id = ((g_ftl_write_buf_id) + 1) % NUM_SATA_WR_BUFFERS;
 }
 void nand_page_copyback(UINT32 const bank, UINT32 const src_vblock, UINT32 const src_page,
                           UINT32 const dst_vblock, UINT32 const dst_page)
