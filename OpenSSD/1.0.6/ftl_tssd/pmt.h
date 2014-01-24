@@ -1,6 +1,7 @@
 #ifndef __PMT_H
 #define __PMT_H
 #include "jasmine.h"
+#include "task_engine.h"
 
 /* *
  * PMT = page-level mapping table
@@ -33,7 +34,9 @@
 
 void pmt_init(void);
 
+task_res_t pmt_load(UINT32 const lpn);
+
 void pmt_update(UINT32 const lspn, vp_t const vp);
-void pmt_fetch(UINT32 const lspn,  vp_t* vp);
+void pmt_get(UINT32 const lspn,  vp_t* vp);
 
 #endif /* __PMT_H */

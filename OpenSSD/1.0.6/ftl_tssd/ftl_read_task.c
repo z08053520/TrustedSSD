@@ -112,7 +112,14 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;	
 
+	task_swap_in(task, segments, sizeof(*segments));
 	/* uart_printf("mapping > seq_id = %u\r\n", task->seq_id); */
+	task_res_t res = pmt_load(task->lpn);
+	if (res) {
+		task->waiting_banks = ALL_BANKS;
+		task_swap_out(task, segments, sizeof(*segments));
+		return res;
+	}
 
 	UINT8	num_segments = 0;
 	/* Iterate each sub-page */ 
@@ -131,7 +138,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 		
 		UINT32	lspn	 = lspn_base + sp_i;
 		vp_t	vp;
-		pmt_fetch(lspn, &vp);
+		pmt_get(lspn, &vp);
 
 		/* uart_printf("pmt fetch: lspn %u --> bank %u, vpn %u\r\n", */ 
 		/* 	    lspn, vp.bank, vp.vpn); */

@@ -34,7 +34,10 @@ typedef struct {
 
 typedef struct {
 	UINT8		cmd_issued;
-	UINT8		cmd_done;
+	enum {
+		UINT8		cmd_done;
+		UINT8		pmt_done;
+	}
 	vp_t		vp;
 	UINT32		buf;
 	sectors_mask_t 	valid_sectors;
@@ -152,6 +155,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 
 	task_starts_writing_page(wr_buf->vp, task);
 	task->state = STATE_MAPPING;
+	task->pmt_done = 0;
 	return TASK_CONTINUED;
 }
 
@@ -162,15 +166,33 @@ static task_res_t mapping_state_handler	(task_t* _task,
 
 	/* DEBUG("write_task_handler>mapping", "task_id = %u", task->seq_id); */
 
+	task_res_t res = TASK_CONTINUED;
 	UINT8 sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
 		UINT32 lspn = wr_buf->lspn[sp_i];
 		if (lspn == NULL_LSPN) continue;
-		
-		pmt_fetch(lspn, & wr_buf->old_vp[sp_i]);		
+
+		if (mask_is_set(task->pmt_done, sp_i)) continue;
+
+		UINT32	sp_lpn	  = lspn / SUB_PAGES_PER_PAGE;
+		task_res_t sp_res = pmt_load(sp_lpn);
+		if (sp_res)  {
+			/* TASK_BLOCKED is prior to TASK_PAUSED */
+			if (sp_res > res)  res = sp_res;
+			continue;
+		}
+			
+		pmt_get(lspn, & wr_buf->old_vp[sp_i]);		
 		pmt_update(lspn, wr_buf->vp);
+		mask_is_set(task->pmt_done, sp_i);
 		/* uart_printf("pmt update: lspn %u --> bank %u, vpn %u\r\n", */ 
 		/* 	    lspn, wr_buf->vp.bank, wr_buf->vp.vpn); */
+	}
+
+	if (res) {
+		task->waiting_banks = ALL_BANKS;
+		task_swap_out(task, wr_buf, sizeof(*wr_buf));
+		return res;
 	}
 	
 	task->waiting_banks 	= 0;
