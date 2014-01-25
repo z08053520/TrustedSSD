@@ -35,13 +35,11 @@
 
 #define NULL_KEY		0	
 #define NULL_TIMESTAMP		0xFFFFFFFF 
-#define DIRTY_SIZE		COUNT_BUCKETS(NUM_PC_SUB_PAGES, sizeof(UINT32) * 8)
-#define DIRTY_BYTES		(DIRTY_SIZE * sizeof(UINT32))
 
-/* For each cached sub page, we record **key**, **timestamp** and **dirty** */
-static UINT32 cached_keys[NUM_PC_SUB_PAGES];
-static UINT32 timestamps[NUM_PC_SUB_PAGES];
-static UINT32 dirty[DIRTY_SIZE];
+/* For each cached sub page, we record **key**, **timestamp** and **flag** */
+static UINT32 	cached_keys[NUM_PC_SUB_PAGES];
+static UINT32 	timestamps[NUM_PC_SUB_PAGES];
+static UINT8	flags[NUM_PC_SUB_PAGES];	
 
 static UINT32 num_free_sub_pages = NUM_PC_SUB_PAGES;
 static UINT32 current_timestamp  = 0;
@@ -64,21 +62,6 @@ static UINT32 last_key = NULL_KEY,
 /* ========================================================================= *
  * Private Functions 
  * ========================================================================= */
-
-static void page_set_dirty(UINT32 const page_idx)
-{
-	dirty[page_idx / UINT32_BITS] |= (1 << (page_idx % UINT32_BITS));
-}
-
-static void page_reset_dirty(UINT32 const page_idx)
-{
-	dirty[page_idx / UINT32_BITS] &= ~(1 << (page_idx % UINT32_BITS));
-}
-
-static BOOL8 page_is_dirty(UINT32 const page_idx)
-{
-	return (dirty[page_idx / UINT32_BITS] >> (page_idx % UINT32_BITS)) & 1;
-}
 
 static vsp_t get_vsp(UINT32 const idx, pc_buf_type_t const type) {
 	vsp_t vsp;
@@ -247,7 +230,10 @@ void page_cache_init(void)
 	UINT32 num_bytes = sizeof(UINT32) * NUM_PC_SUB_PAGES;
 	mem_set_sram(cached_keys, NULL_KEY, 		num_bytes);
 	mem_set_sram(timestamps,  NULL_TIMESTAMP, 	num_bytes);
-	mem_set_sram(dirty,	  0,			DIRTY_BYTES);
+
+	UINT page_i = 0;
+	for (page_i = 0; page_i < NUM_PC_SUB_PAGES; page_i)
+		flags[page_i] = 0;
 }
 
 BOOL8	page_cache_has (UINT32 const idx, pc_buf_type_t const type)
@@ -256,8 +242,8 @@ BOOL8	page_cache_has (UINT32 const idx, pc_buf_type_t const type)
 	return page_idx >= NUM_PC_SUB_PAGES;
 }
 
-void 	page_cache_get (UINT32 const idx, UINT32 *addr, 
-		     	pc_buf_type_t const type, BOOL8 const will_modify)
+void 	page_cache_get (UINT32 const idx, pc_buf_type_t const type, 
+			UINT32 *addr, BOOL8 const will_modify)
 {
 	UINT32	page_idx = find_page(idx, type);
 	BUG_ON("page not found in cache", page_idx >= NUM_PC_SUB_PAGES);
@@ -265,15 +251,15 @@ void 	page_cache_get (UINT32 const idx, UINT32 *addr,
 	*addr = PC_SUB_PAGE(page_idx);
 
 	// set dirty if to be modified
-	if (will_modify) page_set_dirty(page_idx);
+	if (will_modify) set_dirty(flags[page_idx]);
 	// update timestamp for LRU cache policy
 	timestamps[page_idx] = current_timestamp++;
 	if (unlikely(current_timestamp == NULL_TIMESTAMP)) 
 		handle_timestamp_overflow();	
 }
 
-void	page_cache_put (UINT32 const idx, UINT32 *buf, 
-			pc_buf_type_t const type)
+void	page_cache_put (UINT32 const idx, pc_buf_type_t const type, 
+			UINT32 *buf, UINT8 const flag)
 {
 	BUG_ON("page cache is full", page_cache_is_full());
 
@@ -288,6 +274,7 @@ void	page_cache_put (UINT32 const idx, UINT32 *buf,
 
 	cached_keys[free_page_idx] = idx2key(idx, type);
 	timestamps[free_page_idx]  = current_timestamp++;
+	flags[free_page_idx]	   = flag;
 	if (unlikely(current_timestamp == NULL_TIMESTAMP)) 
 		handle_timestamp_overflow();	
 	
@@ -295,6 +282,27 @@ void	page_cache_put (UINT32 const idx, UINT32 *buf,
 
 	*addr = PC_SUB_PAGE(page_idx);
 	return free_page_idx;
+}
+
+BOOL8	page_cache_get_flag(UINT32 const idx, pc_buf_type_t const type,
+			    UINT8 *flag)
+{
+	UINT32	page_idx = find_page(idx, type);
+	if (page_idx >= NUM_PC_SUB_PAGES) {
+		*flag = 0;
+		return ERROR;
+	}
+	*flag = flags[page_idx];	
+	return NORMAL;
+}
+
+BOOL8	page_cache_set_flag(UINT32 const idx, pc_buf_type_t const type,
+			    UINT8 const flag)
+{
+	UINT32	page_idx = find_page(idx, type);
+	if (page_idx >= NUM_PC_SUB_PAGES) return ERROR;
+	flags[page_idx] = flag;
+	return NORMAL;
 }
 
 BOOL8	page_cache_is_full(void)
@@ -318,12 +326,12 @@ void	page_cache_evict(UINT32 *idx, pc_buf_type_t *type,
 	UINT32	key = cached_keys[lru_page_idx];
 	*idx 	= key2idx(key);
 	*type 	= key2type(key);
-	*is_dirty = page_is_dirty(lru_page_idx);
+	*is_dirty = is_dirty(flags[lru_page_idx]);
 	*buf	= PC_SUB_PAGE(lru_page_idx);
 
 	cached_keys[lru_page_idx] = NULL_KEY;
 	timestamps[lru_page_idx]  = NULL_TIMESTAMP;
-	page_reset_dirty(lru_page_idx);
+	flags[lru_page_idx] = 0;
 
 	num_free_sub_pages++;
 }

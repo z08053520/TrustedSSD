@@ -183,6 +183,9 @@
 #define	INVALID16	((UINT16) -1)
 #define	INVALID32	((UINT32) -1)
 
+#define NORMAL		0
+#define ERROR		1
+
 typedef	unsigned char		BOOL8;
 typedef	unsigned short		BOOL16;
 typedef	unsigned int		BOOL32;
