@@ -21,6 +21,9 @@ static task_t _head;
 static task_t *head, *tail; 
 #define is_engine_idle()	(head == tail)
 
+/* previous task and current task when task engine is running */
+static	task_t *pre_task, *current_task;
+
 static task_handler_t* task_handlers[MAX_NUM_TASK_TYPES];
 static UINT8 num_task_types;
 
@@ -125,6 +128,17 @@ void 	task_engine_submit(task_t *task)
 	tail = task;
 }
 
+void	task_engine_insert(task_t *task)
+{
+	BUG_ON("task is not running", pre_task == NULL || current_task == NULL);
+	BUG_ON("task is null!", task == NULL);
+
+	/* TODO: do task when inserted */	
+	set_next_task(pre_task, task);
+	set_next_task(task, current_task);
+	pre_task = task;
+}
+
 BOOL8 	task_engine_run()
 {
 	/* Wait for all flash commands are accepted */
@@ -136,33 +150,34 @@ BOOL8 	task_engine_run()
 	context.completed_banks = used_banks & context.idle_banks;
 
 	/* Iterate each task */
-	task_t *pre = head, *task = get_next_task(head);
-	while (task) {
-		if ((task->waiting_banks & context.idle_banks) == 0) 
+	pre_task = head, current_task = get_next_task(head);
+	while (current_task) {
+		if ((current_task->waiting_banks & context.idle_banks) == 0) 
 			goto next_task;
 		
 		task_res_t res;
 		do {
-			task_handler_t handler = task_handlers[task->type][task->state];
-			res = (*handler)(task, &context);
+			task_handler_t handler = task_handlers[current_task->type][current_task->state];
+			res = (*handler)(current_task, &context);
 		} while (res == TASK_CONTINUED);
 
 		if (res == TASK_BLOCKED) break;
 
 		/* Remove task that is done */
 		if (res == TASK_FINISHED) {
-			set_next_task(pre, get_next_task(task));
-			if (task == tail) tail = pre;
-			task_deallocate(task);
+			set_next_task(pre_task, get_next_task(current_task));
+			if (current_task == tail) tail = pre_task;
+			task_deallocate(current_task);
 		}
 		/* TASK_PAUSED */
 		else {
 next_task:
-			pre  = task;
+			pre_task  = current_task;
 		}
-		task = get_next_task(pre);
+		current_task = get_next_task(pre_task);
 	}
-	
+
+	pre_task = current_task = NULL;
 	return is_engine_idle();
 }
 

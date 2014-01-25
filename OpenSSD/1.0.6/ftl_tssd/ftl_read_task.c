@@ -116,7 +116,6 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	/* uart_printf("mapping > seq_id = %u\r\n", task->seq_id); */
 	task_res_t res = pmt_load(task->lpn);
 	if (res) {
-		task->waiting_banks = ALL_BANKS;
 		task_swap_out(task, segments, sizeof(*segments));
 		return res;
 	}

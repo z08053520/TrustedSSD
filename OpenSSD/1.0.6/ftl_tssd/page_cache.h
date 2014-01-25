@@ -3,17 +3,23 @@
 
 #include "jasmine.h"
 
-typedef enum _pc_buf_type {
-	/* Cache a page of PMT (Page Mapping Table) 
-	 * For this type of entries, the key is pmt_index. */
-	PC_BUF_TYPE_PMT
+/* ========================================================================= *
+ *  Macros and Types
+ * ========================================================================= */
+
+/* may require gcc to use -fms-extensions */
+typedef union {
+	struct {
+		UINT8	type:1;
+		UINT32	idx:31;
+	};
+	UINT32	as_uint;
+} pc_key_t;
+
+#define PC_TYPE_PMT	0
 #if OPTION_ACL
-	/* Cache a page of SOT (Sector Ownership Table) 
-	 * For this type of entries, the key is sot_index. */
-	,PC_BUF_TYPE_SOT
-#endif
-	,PC_BUF_TYPE_NUL
-} pc_buf_type_t;
+#define PC_TYPE_SOT	1
+#endif 
 
 typedef enum {
 	PC_FLAG_RESERVED = 1,
@@ -26,21 +32,23 @@ typedef enum {
 #define reset_dirty(flag)	((flag) &= ~PC_FLAG_DIRTY)
 #define reset_reserved(flag)	((flag) &= ~PC_FLAG_RESERVED)
 
+/* ========================================================================= *
+ *  Public Interface
+ * ========================================================================= */
+
 void	page_cache_init(void);
 
-BOOL8	page_cache_has (UINT32 const idx, pc_buf_type_t const type);
-void 	page_cache_get (UINT32 const idx, pc_buf_type_t const type, 
+BOOL8	page_cache_has (pc_key_t const key);
+void 	page_cache_get (pc_key_t const key,
 			UINT32 *buf, BOOL8 const will_modify);
-void	page_cache_put (UINT32 const idx, pc_buf_type_t const type, 
+void	page_cache_put (pc_key_t const key,
 			UINT32 *buf, UINT8 const flag);
 
-BOOL8	page_cache_get_flag(UINT32 const idx, pc_buf_type_t const type,
-			    UINT8 *flag);
-BOOL8	page_cache_set_flag(UINT32 const idx, pc_buf_type_t const type,
-			    UINT8 const flag);
+BOOL8	page_cache_get_flag(pc_key_t const key, UINT8 *flag);
+BOOL8	page_cache_set_flag(pc_key_t const key, UINT8 const flag);
 
 BOOL8	page_cache_is_full(void);
-void	page_cache_evict(UINT32 *idx, pc_buf_type_t *type, 
-			 BOOL8 *is_dirty, UINT32 *buf);
-
+BOOL8	page_cache_evict();
+void	page_cache_flush(UINT32 const merge_buf, 
+			 pc_key_t merged_keys[SUB_PAGES_PER_PAGE]);
 #endif

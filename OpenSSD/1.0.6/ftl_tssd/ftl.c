@@ -102,6 +102,8 @@ void ftl_open(void) {
 	task_engine_init();
 	ftl_read_task_register();
 	ftl_write_task_register();
+	page_cache_load_task_register();
+	page_cache_flush_task_register();
 
 	flash_clear_irq();
 	// This example FTL can handle runtime bad block interrupts and read fail (uncorrectable bit errors) interrupts

@@ -190,7 +190,6 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	}
 
 	if (res) {
-		task->waiting_banks = ALL_BANKS;
 		task_swap_out(task, wr_buf, sizeof(*wr_buf));
 		return res;
 	}
