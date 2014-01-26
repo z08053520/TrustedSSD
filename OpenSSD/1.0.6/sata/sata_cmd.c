@@ -18,6 +18,7 @@
 
 
 #include "jasmine.h"
+#include "dram.h"
 #include "ftl.h"
 
 void ata_check_power_mode(UINT32 lba, UINT32 sector_count)

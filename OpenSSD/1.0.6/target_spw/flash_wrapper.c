@@ -17,7 +17,7 @@
 // If not, see <http://www.gnu.org/licenses/>.
 
 #include "jasmine.h"
-#include "ftl.h"
+#include "dram.h"
 
 // This file provides wrapper functions for flash.c.
 // If you feel it is difficult to use the flash_xxx() functions,

@@ -23,7 +23,7 @@ RM	= rm
 #TEST = task_engine
 #TEST = ftl_read_task
 #TEST = ftl_write_task
-TEST = fde
+#TEST = fde
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size

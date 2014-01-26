@@ -10,6 +10,8 @@
 #include "task_engine.h"
 #include "ftl_read_task.h"
 #include "ftl_write_task.h"
+#include "page_cache_load_task.h"
+#include "page_cache_flush_task.h"
 #if OPTION_ACL
 	#include "acl.h"
 #endif

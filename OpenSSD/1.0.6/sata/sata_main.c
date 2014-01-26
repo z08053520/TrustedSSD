@@ -18,10 +18,11 @@
 
 
 #include "jasmine.h"
+#include "dram.h"
 #include "ftl.h"
 
 sata_context_t		g_sata_context;
-sata_ncq_t			g_sata_ncq;
+sata_ncq_t		g_sata_ncq;
 volatile UINT32		g_sata_action_flags;
 
 #define HW_EQ_SIZE		128

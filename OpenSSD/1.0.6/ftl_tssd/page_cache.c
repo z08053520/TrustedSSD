@@ -35,11 +35,11 @@
 /* 					 	PC_BUF_TYPE_NUL)) */
 /* #endif */
 
-static const page_key_t	NULL_KEY = {.as_uint = 0xFFFFFFFF}
+static const page_key_t	NULL_KEY = {.as_uint = 0xFFFFFFFF};
 #define NULL_TIMESTAMP		0xFFFFFFFF 
 
 /* For each cached sub page, we record **key**, **timestamp** and **flag** */
-static UINT32 	cached_keys[NUM_PC_SUB_PAGES];
+static page_key_t cached_keys[NUM_PC_SUB_PAGES];
 static UINT32 	timestamps[NUM_PC_SUB_PAGES];
 static UINT8	flags[NUM_PC_SUB_PAGES];	
 
@@ -54,48 +54,27 @@ static UINT32 	current_timestamp  = 0;
 #endif
 
 /* merge buffer */	
-static UINT8  to_be_merged_pages = 0;
-static UINT32 to_be_merged_page_indexes[SUB_PAGES_PER_PAGE];
+static UINT8  	to_be_merged_pages = 0;
+static UINT32 	to_be_merged_page_indexes[SUB_PAGES_PER_PAGE];
 
 /* Optimize for visiting one PMT/SOT page repeatedly*/
-static page_key_t last_key = NULL_KEY;
-static UINT32 	last_page_idx = SUB_PAGES_PER_PAGE;
+static page_key_t	last_key;
+static UINT32 		last_page_idx;
 
 /* ========================================================================= *
  * Private Functions 
  * ========================================================================= */
 
-static vsp_t get_vsp(UINT32 const idx, pc_buf_type_t const type) {
-	vsp_t vsp;
-
-	switch(type) {
-	case PC_BUF_TYPE_PMT:
-		vsp = gtd_get_vsp(idx, GTD_ZONE_TYPE_PMT);
-		break;
-#if OPTION_ACL
-	case PC_BUF_TYPE_SOT:
-		vsp = gtd_get_vsp(idx, GTD_ZONE_TYPE_SOT);
-		break;
-#endif
-	default:
-		BUG_ON("invalid type", 1);
-	}
-	return vsp;
-}
-
-#define key_equal(key0, key1)	((key0).as_uint == (key1).as_uint)
-
 static UINT32	find_page(page_key_t const key)
 {
-	BUG_ON("invalid type", type == PC_BUF_TYPE_NUL);
 	// try to find cached page given key
 	UINT32 page_idx; 
-	if (key_equal(last_key, key))
+	if (page_key_equal(last_key, key))
 		page_idx = last_page_idx;
 	else {
 		page_idx = mem_search_equ_sram(cached_keys, 
 					       sizeof(UINT32), 
-					       NUM_PC_SUB_PAGES, key);
+					       NUM_PC_SUB_PAGES, key.as_uint);
 		if (page_idx >= NUM_PC_SUB_PAGES) return NUM_PC_SUB_PAGES;
 		last_key = key;
 		last_page_idx = page_idx;
@@ -241,9 +220,12 @@ void page_cache_init(void)
 	mem_set_sram(cached_keys, NULL_KEY.as_uint, 	num_bytes);
 	mem_set_sram(timestamps,  NULL_TIMESTAMP, 	num_bytes);
 
-	UINT page_i = 0;
-	for (page_i = 0; page_i < NUM_PC_SUB_PAGES; page_i)
+	UINT8 page_i = 0;
+	for (page_i = 0; page_i < NUM_PC_SUB_PAGES; page_i++)
 		flags[page_i] = 0;
+
+	last_key = NULL_KEY;
+	last_page_idx = SUB_PAGES_PER_PAGE;
 }
 
 BOOL8	page_cache_has (page_key_t const key)
@@ -291,10 +273,9 @@ void	page_cache_put (page_key_t const key,
 	if (unlikely(current_timestamp == NULL_TIMESTAMP)) 
 		handle_timestamp_overflow();	
 	
-	num_free_sub_pages--;
+	*buf = PC_SUB_PAGE(page_idx);
 
-	*addr = PC_SUB_PAGE(page_idx);
-	return free_page_idx;
+	num_free_sub_pages--;
 }
 
 BOOL8	page_cache_get_flag(page_key_t const key, UINT8 *flag)
@@ -302,18 +283,18 @@ BOOL8	page_cache_get_flag(page_key_t const key, UINT8 *flag)
 	UINT32	page_idx = find_page(key);
 	if (page_idx >= NUM_PC_SUB_PAGES) {
 		*flag = 0;
-		return ERROR;
+		return 1;
 	}
 	*flag = flags[page_idx];	
-	return NORMAL;
+	return 0;
 }
 
 BOOL8	page_cache_set_flag(page_key_t const key, UINT8 const flag)
 {
 	UINT32	page_idx = find_page(key);
-	if (page_idx >= NUM_PC_SUB_PAGES) return ERROR;
+	if (page_idx >= NUM_PC_SUB_PAGES) return 1;
 	flags[page_idx] = flag;
-	return NORMAL;
+	return 0;
 }
 
 BOOL8	page_cache_is_full(void)
@@ -360,12 +341,12 @@ void	page_cache_flush(UINT32 const merge_buf,
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
 		UINT32	page_idx  =  to_be_merged_page_indexes[sp_i];	
 		merged_keys[sp_i] = cached_keys[page_idx];
-		mem_copy(merge_buf + i * BYTES_PER_SUB_PAGE,
+		mem_copy(merge_buf + sp_i * BYTES_PER_SUB_PAGE,
 			 PC_SUB_PAGE(page_idx),
 			 BYTES_PER_SUB_PAGE);
 
 		cached_keys[page_idx] = NULL_KEY;
-		flags[lru_page_idx]   = 0;
+		flags[page_idx]   = 0;
 	}
 
 	num_free_sub_pages += SUB_PAGES_PER_PAGE;

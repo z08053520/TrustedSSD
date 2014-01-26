@@ -66,7 +66,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	}
 
 	/* page has never been written to flash yet */
-	mem_set_dram(task->buf, 0xFFFFFFFF, BYTES_PER_SUB_PAGES);
+	mem_set_dram(task->buf, 0xFFFFFFFF, BYTES_PER_SUB_PAGE);
 	page_cache_set_flag(task->key, 0);
 	return TASK_FINISHED;
 }
@@ -76,7 +76,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
-	UINT8	bank = task->vsp.bank
+	UINT8	bank = task->vsp.bank;
 	if (!banks_has(context->idle_banks, bank)) return TASK_PAUSED;	
 
 	fu_read_sub_page(task->vsp, FTL_RD_BUF(bank), FU_ASYNC);	
@@ -92,7 +92,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
-	UINT8	bank = task->vp.bank; 
+	UINT8	bank = task->vsp.bank; 
 	if (!banks_has(context->completed_banks, bank)) 
 		return TASK_PAUSED;
 
@@ -108,7 +108,7 @@ static task_res_t finish_state_handler	(task_t* _task,
  *  Public Interface
  * =========================================================================*/
 
-void task_engine_load_task_register()
+void page_cache_load_task_register()
 {
 	BUG_ON("load task is too large to fit into general task struct",
 		sizeof(page_cache_load_task_t) > sizeof(task_t));
@@ -118,7 +118,7 @@ void task_engine_load_task_register()
 	BUG_ON("failed to register page cache load task", res);
 }
 
-void task_engine_load_task_init(task_t *_task, page_key_t const key)
+void page_cache_load_task_init(task_t *_task, page_key_t const key)
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 

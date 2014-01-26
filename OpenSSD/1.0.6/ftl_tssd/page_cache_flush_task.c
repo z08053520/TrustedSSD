@@ -1,5 +1,6 @@
 #include "page_cache_flush_task.h"
 #include "dram.h"
+#include "gc.h"
 #include "gtd.h"
 #include "page_cache.h"
 #include "flash_util.h"
@@ -47,13 +48,15 @@ static task_handler_t handlers[NUM_STATES] = {
  *  Task Handlers
  * =========================================================================*/
 
+static UINT32	flush_buf_id = 0;
+
 static task_res_t preparation_state_handler(task_t* _task, 
 				     	    task_context_t* context)
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
-	task_id_t task_id = task2id(task);				
-	merge_buf->buf = PC_FLUSH_BUF(task_id);
+	merge_buf->buf = PC_FLUSH_BUF(flush_buf_id);
+	flush_buf_id = (flush_buf_id + 1) % PC_FLUSH_BUFFERS;
 	page_cache_flush(merge_buf->buf, merge_buf->keys);
 
 	task->state = STATE_MAPPING;
@@ -75,11 +78,11 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	UINT8	bank	= auto_idle_bank(context->idle_banks);
 	UINT32	vpn	= gc_allocate_new_vpn(bank);
 	
-	vp_t	vsp	= {.bank = bank, .vspn = vpn * SUB_PAGES_PER_PAGE};
+	vsp_t	vsp	= {.bank = bank, .vspn = vpn * SUB_PAGES_PER_PAGE};
 	UINT8	sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
 		page_key_t key = merge_buf->keys[sp_i];
-		gtd_udpate(key, vsp);
+		gtd_set_vsp(key, vsp);
 		vsp.vspn++;
 	}
 	return TASK_CONTINUED;     				
@@ -113,7 +116,7 @@ static task_res_t finish_state_handler	(task_t* _task,
  *  Public Interface
  * =========================================================================*/
 
-void task_engine_flush_task_register()
+void page_cache_flush_task_register()
 {
 	BUG_ON("flush task is too large to fit into general task struct",
 		sizeof(page_cache_flush_task_t) > sizeof(task_t));
@@ -123,7 +126,7 @@ void task_engine_flush_task_register()
 	BUG_ON("failed to register page cache flush task", res);
 }
 
-void task_engine_flush_task_init(task_t *_task)
+void page_cache_flush_task_init(task_t *_task)
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 

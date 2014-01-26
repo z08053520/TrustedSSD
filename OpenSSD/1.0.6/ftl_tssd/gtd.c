@@ -2,14 +2,7 @@
 #include "dram.h"
 #include "mem_util.h"
 
-/* A zone is a consecutive area of memory storing info for one type of page */
-typedef struct {
-#define ENTRY(zone_name)	UINT32 zone_name[zone_name##_SUB_PAGES];
-	PAGE_TYPE_LIST
-#undef ENTRY
-} gtd_zones_t; 
-
-static UINT32 gtd_zone_addr[NUM_GTD_ZONE_TYPES + 1] = {
+static UINT32 gtd_zone_addr[NUM_PAGE_TYPES + 1] = {
 #define ENTRY(zone_name)	(GTD_ADDR + ((UINT32) &((gtd_zones_t*)0)->zone_name)),
 	PAGE_TYPE_LIST
 #undef ENTRY
@@ -35,7 +28,7 @@ void gtd_flush(void)
 vsp_t gtd_get_vsp(page_key_t const key)
 {
 	vsp_t vsp = {
-		.as_uint = read_dram_32(GTD_ENTRY_ADDR(key));
+		.as_uint = read_dram_32(GTD_ENTRY_ADDR(key))
 	};
 	return vsp;
 }

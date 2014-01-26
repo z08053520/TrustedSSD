@@ -19,7 +19,7 @@
 
 #include "jasmine.h"
 #include "sata.h"
-#include "ftl.h"
+#include "dram.h"
 
 #define SERIAL		0,0,0,0,0,0,0,0,0,0
 #define FW_REV		0,0,0,0

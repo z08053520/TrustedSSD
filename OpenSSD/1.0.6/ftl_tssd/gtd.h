@@ -39,7 +39,7 @@ typedef enum {
 #define ENTRY(type_name)	PAGE_TYPE_##type_name,
 	PAGE_TYPE_LIST
 #undef ENTRY
-	NUM_PAGE_TYPE_TYPES
+	NUM_PAGE_TYPES
 } page_type_t;
 
 /* may require gcc to use -fms-extensions */
@@ -50,6 +50,15 @@ typedef union {
 	};
 	UINT32	as_uint;
 } page_key_t;
+
+#define page_key_equal(key0, key1)	((key0).as_uint == (key1).as_uint)
+
+/* A zone is a consecutive area of memory storing info for one type of page */
+typedef struct {
+#define ENTRY(zone_name)	UINT32 zone_name[zone_name##_SUB_PAGES];
+	PAGE_TYPE_LIST
+#undef ENTRY
+} gtd_zones_t; 
 
 /* ===========================================================================
  * Public Interface 

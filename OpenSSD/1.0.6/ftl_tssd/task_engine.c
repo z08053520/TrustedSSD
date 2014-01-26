@@ -193,12 +193,11 @@ next_task:
 flash is read by tasks */
 BOOL8 is_any_task_writing_page(vp_t const vp)
 {
-	vp_or_int	vp2int		= {.as_vp = vp};
 	UINT8	vp_idx			= mem_search_equ_sram(
 						tasks_writing_vps,
 						sizeof(vp_t),
 						MAX_NUM_TASKS,
-						vp2int.as_int);
+						vp.as_uint);
 	return vp_idx < MAX_NUM_TASKS;
 }
 
