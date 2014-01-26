@@ -3,6 +3,8 @@
 #include "gtd.h"
 #include "dram.h"
 #include "flash_util.h"
+#include "page_cache_load_task.h"
+#include "page_cache_flush_task.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables 
@@ -33,7 +35,7 @@
 /* 					 	PC_BUF_TYPE_NUL)) */
 /* #endif */
 
-static const pc_key_t	NULL_KEY = {.as_uint = 0xFFFFFFFF}
+static const page_key_t	NULL_KEY = {.as_uint = 0xFFFFFFFF}
 #define NULL_TIMESTAMP		0xFFFFFFFF 
 
 /* For each cached sub page, we record **key**, **timestamp** and **flag** */
@@ -56,7 +58,7 @@ static UINT8  to_be_merged_pages = 0;
 static UINT32 to_be_merged_page_indexes[SUB_PAGES_PER_PAGE];
 
 /* Optimize for visiting one PMT/SOT page repeatedly*/
-static pc_key_t last_key = NULL_KEY;
+static page_key_t last_key = NULL_KEY;
 static UINT32 	last_page_idx = SUB_PAGES_PER_PAGE;
 
 /* ========================================================================= *
@@ -83,7 +85,7 @@ static vsp_t get_vsp(UINT32 const idx, pc_buf_type_t const type) {
 
 #define key_equal(key0, key1)	((key0).as_uint == (key1).as_uint)
 
-static UINT32	find_page(pc_key_t const key)
+static UINT32	find_page(page_key_t const key)
 {
 	BUG_ON("invalid type", type == PC_BUF_TYPE_NUL);
 	// try to find cached page given key
@@ -244,13 +246,13 @@ void page_cache_init(void)
 		flags[page_i] = 0;
 }
 
-BOOL8	page_cache_has (pc_key_t const key)
+BOOL8	page_cache_has (page_key_t const key)
 {
 	UINT32	page_idx = find_page(key);
 	return page_idx >= NUM_PC_SUB_PAGES;
 }
 
-void 	page_cache_get (pc_key_t const key,
+void 	page_cache_get (page_key_t const key,
 			UINT32 *addr, BOOL8 const will_modify)
 {
 	UINT32	page_idx = find_page(key);
@@ -269,7 +271,7 @@ void 	page_cache_get (pc_key_t const key,
 		handle_timestamp_overflow();
 }
 
-void	page_cache_put (pc_key_t const key,
+void	page_cache_put (page_key_t const key,
 			UINT32 *buf, UINT8 const flag)
 {
 	BUG_ON("page cache is full", page_cache_is_full());
@@ -295,7 +297,7 @@ void	page_cache_put (pc_key_t const key,
 	return free_page_idx;
 }
 
-BOOL8	page_cache_get_flag(pc_key_t const key, UINT8 *flag)
+BOOL8	page_cache_get_flag(page_key_t const key, UINT8 *flag)
 {
 	UINT32	page_idx = find_page(key);
 	if (page_idx >= NUM_PC_SUB_PAGES) {
@@ -306,7 +308,7 @@ BOOL8	page_cache_get_flag(pc_key_t const key, UINT8 *flag)
 	return NORMAL;
 }
 
-BOOL8	page_cache_set_flag(pc_key_t const key, UINT8 const flag)
+BOOL8	page_cache_set_flag(page_key_t const key, UINT8 const flag)
 {
 	UINT32	page_idx = find_page(key);
 	if (page_idx >= NUM_PC_SUB_PAGES) return ERROR;
@@ -349,7 +351,7 @@ BOOL8	page_cache_evict()
 }
 
 void	page_cache_flush(UINT32 const merge_buf, 
-			 pc_key_t merged_keys[SUB_PAGES_PER_PAGE])
+			 page_key_t merged_keys[SUB_PAGES_PER_PAGE])
 {
 	BUG_ON("merge buffer is not full", 
 		to_be_merged_pages != SUB_PAGES_PER_PAGE);
@@ -368,6 +370,42 @@ void	page_cache_flush(UINT32 const merge_buf,
 
 	num_free_sub_pages += SUB_PAGES_PER_PAGE;
 	to_be_merged_pages = 0;
+}
+
+task_res_t	page_cache_load(page_key_t const key)
+{
+	if (page_cache_has(key)) {
+		UINT8 flag;
+		page_cache_get_flag(key, &flag);
+		return is_reserved(flag) ? 
+				/* loading */
+				TASK_PAUSED : 
+				/* in cache */
+				TASK_CONTINUED;	
+	}
+
+	if (!task_can_allocate(1)) return TASK_BLOCKED;
+
+	/* Flush page cache */ 
+	if (page_cache_is_full()) {
+		BOOL8 need_flush = page_cache_evict();
+		if (need_flush) {
+			/* One load task plus one flush task */
+			if (!task_can_allocate(2)) return TASK_BLOCKED;
+
+			task_t	*pc_flush_task = task_allocate();
+			page_cache_flush_task_init(pc_flush_task);
+			task_res_t res = task_engine_insert_and_process(
+						pc_flush_task);
+			if (res == TASK_BLOCKED) return TASK_BLOCKED;
+		}
+	}
+
+	/* Load missing page */
+	task_t	*pc_load_task = task_allocate();
+	page_cache_load_task_init(pc_load_task, key);
+	task_res_t res = task_engine_insert_and_process(pc_load_task);
+	return res == TASK_FINISHED ? TASK_CONTINUED : res;
 }
 
 /* void page_cache_load(UINT32 const idx, UINT32 *addr, */ 

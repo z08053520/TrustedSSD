@@ -79,17 +79,6 @@ UINT32	g_next_finishing_task_seq_id;
  *  Helper Functions 
  * =========================================================================*/
 
-static UINT8	auto_idle_bank(banks_mask_t const idle_banks)
-{
-	static UINT8 bank_i = NUM_BANKS - 1;
-
-	UINT8 i;
-	for (i = 0; i < NUM_BANKS; i++) {
-		bank_i = (bank_i + 1) % NUM_BANKS;
-		if (banks_has(idle_banks, bank_i)) return bank_i;
-	}
-	return NUM_BANKS;
-}
 
 /* ===========================================================================
  *  Task Handlers
@@ -176,11 +165,11 @@ static task_res_t mapping_state_handler	(task_t* _task,
 
 		UINT32	sp_lpn	  = lspn / SUB_PAGES_PER_PAGE;
 		task_res_t sp_res = pmt_load(sp_lpn);
-		if (sp_res)  {
-			/* TASK_BLOCKED is prior to TASK_PAUSED */
-			if (sp_res > res)  res = sp_res;
-			continue;
-		}
+		/* TASK_BLOCKED > TASK_PAUSED > TASK_CONTINUED */
+		if (sp_res > res)  res = sp_res;
+
+		if (sp_res == TASK_BLOCKED) break;
+		else if (sp_res == TASK_PAUSED) continue;
 			
 		pmt_get(lspn, & wr_buf->old_vp[sp_i]);		
 		pmt_update(lspn, wr_buf->vp);

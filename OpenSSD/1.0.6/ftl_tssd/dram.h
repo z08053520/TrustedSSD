@@ -13,11 +13,10 @@
 #define PC_ADDR			DRAM_BASE
 #define PC_END			(PC_ADDR + PC_BYTES)
 #define NUM_PC_BUFFERS		128	
-//#define NUM_PC_BUFFERS		1
+//#define NUM_PC_BUFFERS	1
 #define NUM_PC_SUB_PAGES	(NUM_PC_BUFFERS * SUB_PAGES_PER_PAGE)
-#define PC_BYTES		(BYTES_PER_PAGE + NUM_PC_BUFFERS * BYTES_PER_PAGE)
-#define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * (i+1))
-#define PC_TEMP_BUF		PC_ADDR
+#define PC_BYTES		(NUM_PC_BUFFERS * BYTES_PER_PAGE)
+#define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * (i))
 
 /* ========================================================================= *
  * Buffer Cache  
@@ -69,7 +68,16 @@
 #define TASK_SWAP_END		(TASK_SWAP_ADDR + TASK_SWAP_BYTES)
 #define MAX_NUM_TASKS		16	
 #define SWAP_BYTES_PER_TASK	(TASK_SWAP_BYTES / MAX_NUM_TASKS)
-#define TASK_SWAP_BUF(task_id)	(TASK_SWAP_ADDR + task_id * SWAP_BYTES_PER_TASK)
+#define TASK_SWAP_BUF(task_id)	(TASK_SWAP_ADDR + (task_id) * SWAP_BYTES_PER_TASK)
+
+/* ========================================================================= *
+ *  Page Cache Flush Task 
+ * ========================================================================= */
+#define PC_FLUSH_BUF_ADDR	TASK_SWAP_END
+#define PC_FLUSH_BUFFERS	MAX_NUM_TASKS
+#define PC_FLUSH_BYTES		(PC_FLUSH_BUFFERS * BYTES_PER_PAGE)
+#define PC_FLUSH_BUF_END	(PC_FLUSH_BUF_ADDR + PC_FLUSH_BYTES)
+#define PC_FLUSH_BUF(i)		(PC_FLUSH_BUF_ADDR + (i) * BYTES_PER_PAGE)
 
 /* ========================================================================= *
  * Read and Write Buffers
@@ -78,7 +86,7 @@
 #define NUM_READ_BUFFERS	1
 #define NUM_WRITE_BUFFERS	8	
 
-#define READ_BUF_ADDR		TASK_SWAP_END	
+#define READ_BUF_ADDR		PC_FLUSH_BUF_END	
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)
 #define READ_BUF_END		(READ_BUF_ADDR + READ_BUF_BYTES)
 

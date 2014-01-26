@@ -45,6 +45,16 @@ static 	banks_mask_t probe_idle_banks()
 	return idle_banks;
 }
 
+static inline task_res_t process_task(task_t *task)
+{
+	task_res_t res;
+	do {
+		task_handler_t handler = task_handlers[task->type][task->state];
+		res = (*handler)(task, &context);
+	} while (res == TASK_CONTINUED);
+	return res;
+}
+
 /* ===========================================================================
  *  Public Interface
  * =========================================================================*/
@@ -128,15 +138,19 @@ void 	task_engine_submit(task_t *task)
 	tail = task;
 }
 
-void	task_engine_insert(task_t *task)
+task_res_t	task_engine_insert_and_process(task_t *task)
 {
 	BUG_ON("task is not running", pre_task == NULL || current_task == NULL);
 	BUG_ON("task is null!", task == NULL);
+
+	task_res_t res = process_task(task);
+	if (res == TASK_FINISHED) return TASK_FINISHED;
 
 	/* TODO: do task when inserted */	
 	set_next_task(pre_task, task);
 	set_next_task(task, current_task);
 	pre_task = task;
+	return res;
 }
 
 BOOL8 	task_engine_run()
@@ -155,22 +169,16 @@ BOOL8 	task_engine_run()
 		if ((current_task->waiting_banks & context.idle_banks) == 0) 
 			goto next_task;
 		
-		task_res_t res;
-		do {
-			task_handler_t handler = task_handlers[current_task->type][current_task->state];
-			res = (*handler)(current_task, &context);
-		} while (res == TASK_CONTINUED);
+		task_res_t res = process_task(current_task);
 
 		if (res == TASK_BLOCKED) break;
-
-		/* Remove task that is done */
-		if (res == TASK_FINISHED) {
+		else if (res == TASK_FINISHED) { 
+			/* Remove task that is done */
 			set_next_task(pre_task, get_next_task(current_task));
 			if (current_task == tail) tail = pre_task;
 			task_deallocate(current_task);
 		}
-		/* TASK_PAUSED */
-		else {
+		else { /* TASK_PAUSED */
 next_task:
 			pre_task  = current_task;
 		}

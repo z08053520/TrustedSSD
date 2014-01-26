@@ -3,7 +3,6 @@
 #include "task_engine.h"
 
 void page_cache_flush_task_register();
-void page_cache_flush_task_init(task_t *task, UINT32 const lpn, 
-		   		UINT8 const offset, UINT8 const num_sectors);
+void page_cache_flush_task_init(task_t *task);
 
 #endif
