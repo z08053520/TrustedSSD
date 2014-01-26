@@ -8,8 +8,9 @@
 
 typedef struct _gc_metadata
 {
-    UINT32 next_write_vpn; // physical page for new write
-    UINT32 num_free_pages;
+    UINT32	next_vpn[2];
+    UINT32	next_free_block;
+    UINT32	num_free_blocks;
 } gc_metadata; 
 
 gc_metadata _metadata[NUM_BANKS];
@@ -34,42 +35,41 @@ void find_next_good_vblk(UINT32 const bank, UINT32 *next_good_vblk)
 
 void gc_init(void)
 {
-	UINT32 bank;
 	UINT32 user_data_from_vblk = 1;
-	UINT32 num_skipped_pages;
 
 	INFO("gc>init", "format flash");
 	fu_format(user_data_from_vblk);
-
+	
+	UINT8 bank;
 	FOR_EACH_BANK(bank) {
-		num_skipped_pages = PAGES_PER_VBLK * user_data_from_vblk;
-		_metadata[bank].next_write_vpn  = num_skipped_pages;
-		_metadata[bank].num_free_pages = PAGES_PER_BANK  
-					       - bb_get_num(bank)
-					       - num_skipped_pages;
+		_metadata[bank].next_vpn[0]  	= user_data_from_vblk
+						* PAGES_PER_VBLK;
+		_metadata[bank].next_vpn[1] 	= (user_data_from_vblk + 1)
+						* PAGES_PER_VBLK;
+		_metadata[bank].num_free_blocks = VBLKS_PER_BANK  
+					        - bb_get_num(bank)
+					        - 1;
+		_metadata[bank].next_free_block	= user_data_from_vblk;
 	}
 }
 
 
-UINT32 gc_allocate_new_vpn(UINT32 const bank)
+UINT32 gc_allocate_new_vpn(UINT32 const bank, BOOL8 const is_sys)
 {
-	UINT32 next_good_vblk;
+	BUG_ON("no more free blocks", gc_get_num_free_blocks(bank) == 0);
 
-	BUG_ON("no more pages; gc is needed, but not implemented yet", 
-		gc_get_num_free_pages(bank) == 0);
-
+	gc_metadata* meta = &_metadata[bank];
 	/* if need to find a new block */
-	if (_metadata[bank].next_write_vpn % PAGES_PER_VBLK == 0) {
-		next_good_vblk = _metadata[bank].next_write_vpn / PAGES_PER_VBLK;
-		find_next_good_vblk(bank, &next_good_vblk);
-
-		_metadata[bank].next_write_vpn = next_good_vblk * PAGES_PER_VBLK;
+	if (meta->next_vpn[is_sys] % PAGES_PER_VBLK == 0) {
+		find_next_good_vblk(bank, &meta->next_free_block);
+		meta->next_vpn[is_sys] = meta->next_free_block * PAGES_PER_VBLK;
+		meta->next_free_block++;
+		meta->num_free_blocks--;
 	}
-	_metadata[bank].num_free_pages--;
-	return _metadata[bank].next_write_vpn ++;
+	return meta->next_vpn[is_sys] ++;
 }
 
-UINT32 gc_get_num_free_pages(UINT32 const bank)
+UINT32 gc_get_num_free_blocks(UINT8 const bank)
 {
-	return _metadata[bank].num_free_pages;
+	return _metadata[bank].num_free_blocks;
 }

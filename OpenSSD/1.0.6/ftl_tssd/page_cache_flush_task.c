@@ -76,7 +76,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	}
 
 	UINT8	bank	= auto_idle_bank(context->idle_banks);
-	UINT32	vpn	= gc_allocate_new_vpn(bank);
+	UINT32	vpn	= gc_allocate_new_vpn(bank, TRUE);
 	
 	vsp_t	vsp	= {.bank = bank, .vspn = vpn * SUB_PAGES_PER_PAGE};
 	UINT8	sp_i;

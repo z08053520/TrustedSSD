@@ -103,7 +103,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 
 			UINT8 idle_bank  = auto_idle_bank(context->idle_banks);
 			wr_buf->vp.bank  = idle_bank;
-			wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank);
+			wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank, FALSE);
 			wr_buf->buf	 = FTL_WR_BUF(idle_bank);	
 
 			write_buffer_flush(wr_buf->buf, wr_buf->lspn, 
@@ -119,7 +119,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 
 		UINT8 idle_bank  = auto_idle_bank(context->idle_banks);
 		wr_buf->vp.bank  = idle_bank;
-		wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank);
+		wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank, FALSE);
 		wr_buf->buf	 = SATA_WR_BUF_PTR(write_buf_id);
 		wr_buf->valid_sectors = FULL_MASK;
 

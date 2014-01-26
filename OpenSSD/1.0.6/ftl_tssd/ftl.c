@@ -84,9 +84,9 @@ void ftl_open(void) {
 	flash_clear_irq();
 
 	/* the initialization order indicates the dependencies between modules */
-	bb_init();
 	gtd_init();
 
+	bb_init();
 	gc_init();
 	
 	task_engine_init();
