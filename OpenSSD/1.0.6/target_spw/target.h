@@ -180,7 +180,7 @@ void disable_interrupt(void);
 	{\
 		if (!(X))\
 		{\
-           		__BUG_REPORT(X, "assertion failed");\
+			uart_printf("assert error at line %s in file %s\r\n", __FILE__, __LINE__);\
             		led_blink();\
 			while (1);\
 		}\

@@ -220,7 +220,7 @@ void page_cache_init(void)
 	mem_set_sram(cached_keys, NULL_KEY.as_uint, 	num_bytes);
 	mem_set_sram(timestamps,  NULL_TIMESTAMP, 	num_bytes);
 
-	UINT8 page_i = 0;
+	UINT32 page_i = 0;
 	for (page_i = 0; page_i < NUM_PC_SUB_PAGES; page_i++)
 		flags[page_i] = 0;
 

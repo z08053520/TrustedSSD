@@ -14,7 +14,7 @@ RM	= rm
 #TEST = flash_util
 #TEST = ftl
 #TEST = gc
-#TEST = gtd
+TEST = gtd
 #TEST = pmt
 #TEST = page_cache
 #TEST = perf
@@ -56,7 +56,7 @@ SRCS   += profiler.c
 endif
 
 # FDE = Full Disk Encryption
-FDE = y
+FDE =
 ifdef FDE 
 CFLAGS += -D OPTION_FDE
 SRCS   += fde.c

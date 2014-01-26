@@ -88,6 +88,8 @@ void ftl_open(void) {
 	gtd_init();
 
 	gc_init();
+	
+	task_engine_init();
 
 	page_cache_init();
 	read_buffer_init();
@@ -101,7 +103,6 @@ void ftl_open(void) {
 	fde_init();
 #endif
 
-	task_engine_init();
 	ftl_read_task_register();
 	ftl_write_task_register();
 	page_cache_load_task_register();
