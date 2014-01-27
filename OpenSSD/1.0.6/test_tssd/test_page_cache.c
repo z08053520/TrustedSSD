@@ -19,6 +19,18 @@ SETUP_BUF(val,		VAL_BUF,	SECTORS_PER_PAGE);
 
 #define RAND_SEED	123456
 
+static void load_page(page_key_t const key, UINT32 *buf, BOOL8 const will_modify)
+{
+	BOOL8		idle = FALSE;
+	task_res_t	res = page_cache_load(key);
+	while (res != TASK_CONTINUED) {
+		BUG_ON("task engine is idle, but page cache haven't load", idle);
+		idle = task_engine_run();
+		res = page_cache_load(key);
+	}
+	page_cache_get(key, buf, will_modify);
+}
+
 void ftl_test()
 {
 	uart_print("Start testing page cache...");
@@ -28,16 +40,18 @@ void ftl_test()
 
 	srand(RAND_SEED);
 
-	UINT32 i, j, pmt_index, pmt_page_val, pmt_buf;
+	UINT32 i, j;
+	page_key_t key = {.type = PAGE_TYPE_PMT, .idx = 0};
+	UINT32 page_val, buf;
 
 	uart_print("Load empty pages in page cache and make sure they are empty");
 	i = 0;
 	while (i < MAX_ENTRIES) {
-		pmt_index 	= rand() % PMT_SUB_PAGES;
-		page_cache_load(pmt_index, &pmt_buf, PC_BUF_TYPE_PMT, FALSE); 	
+		key.idx = rand() % PMT_SUB_PAGES;
+		load_page(key, &buf, FALSE); 	
 
-		BUG_ON("empty PMT sub page is not empty!", 
-		       is_buff_wrong(pmt_buf, 0, 0, SECTORS_PER_SUB_PAGE));
+		BUG_ON("empty PMT sub page should be initialized to zeros!", 
+		       is_buff_wrong(buf, 0, 0, SECTORS_PER_SUB_PAGE));
 		i++;
 	}
 
@@ -45,46 +59,39 @@ void ftl_test()
 	i = 0;
 	while (i < MAX_ENTRIES) {
 		// Verify data in buffer 
-		pmt_index = rand() % PMT_SUB_PAGES;
-		page_cache_load(pmt_index, &pmt_buf, PC_BUF_TYPE_PMT, TRUE); 	
-		
+		key.idx = rand() % PMT_SUB_PAGES;
+		load_page(key, &buf, TRUE); 	
 		
 		j 	  = mem_search_equ_dram(IDX_BUF, sizeof(UINT32), 
-				     		MAX_ENTRIES, pmt_index);
-		if (j >= MAX_ENTRIES) 
-			pmt_page_val = 0;
-		else 
-			pmt_page_val = get_val(j);
+				     		MAX_ENTRIES, key.idx);
+		page_val = (j >= MAX_ENTRIES ? 0 : get_val(j));
 		BUG_ON("The value in PMT sub page is not as expected!", 
-		       is_buff_wrong(pmt_buf, pmt_page_val, 
+		       is_buff_wrong(buf, page_val, 
 			       	     0, SECTORS_PER_SUB_PAGE));
 		
 		// Modify data in buffer
-		pmt_page_val = rand();
-		mem_set_dram(pmt_buf, pmt_page_val, BYTES_PER_SUB_PAGE);
+		page_val = rand();
+		mem_set_dram(buf, page_val, BYTES_PER_SUB_PAGE);
 		
 		if (j >= MAX_ENTRIES) {
-			set_idx(i, pmt_index);
-			set_val(i, pmt_page_val);
+			set_idx(i, key.idx);
+			set_val(i, page_val);
+			i++;
 		}
 		else
-			set_val(j, pmt_page_val);
-
-		i++;
+			set_val(j, page_val);
 	}
     	
 	uart_print("Verify everything we write to page cache");
 	i = 0;
 	while (i < MAX_ENTRIES) {
-		pmt_index    = get_idx(i);
-		pmt_page_val = get_val(i);
+		key.idx  = get_idx(i);
+		page_val = get_val(i);
 
-		if (pmt_index != 0xFFFFFFFF) {
-			page_cache_load(pmt_index, &pmt_buf, PC_BUF_TYPE_PMT, TRUE); 	
-			BUG_ON("The value in PMT sub page is not as expected!", 
-			       is_buff_wrong(pmt_buf, pmt_page_val, 
-					     0, SECTORS_PER_SUB_PAGE));
-		}
+		load_page(key, &buf, TRUE); 	
+		BUG_ON("The value in PMT sub page is not as expected!", 
+		       is_buff_wrong(buf, page_val, 
+				     0, SECTORS_PER_SUB_PAGE));
 
 		i++;
 	}

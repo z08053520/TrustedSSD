@@ -146,7 +146,12 @@ task_res_t	task_engine_insert_and_process(task_t *task)
 	task_res_t res = process_task(task);
 	if (res == TASK_FINISHED) return TASK_FINISHED;
 
-	/* TODO: do task when inserted */	
+#if OPTION_FTL_TEST
+	/* insertion when engine is not running */
+	if (pre_task == tail) tail = task;
+#endif
+
+	BUG_ON("cannot insert", pre_task == NULL);
 	set_next_task(pre_task, task);
 	set_next_task(task, current_task);
 	pre_task = task;
@@ -184,8 +189,12 @@ next_task:
 		}
 		current_task = get_next_task(pre_task);
 	}
-
+#if OPTION_FTL_TEST
+	/* To make task insertion function properly regardless engine running or not */
+	pre_task = tail; current_task = NULL;
+#else
 	pre_task = current_task = NULL;
+#endif
 	return is_engine_idle();
 }
 
