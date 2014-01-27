@@ -24,7 +24,7 @@ static void load_page(page_key_t const key, UINT32 *buf, BOOL8 const will_modify
 	BOOL8		idle = FALSE;
 	task_res_t	res = page_cache_load(key);
 	while (res != TASK_CONTINUED) {
-		BUG_ON("task engine is idle, but page cache haven't load", idle);
+		BUG_ON("task engine is idle, but page cache haven't loaded", idle);
 		idle = task_engine_run();
 		res = page_cache_load(key);
 	}

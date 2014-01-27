@@ -66,7 +66,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	}
 
 	/* page has never been written to flash yet */
-	mem_set_dram(task->buf, 0xFFFFFFFF, BYTES_PER_SUB_PAGE);
+	mem_set_dram(task->buf, 0, BYTES_PER_SUB_PAGE);
 	page_cache_set_flag(task->key, 0);
 	return TASK_FINISHED;
 }
