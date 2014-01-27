@@ -164,8 +164,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 
 		if (mask_is_set(wr_buf->pmt_done, sp_i)) continue;
 
-		UINT32	sp_lpn	  = lspn / SUB_PAGES_PER_PAGE;
-		task_res_t sp_res = pmt_load(sp_lpn);
+		task_res_t sp_res = pmt_load(lspn);
 		/* TASK_BLOCKED > TASK_PAUSED > TASK_CONTINUED */
 		if (sp_res > res)  res = sp_res;
 

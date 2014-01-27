@@ -11,9 +11,8 @@ void pmt_init(void)
 			PMT_ENTRIES, PMT_PAGES);
 }
 
-task_res_t pmt_load(UINT32 const lpn)
+task_res_t pmt_load(UINT32 const lspn)
 {
-	UINT32	lspn = lpn * SUB_PAGES_PER_PAGE;
 	UINT32 	pmt_index  = pmt_get_index(lspn);
 	page_key_t key	   = {.type = PAGE_TYPE_PMT, .idx = pmt_index};
 	return page_cache_load(key);
@@ -29,6 +28,9 @@ void pmt_get(UINT32 const lspn, vp_t *vp)
 	BUG_ON("buffer is empty", pmt_buff == NULL);
 
 	vp->as_uint = read_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset);
+
+	/* uart_printf("pmt get: lspn = %u, bank = %u, vpn = %u\r\n", */
+	/* 		lspn, vp->bank, vp->vpn); */
 }
 
 void pmt_update(UINT32 const lspn, vp_t const vp)
@@ -41,4 +43,7 @@ void pmt_update(UINT32 const lspn, vp_t const vp)
 	BUG_ON("buffer is empty", pmt_buff == NULL);
 
 	write_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset, vp.as_uint);
+	
+	/* uart_printf("pmt set: lspn = %u, bank = %u, vpn = %u\r\n", */
+	/* 		lspn, vp.bank, vp.vpn); */
 }

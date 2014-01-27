@@ -30,6 +30,8 @@ vsp_t gtd_get_vsp(page_key_t const key)
 	vsp_t vsp = {
 		.as_uint = read_dram_32(GTD_ENTRY_ADDR(key))
 	};
+	/* uart_printf("gtd get: type = %u, idx = %u, bank = %u, vspn = %u\r\n", */
+	/* 		key.type, key.idx, vsp.bank, vsp.vspn); */
 	return vsp;
 }
 
@@ -37,4 +39,6 @@ void   gtd_set_vsp(page_key_t const key, vsp_t const vsp)
 {
 	BUG_ON("set vspn in vpn #0 ", vsp.vspn < SUB_PAGES_PER_PAGE);
 	write_dram_32(GTD_ENTRY_ADDR(key), vsp.as_uint);
+	/* uart_printf("gtd get: type = %u, idx = %u, bank = %u, vspn = %u\r\n", */
+	/* 		key.type, key.idx, vsp.bank, vsp.vspn); */
 }

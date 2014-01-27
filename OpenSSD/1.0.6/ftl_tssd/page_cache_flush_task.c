@@ -55,6 +55,8 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
+	/* uart_print("flush task: preparation"); */
+
 	merge_buf->buf = PC_FLUSH_BUF(flush_buf_id);
 	flush_buf_id = (flush_buf_id + 1) % PC_FLUSH_BUFFERS;
 
@@ -70,12 +72,16 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
 	task_swap_in(task, merge_buf, sizeof(*merge_buf));
+	
+	/* uart_printf("flush task: mapping..."); */
 
 	if (context->idle_banks == 0) {
+		/* uart_print("no idle banks"); */
 		task_swap_out(task, merge_buf, sizeof(*merge_buf));	
 		return TASK_BLOCKED;
 	}
 
+	/* uart_print("to flash"); */
 	UINT8	bank	= auto_idle_bank(context->idle_banks);
 	UINT32	vpn	= gc_allocate_new_vpn(bank, TRUE);
 	task->vp.bank 	= bank;
@@ -97,6 +103,8 @@ static task_res_t flash_state_handler	(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
+	/* uart_print("flush task: flash... paused"); */
+
 	fu_write_page(task->vp, merge_buf->buf);	
 	UINT8 bank = task->vp.bank;
 	banks_del(context->idle_banks, bank);
@@ -111,9 +119,12 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
+	/* uart_printf("flush task: finish..."); */
 	if (!banks_has(context->completed_banks, task->vp.bank)) {
+		/* uart_print("not completed"); */
 		return TASK_PAUSED;
 	}
+	/* uart_print("completed!!!"); */
 	return TASK_FINISHED;
 }
 
