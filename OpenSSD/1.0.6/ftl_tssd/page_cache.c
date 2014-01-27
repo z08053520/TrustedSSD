@@ -43,8 +43,8 @@ static page_key_t cached_keys[NUM_PC_SUB_PAGES];
 static UINT32 	timestamps[NUM_PC_SUB_PAGES];
 static UINT8	flags[NUM_PC_SUB_PAGES];	
 
-static UINT32 	num_free_sub_pages = NUM_PC_SUB_PAGES;
-static UINT32 	current_timestamp  = 0;
+static UINT32 	num_free_sub_pages;
+static UINT32 	current_timestamp;
 
 #if	OPTION_PERF_TUNING
 	UINT32 g_pmt_cache_miss_count = 0;
@@ -54,7 +54,7 @@ static UINT32 	current_timestamp  = 0;
 #endif
 
 /* merge buffer */	
-static UINT8  	to_be_merged_pages = 0;
+static UINT8  	to_be_merged_pages;
 static UINT32 	to_be_merged_page_indexes[SUB_PAGES_PER_PAGE];
 
 /* Optimize for visiting one PMT/SOT page repeatedly*/
@@ -224,6 +224,11 @@ void page_cache_init(void)
 	for (page_i = 0; page_i < NUM_PC_SUB_PAGES; page_i++)
 		flags[page_i] = 0;
 
+	num_free_sub_pages = NUM_PC_SUB_PAGES;
+	current_timestamp  = 0;
+	
+	to_be_merged_pages = 0;
+
 	last_key = NULL_KEY;
 	last_page_idx = SUB_PAGES_PER_PAGE;
 }
@@ -231,7 +236,7 @@ void page_cache_init(void)
 BOOL8	page_cache_has (page_key_t const key)
 {
 	UINT32	page_idx = find_page(key);
-	return page_idx >= NUM_PC_SUB_PAGES;
+	return page_idx < NUM_PC_SUB_PAGES;
 }
 
 BOOL8 	page_cache_get (page_key_t const key,
@@ -262,8 +267,8 @@ void	page_cache_put (page_key_t const key,
 {
 	BUG_ON("page cache is full", page_cache_is_full());
 
-	UINT32	page_idx = find_page(key);
-	BUG_ON("page is already in cache", page_idx < NUM_PC_SUB_PAGES);
+	UINT32	old_page_idx = find_page(key);
+	BUG_ON("page is already in cache", old_page_idx < NUM_PC_SUB_PAGES);
 
 	UINT32	free_page_idx = mem_search_equ_sram(cached_keys, 
 						   sizeof(UINT32),
@@ -273,11 +278,11 @@ void	page_cache_put (page_key_t const key,
 
 	cached_keys[free_page_idx] = key;
 	timestamps[free_page_idx]  = current_timestamp++;
-	flags[free_page_idx]	   = flag;
 	if (unlikely(current_timestamp == NULL_TIMESTAMP)) 
 		handle_timestamp_overflow();	
+	flags[free_page_idx]	   = flag;
 	
-	*buf = PC_SUB_PAGE(page_idx);
+	*buf = PC_SUB_PAGE(free_page_idx);
 
 	num_free_sub_pages--;
 }
@@ -318,6 +323,9 @@ BOOL8	page_cache_evict()
 						 NUM_PC_SUB_PAGES,
 						 MU_CMD_SEARCH_MIN_SRAM);
 		BUG_ON("imposibble timestamp", timestamps[lru_page_idx] == NULL_TIMESTAMP);
+		/* uart_printf("evict page %u with tiemstamp %u and flag %u...", */
+		/* 	    lru_page_idx, timestamps[lru_page_idx], */ 
+		/* 	    flags[lru_page_idx]); */
 
 		/* TODO: handle this situation */
 		BUG_ON("evicting reserved page", is_reserved(flags[lru_page_idx]));
@@ -327,10 +335,13 @@ BOOL8	page_cache_evict()
 			cached_keys[lru_page_idx] = NULL_KEY;
 			flags[lru_page_idx] = 0;
 			num_free_sub_pages++;
+			/* uart_printf(" not dirty\r\n"); */
 			return FALSE;
 		}
 		
 		to_be_merged_page_indexes[to_be_merged_pages++] = lru_page_idx;
+		/* uart_printf(" moved to merge buffer (%u/%u)\r\n", */ 
+		/* 	    to_be_merged_pages, SUB_PAGES_PER_PAGE); */
 	}
 	return TRUE; /* need to flush merge buffer */
 }

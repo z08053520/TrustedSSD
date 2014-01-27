@@ -47,7 +47,9 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
-	page_cache_put(task->key, &task->buf, PC_FLAG_RESERVED);
+	/* uart_print("preparation"); */
+
+	page_cache_put(task->key, &(task->buf), PC_FLAG_RESERVED);
 	task->state = STATE_MAPPING;	
 	return TASK_CONTINUED;
 }
@@ -57,14 +59,17 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
+	/* uart_printf("mapping.."); */
 	task->vsp = gtd_get_vsp(task->key);	
 
 	/* need to load from flash */
 	if (task->vsp.vspn != 0) {
+		/* uart_print("to flash"); */
 		task->state = STATE_FLASH;
 		return TASK_CONTINUED;
 	}
 
+	/* uart_print("...set mem"); */
 	/* page has never been written to flash yet */
 	mem_set_dram(task->buf, 0, BYTES_PER_SUB_PAGE);
 	page_cache_set_flag(task->key, 0);
@@ -92,12 +97,14 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
+	/* uart_print("finish1"); */
 	UINT8	bank = task->vsp.bank; 
 	if (!banks_has(context->completed_banks, bank)) 
 		return TASK_PAUSED;
 
+	/* uart_print("finish2"); */
 	UINT8	sp_offset = task->vsp.vspn % SUB_PAGES_PER_PAGE;
-	mem_copy(task->buf 	  + sp_offset * BYTES_PER_SUB_PAGE,
+	mem_copy(task->buf,
 		 FTL_RD_BUF(bank) + sp_offset * BYTES_PER_SUB_PAGE,
 		 BYTES_PER_SUB_PAGE);
 	page_cache_set_flag(task->key, 0);

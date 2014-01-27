@@ -57,6 +57,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 
 	merge_buf->buf = PC_FLUSH_BUF(flush_buf_id);
 	flush_buf_id = (flush_buf_id + 1) % PC_FLUSH_BUFFERS;
+
 	page_cache_flush(merge_buf->buf, merge_buf->keys);
 
 	task->state = STATE_MAPPING;
@@ -77,6 +78,8 @@ static task_res_t mapping_state_handler	(task_t* _task,
 
 	UINT8	bank	= auto_idle_bank(context->idle_banks);
 	UINT32	vpn	= gc_allocate_new_vpn(bank, TRUE);
+	task->vp.bank 	= bank;
+	task->vp.vpn	= vpn;
 	
 	vsp_t	vsp	= {.bank = bank, .vspn = vpn * SUB_PAGES_PER_PAGE};
 	UINT8	sp_i;
@@ -85,6 +88,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 		gtd_set_vsp(key, vsp);
 		vsp.vspn++;
 	}
+	task->state = STATE_FLASH;
 	return TASK_CONTINUED;     				
 }
 
@@ -107,8 +111,9 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
-	if (!banks_has(context->completed_banks, task->vp.bank)) 
+	if (!banks_has(context->completed_banks, task->vp.bank)) {
 		return TASK_PAUSED;
+	}
 	return TASK_FINISHED;
 }
 

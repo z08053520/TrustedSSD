@@ -13,11 +13,13 @@ typedef enum {
 	PC_FLAG_RESERVED = 1,
 	PC_FLAG_DIRTY = 2
 } pc_flag_t;
+
 #define is_dirty(flag)		(((flag) & PC_FLAG_DIRTY) != 0)
-#define is_reserved(flag)	(((flag) & PC_FLAG_RESERVED) != 0)
 #define set_dirty(flag)		((flag) |= PC_FLAG_DIRTY)
-#define set_reserved(flag)	((flag) |= PC_FLAG_RESERVED)
 #define reset_dirty(flag)	((flag) &= ~PC_FLAG_DIRTY)
+
+#define is_reserved(flag)	(((flag) & PC_FLAG_RESERVED) != 0)
+#define set_reserved(flag)	((flag) |= PC_FLAG_RESERVED)
 #define reset_reserved(flag)	((flag) &= ~PC_FLAG_RESERVED)
 
 /* ========================================================================= *
