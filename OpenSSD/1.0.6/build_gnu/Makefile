@@ -13,10 +13,10 @@ RM	= rm
 # SATA request will be generated.
 #TEST = flash_util
 #TEST = ftl
-TEST = gc
+#TEST = gc
 #TEST = gtd
 #TEST = pmt
-#TEST = page_cache
+TEST = page_cache
 #TEST = perf
 #TEST = sot
 #TEST = write_buffer

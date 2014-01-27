@@ -27,7 +27,7 @@ typedef enum {
 void	page_cache_init(void);
 
 BOOL8	page_cache_has (page_key_t const key);
-void 	page_cache_get (page_key_t const key,
+BOOL8 	page_cache_get (page_key_t const key,
 			UINT32 *buf, BOOL8 const will_modify);
 void	page_cache_put (page_key_t const key,
 			UINT32 *buf, UINT8 const flag);

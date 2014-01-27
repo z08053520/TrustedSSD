@@ -234,16 +234,19 @@ BOOL8	page_cache_has (page_key_t const key)
 	return page_idx >= NUM_PC_SUB_PAGES;
 }
 
-void 	page_cache_get (page_key_t const key,
+BOOL8 	page_cache_get (page_key_t const key,
 			UINT32 *addr, BOOL8 const will_modify)
 {
 	UINT32	page_idx = find_page(key);
-	BUG_ON("page not found in cache", page_idx >= NUM_PC_SUB_PAGES);
+	if (page_idx >= NUM_PC_SUB_PAGES) {
+		*addr = NULL;
+		return TRUE;
+	}
 
 	*addr = PC_SUB_PAGE(page_idx);
 
 	/* this page is evicted and in merge buffer */
-	if (timestamps[page_idx] == NULL_TIMESTAMP) return;
+	if (timestamps[page_idx] == NULL_TIMESTAMP) return FALSE;
 
 	// set dirty if to be modified
 	if (will_modify) set_dirty(flags[page_idx]);
@@ -251,6 +254,7 @@ void 	page_cache_get (page_key_t const key,
 	timestamps[page_idx] = current_timestamp++;
 	if (unlikely(current_timestamp == NULL_TIMESTAMP)) 
 		handle_timestamp_overflow();
+	return FALSE;
 }
 
 void	page_cache_put (page_key_t const key,
