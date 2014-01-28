@@ -243,14 +243,12 @@ task_res_t	page_cache_load(page_key_t const key)
 				TASK_CONTINUED;	
 	}
 
-	if (!task_can_allocate(1)) return TASK_BLOCKED;
-
 	/* Flush page cache */ 
 	if (page_cache_is_full()) {
 		BOOL8 need_flush = page_cache_evict();
 		if (need_flush) {
 			/* One load task plus one flush task */
-			if (!task_can_allocate(2)) return TASK_BLOCKED;
+			if (!task_can_allocate(1)) return TASK_BLOCKED;
 
 			task_t	*pc_flush_task = task_allocate();
 			page_cache_flush_task_init(pc_flush_task);
@@ -259,6 +257,9 @@ task_res_t	page_cache_load(page_key_t const key)
 			if (res == TASK_BLOCKED) return TASK_BLOCKED;
 		}
 	}
+	
+	if (!task_can_allocate(1)) return TASK_BLOCKED;
+
 #if	OPTION_PERF_TUNING
 	if (key.type == PAGE_TYPE_PMT) g_pmt_cache_miss_count++;
 #if	OPTION_ACL

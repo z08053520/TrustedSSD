@@ -455,27 +455,28 @@ static void sparse_rw_test()
 
 	/* One PMT page covers 64K sectors */
 	UINT32	lba_step = 64 * 1024;	
-	UINT32	max_requests = MIN(MAX_NUM_REQS, NUM_LSECTORS / lba_step); 
-	UINT32	num_requests = 9;
-	/* UINT32	num_requests = max_requests; */
+	UINT32	max_requests = MIN(MAX_NUM_REQS, NUM_LSECTORS / lba_step - 1); 
+	/* UINT32	num_requests = 1024; */
+	UINT32	num_requests = 1600;
 	uart_printf("max requests = %u\r\n", max_requests);
 	BUG_ON("too many requests", num_requests > max_requests);
 	
-	/* UINT32 num_requests = 120; */
 	UINT32	lba, req_size, val;
 	UINT32	i;
 	UINT32	total_sectors;
 
+	UINT32	i_offset = 0;  
 
 	uart_print("sparse write");
 	perf_monitor_reset();
 	total_sectors = 0;
-	for (i = 0, lba = 0; i < num_requests; i++, lba += lba_step) {
+	for (i = i_offset, lba = i_offset * lba_step; i < num_requests; i++, lba += lba_step) {
 		val 	  = lba;
 		req_size  = SECTORS_PER_PAGE; 
 
-		/* uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", */ 
-		/* 	    i, lba, req_size, val); */
+		if (i % 100 == 0)
+			uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", 
+			    i, lba, req_size, val);
 
 		do_flash_write(lba, req_size, val, FALSE);
 
@@ -490,7 +491,7 @@ static void sparse_rw_test()
 	uart_print("sparse read and verify");
 	perf_monitor_reset();
 	total_sectors = 0;
-	for (i = 0; i < num_requests; i++) {
+	for (i = i_offset; i < num_requests; i++) {
 		lba	 = get_lba(i);
 		req_size = get_req_size(i);
 		val	 = lba;
@@ -515,11 +516,11 @@ void ftl_test()
 
 	srand(RAND_SEED);
 
-	/* seq_rw_test(); */
-	/* rnd_rw_test(); */
+	seq_rw_test();
+	rnd_rw_test();
 	
-  	/* long_seq_rw_test(); */	
-	/* long_seq_rw_test(); */
+  	long_seq_rw_test();	
+	long_seq_rw_test();
 
 	sparse_rw_test();
 

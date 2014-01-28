@@ -155,6 +155,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
 	/* DEBUG("write_task_handler>mapping", "task_id = %u", task->seq_id); */
+	task_swap_in(task, wr_buf, sizeof(*wr_buf));
 
 	task_res_t res = TASK_CONTINUED;
 	UINT8 sp_i;

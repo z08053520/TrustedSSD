@@ -156,6 +156,7 @@ task_res_t	task_engine_insert_and_process(task_t *task)
 
 BOOL8 	task_engine_run()
 {
+beginning:
 	/* Wait for all flash commands are accepted */
 	while ((GETREG(WR_STAT) & 0x00000001) != 0);
 
@@ -172,7 +173,10 @@ BOOL8 	task_engine_run()
 		
 		task_res_t res = process_task(current_task);
 
-		if (res == TASK_BLOCKED) break;
+		if (res == TASK_BLOCKED) {
+			/* Start all over again */
+			goto beginning;
+		}
 		else if (res == TASK_FINISHED) { 
 			/* Remove task that is done */
 			set_next_task(pre_task, get_next_task(current_task));
