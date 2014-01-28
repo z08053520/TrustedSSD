@@ -40,11 +40,6 @@
 
 static void sanity_check(void)
 {
-	UINT32 dram_requirement = SATA_RD_BUF_BYTES + SATA_WR_BUF_BYTES + COPY_BUF_BYTES
-		+ FTL_BUF_BYTES + HIL_BUF_BYTES + TEMP_BUF_BYTES 
-		+ BAD_BLK_BMP_BYTES + BC_BYTES;
-
-	BUG_ON("DRAM is over-utilized", dram_requirement >= DRAM_SIZE);
 	BUG_ON("Address of SATA buffers must be a integer multiple of " 
 	       "SATA_BUF_PAGE_SIZE, which is set as BYTES_PER_PAGE when started", 
 			SATA_RD_BUF_ADDR   % BYTES_PER_PAGE != 0 || 
@@ -58,7 +53,6 @@ static void print_info(void)
 
 	uart_print("=== Memory Configuration ===");
 	PRINT_SIZE("DRAM", 		DRAM_SIZE);
-	uart_printf("# of cache buffers == %d\r\n", 	NUM_BC_BUFFERS);	
 	PRINT_SIZE("page cache", 	PC_BYTES);
 	PRINT_SIZE("bad block bitmap",	BAD_BLK_BMP_BYTES); 
 	PRINT_SIZE("non SATA buffer size",		NON_SATA_BUF_BYTES);
@@ -132,7 +126,9 @@ extern UINT32	g_num_ftl_write_tasks_submitted;
 BOOL8 ftl_main(void)
 {
 	/* Accept new SATA read/write requests if we can */
-	while (task_can_allocate(1)) {
+	/* TODO: keep an extra free task for page cache load/flush task may 
+	 * not be the best way to prevent task from "dead lock" each other */
+	while (task_can_allocate(2)) {
 		/* Make sure we have a SATA request to process */
 		if (sata_cmd.sector_count == 0) {
 			if (!sata_has_next_rw_cmd()) break;

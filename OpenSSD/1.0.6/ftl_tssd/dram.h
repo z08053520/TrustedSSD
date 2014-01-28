@@ -13,30 +13,17 @@
 #define PC_ADDR			DRAM_BASE
 #define PC_END			(PC_ADDR + PC_BYTES)
 /* #define NUM_PC_BUFFERS		128 */	
-#define NUM_PC_BUFFERS		1
+#define NUM_PC_BUFFERS		2	
 #define NUM_PC_SUB_PAGES	(NUM_PC_BUFFERS * SUB_PAGES_PER_PAGE)
 #define PC_BYTES		(NUM_PC_BUFFERS * BYTES_PER_PAGE)
 #define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * (i))
-
-/* ========================================================================= *
- * Buffer Cache  
- * ========================================================================= */
-
-#define BC_ADDR			PC_END	
-#define BC_END			(BC_ADDR + BC_BYTES)
-//#define NUM_BC_BUFFERS_PER_BANK 16 
-#define NUM_BC_BUFFERS_PER_BANK 1	
-#define NUM_BC_BUFFERS		(NUM_BC_BUFFERS_PER_BANK * NUM_BANKS)
-#define BC_BYTES		(NUM_BC_BUFFERS * BYTES_PER_PAGE)
-#define BC_BUF(i)		(BC_ADDR + BYTES_PER_PAGE * (i))
-#define BC_BUF_IDX(addr)	(((addr) - BC_ADDR) / BYTES_PER_PAGE)
 
 /* ========================================================================= *
  * Bad Block 
  * ========================================================================= */
 
 /* bitmap of bad blocks */
-#define BAD_BLK_BMP_ADDR        	BC_END	
+#define BAD_BLK_BMP_ADDR        	PC_END	
 #define BAD_BLK_BMP_END			(BAD_BLK_BMP_ADDR + BAD_BLK_BMP_BYTES)
 #define BAD_BLK_BMP_BYTES_PER_BANK	COUNT_BUCKETS(VBLKS_PER_BANK, 8)
 #define BAD_BLK_BMP_REAL_BYTES		(BAD_BLK_BMP_BYTES_PER_BANK * NUM_BANKS)
@@ -66,7 +53,7 @@
 #define TASK_SWAP_ADDR		GTD_END
 #define TASK_SWAP_BYTES		BYTES_PER_PAGE
 #define TASK_SWAP_END		(TASK_SWAP_ADDR + TASK_SWAP_BYTES)
-#define MAX_NUM_TASKS		16	
+#define MAX_NUM_TASKS		4	
 #define SWAP_BYTES_PER_TASK	(TASK_SWAP_BYTES / MAX_NUM_TASKS)
 #define TASK_SWAP_BUF(task_id)	(TASK_SWAP_ADDR + (task_id) * SWAP_BYTES_PER_TASK)
 
@@ -84,7 +71,7 @@
  * ========================================================================= */
 
 #define NUM_READ_BUFFERS	1
-#define NUM_WRITE_BUFFERS	8	
+#define NUM_WRITE_BUFFERS	8
 
 #define READ_BUF_ADDR		PC_FLUSH_BUF_END	
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)
@@ -140,8 +127,9 @@
 				 NUM_HIL_BUFFERS + NUM_TEMP_BUFFERS + \
 				 NUM_READ_BUFFERS + NUM_WRITE_BUFFERS)
 #define NON_SATA_BUF_BYTES	(NUM_NON_SATA_BUFFERS * BYTES_PER_PAGE)
-#define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + PC_BYTES + BC_BYTES +\
-				 BAD_BLK_BMP_BYTES + GTD_BYTES + TASK_SWAP_BYTES)
+#define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + PC_BYTES + \
+				 BAD_BLK_BMP_BYTES + GTD_BYTES + \
+				 TASK_SWAP_BYTES + PC_FLUSH_BYTES)
 
 #define NUM_SATA_RW_BUFFERS	((DRAM_SIZE - DRAM_BYTES_OTHER) / BYTES_PER_PAGE - 1)
 #define NUM_SATA_RD_BUFFERS	(COUNT_BUCKETS(NUM_SATA_RW_BUFFERS / 8, NUM_BANKS) * NUM_BANKS)

@@ -250,6 +250,8 @@ task_res_t	page_cache_load(page_key_t const key)
 			/* One load task plus one flush task */
 			if (!task_can_allocate(1)) return TASK_BLOCKED;
 
+			uart_print("flush task");
+
 			task_t	*pc_flush_task = task_allocate();
 			page_cache_flush_task_init(pc_flush_task);
 			task_res_t res = task_engine_insert_and_process(

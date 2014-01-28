@@ -215,7 +215,7 @@ static void seq_rw_test()
 	uart_print("sequential read/write test");
 
 	UINT32 num_requests	= MAX_NUM_REQS;
-	//UINT32 num_requests	= NUM_BC_BUFFERS;
+	/* UINT32 num_requests	= 17; */
 	/* 512B -> 4KB -> 8KB -> 16KB -> 32KB  */
 	UINT32 req_sizes[NUM_SEQ_REQ_SIZES] = {
 		1, KB2SEC(4), KB2SEC(8), KB2SEC(16), KB2SEC(32)
@@ -270,7 +270,7 @@ static void rnd_rw_test()
 	uart_print("random read/write test");
 	
 	UINT32 num_requests = MAX_NUM_REQS;
-	/* UINT32 num_requests = 120; */
+	/* UINT32 num_requests = 1024; */
 	UINT32 lba, req_size, val;
 	UINT32 i;
 	UINT32 total_sectors;
@@ -447,17 +447,17 @@ static void long_seq_rw_test()
 	uart_print("done");
 }
 
-static void sparse_rw_test()
+static void sparse_fixed_rw_test()
 {
-	uart_print("sparse read/write test");
+	uart_print("sparse fixed-interval read/write test");
 
 	init_dram();
 
 	/* One PMT page covers 64K sectors */
 	UINT32	lba_step = 64 * 1024;	
 	UINT32	max_requests = MIN(MAX_NUM_REQS, NUM_LSECTORS / lba_step - 1); 
-	/* UINT32	num_requests = 1024; */
-	UINT32	num_requests = 1600;
+	/* UINT32	num_requests = 3000; */
+	UINT32	num_requests = 15;
 	uart_printf("max requests = %u\r\n", max_requests);
 	BUG_ON("too many requests", num_requests > max_requests);
 	
@@ -467,16 +467,15 @@ static void sparse_rw_test()
 
 	UINT32	i_offset = 0;  
 
-	uart_print("sparse write");
+	uart_print("sparse fixed-interval write");
 	perf_monitor_reset();
 	total_sectors = 0;
 	for (i = i_offset, lba = i_offset * lba_step; i < num_requests; i++, lba += lba_step) {
 		val 	  = lba;
 		req_size  = SECTORS_PER_PAGE; 
 
-		if (i % 100 == 0)
-			uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", 
-			    i, lba, req_size, val);
+		/* uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", */ 
+		/* 	    i, lba, req_size, val); */
 
 		do_flash_write(lba, req_size, val, FALSE);
 
@@ -488,7 +487,7 @@ static void sparse_rw_test()
 	finish_all();
 	perf_monitor_update(total_sectors);	
 
-	uart_print("sparse read and verify");
+	uart_print("sparse fixed-interval read and verify");
 	perf_monitor_reset();
 	total_sectors = 0;
 	for (i = i_offset; i < num_requests; i++) {
@@ -498,6 +497,65 @@ static void sparse_rw_test()
 		
 		/* uart_printf("> i = %u, lba = %u, req_size = %u\r\n", */ 
 		/* 	    i, lba, req_size); */
+
+		do_flash_verify(lba, req_size, val, FALSE);
+		total_sectors += req_size;		
+	}
+	perf_monitor_update(total_sectors);	
+	uart_print("done");
+}
+
+static void sparse_rnd_rw_test()
+{
+	uart_print("sparse random read/write test");
+
+	init_dram();
+
+	/* One PMT page covers 64K sectors */
+	UINT32	lba_step = 64 * 1024;	
+	UINT32	max_requests = MIN(MAX_NUM_REQS, NUM_LSECTORS / lba_step - 1); 
+	/* UINT32	num_requests = 1024; */
+	UINT32	num_requests = 15;
+	uart_printf("max requests = %u\r\n", max_requests);
+	BUG_ON("too many requests", num_requests > max_requests);
+	
+	UINT32	lba_base, lba, offset, req_size, val;
+	UINT32	i;
+	UINT32	total_sectors;
+
+	uart_print("sparse random write");
+	perf_monitor_reset();
+	total_sectors = 0;
+	for (i = 0, lba_base = 0; i < num_requests; i++) {
+		offset	  = rand() % (lba_step - 64);
+		lba	  = lba_base + offset;
+		req_size  = random(1, 64);
+		val 	  = lba;
+
+		uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", 
+			    i, lba, req_size, val);
+
+		do_flash_write(lba, req_size, val, FALSE);
+
+		set_lba(i, lba);
+		set_req_size(i, req_size);
+		
+		lba_base 	+= lba_step;
+		total_sectors	+= req_size;
+	}
+	finish_all();
+	perf_monitor_update(total_sectors);	
+
+	uart_print("sparse random read and verify");
+	perf_monitor_reset();
+	total_sectors = 0;
+	for (i = 0; i < num_requests; i++) {
+		lba	 = get_lba(i);
+		req_size = get_req_size(i);
+		val	 = lba;
+		
+		uart_printf("> i = %u, lba = %u, req_size = %u\r\n", 
+			    i, lba, req_size);
 
 		do_flash_verify(lba, req_size, val, FALSE);
 		total_sectors += req_size;		
@@ -516,13 +574,15 @@ void ftl_test()
 
 	srand(RAND_SEED);
 
-	seq_rw_test();
-	rnd_rw_test();
+	/* seq_rw_test(); */
+	/* rnd_rw_test(); */
 	
-  	long_seq_rw_test();	
-	long_seq_rw_test();
+	sparse_fixed_rw_test();
+	sparse_rnd_rw_test();
+	
+  	/* long_seq_rw_test(); */	
+	/* long_seq_rw_test(); */
 
-	sparse_rw_test();
 
 	uart_print("FTL passed unit test ^_^");
 }
