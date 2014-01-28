@@ -98,6 +98,19 @@ static task_res_t preparation_state_handler(task_t* _task,
 	wr_buf->buf		= NULL;
 	/* Insert and merge into write buffer */
 	if (task->num_sectors < SECTORS_PER_PAGE) {
+		// DEBUG
+		/* UINT32 buf = SATA_WR_BUF_PTR(write_buf_id); */
+		/* uart_print("peek the content of SATA write buffer just before write buffer put"); */
+		/* uart_printf("\tSATA write buf id = %u, SATA write buf = %u\r\n", */
+		/* 		write_buf_id, buf); */
+		/* UINT8 first_sector = task->offset, */
+		/*       last_sector   = task->offset + task->num_sectors - 1; */
+		/* uart_printf("\tfrom sector %u (%u) to sector %u (%u)\r\n", */
+		/* 		first_sector, */
+		/* 		read_dram_32(buf + first_sector * BYTES_PER_SECTOR), */
+		/* 		last_sector, */
+		/* 		read_dram_32(buf + last_sector * BYTES_PER_SECTOR)); */
+
 		if (write_buffer_is_full()) {
 			if (context->idle_banks == 0) return TASK_BLOCKED;
 
@@ -109,7 +122,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 			write_buffer_flush(wr_buf->buf, wr_buf->lspn, 
 					   &wr_buf->valid_sectors);
 		}
-		
+
 		write_buffer_put(task->lpn, task->offset, task->num_sectors, 
 				 SATA_WR_BUF_PTR(write_buf_id));
 	}
@@ -339,9 +352,10 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 	
+	task_swap_in(task, wr_buf, sizeof(*wr_buf));
 	/* DEBUG("write_task_handler>finish", "task_id = %u", task->seq_id); */
+
 	// DEBUG	
-	/* task_swap_in(task, wr_buf, sizeof(*wr_buf)); */
 	/* if (wr_buf->buf) { */
 	/* 	uart_print("write buffer = ["); */
 	/* 	UINT8	sp_i; */
@@ -374,6 +388,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 	/* else { */
 	/* 	uart_print("in write buffer"); */
 	/* } */
+
 	g_num_ftl_write_tasks_finished++;
 	if (wr_buf->buf) task_ends_writing_page(wr_buf->vp, task);
 
@@ -431,6 +446,12 @@ void ftl_write_task_init(task_t *task, UINT32 const lpn,
 	
 	/* Assign an unique id to each task */
 	write_task->seq_id	= g_num_ftl_write_tasks_submitted++;
+	
+	/* uart_printf("task_init: seq_id = %u, lpn = %u, offset= %u, num_sectors = %u, " */
+	/* 	    "g_num_ftl_write_tasks_submitted = %u\r\n", */
+	/* 	    write_task->seq_id, write_task->lpn, write_task->offset, */ 
+	/* 	    write_task->num_sectors, */
+	/* 	    g_num_ftl_write_tasks_submitted); */
 }
 
 #if OPTION_FTL_TEST

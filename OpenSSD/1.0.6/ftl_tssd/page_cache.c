@@ -190,8 +190,10 @@ BOOL8	page_cache_evict()
 		/* 	    lru_page_idx, timestamps[lru_page_idx], */ 
 		/* 	    flags[lru_page_idx]); */
 
-		/* TODO: handle this situation */
-		BUG_ON("evicting reserved page", is_reserved(flags[lru_page_idx]));
+		/* TODO: handle this situation more gracefully*/
+		/* BUG_ON("evicting reserved page", is_reserved(flags[lru_page_idx])); */
+		#define NEED_BLOCK	2
+		if (is_reserved(flags[lru_page_idx])) return NEED_BLOCK;
 
 		timestamps[lru_page_idx]  = NULL_TIMESTAMP;
 		if (!is_dirty(flags[lru_page_idx])) {
@@ -233,7 +235,9 @@ void	page_cache_flush(UINT32 const merge_buf,
 
 task_res_t	page_cache_load(page_key_t const key)
 {
+	/* uart_printf("page_cache_load(%u)\r\n", key); */
 	if (page_cache_has(key)) {
+	/* uart_print("here2"); */
 		UINT8 flag;
 		page_cache_get_flag(key, &flag);
 		return is_reserved(flag) ? 
@@ -243,14 +247,17 @@ task_res_t	page_cache_load(page_key_t const key)
 				TASK_CONTINUED;	
 	}
 
+	/* uart_print("here3"); */
 	/* Flush page cache */ 
 	if (page_cache_is_full()) {
+	/* uart_print("here4"); */
 		BOOL8 need_flush = page_cache_evict();
-		if (need_flush) {
+		if (need_flush == TRUE) {
+			/* uart_print("try flush task"); */
 			/* One load task plus one flush task */
 			if (!task_can_allocate(1)) return TASK_BLOCKED;
 
-			uart_print("flush task");
+			/* uart_print("flush task"); */
 
 			task_t	*pc_flush_task = task_allocate();
 			page_cache_flush_task_init(pc_flush_task);
@@ -258,10 +265,15 @@ task_res_t	page_cache_load(page_key_t const key)
 						pc_flush_task);
 			if (res == TASK_BLOCKED) return TASK_BLOCKED;
 		}
+		else if (need_flush == NEED_BLOCK) {
+			return TASK_BLOCKED;
+		}
 	}
 	
+	/* uart_print("here5"); */
 	if (!task_can_allocate(1)) return TASK_BLOCKED;
 
+	/* uart_print("here6"); */
 #if	OPTION_PERF_TUNING
 	if (key.type == PAGE_TYPE_PMT) g_pmt_cache_miss_count++;
 #if	OPTION_ACL

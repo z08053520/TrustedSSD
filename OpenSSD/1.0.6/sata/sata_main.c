@@ -36,7 +36,7 @@ static UINT8	queue_size = 0;
 static UINT8	queue_head = 0;
 static UINT8	queue_tail = 0;
 
-static UINT32 eventq_get_count(void)
+UINT32 eventq_get_count(void)
 {
 	return queue_size;
 }
