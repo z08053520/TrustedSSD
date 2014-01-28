@@ -22,6 +22,7 @@ static UINT32 	num_free_sub_pages;
 static UINT32 	current_timestamp;
 
 #if	OPTION_PERF_TUNING
+	UINT32 g_page_cache_flush_count = 0;
 	UINT32 g_pmt_cache_miss_count = 0;
 #if	OPTION_ACL
 	UINT32 g_sot_cache_miss_count = 0;
@@ -258,6 +259,9 @@ task_res_t	page_cache_load(page_key_t const key)
 			if (!task_can_allocate(1)) return TASK_BLOCKED;
 
 			/* uart_print("flush task"); */
+#if	OPTION_PERF_TUNING
+			g_page_cache_flush_count += 1;
+#endif
 
 			task_t	*pc_flush_task = task_allocate();
 			page_cache_flush_task_init(pc_flush_task);
