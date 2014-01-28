@@ -27,26 +27,38 @@
 
 #if OPTION_ACL
 	#include "sot.h"
-	#define ZONE_LIST			\
+	#define PAGE_TYPE_LIST			\
 			ENTRY(PMT)		\
 			ENTRY(SOT)
 #else
-	#define ZONE_LIST			\
+	#define PAGE_TYPE_LIST			\
 			ENTRY(PMT)
 #endif
 
 typedef enum {
-#define ENTRY(zone_name)	GTD_ZONE_TYPE_##zone_name,
-	ZONE_LIST
+#define ENTRY(type_name)	PAGE_TYPE_##type_name,
+	PAGE_TYPE_LIST
 #undef ENTRY
-	NUM_GTD_ZONE_TYPES
-} gtd_zone_type_t;
+	NUM_PAGE_TYPES
+} page_type_t;
 
+/* may require gcc to use -fms-extensions */
+typedef union {
+	struct {
+		UINT8	type:1;
+		UINT32	idx:31;
+	};
+	UINT32	as_uint;
+} page_key_t;
+
+#define page_key_equal(key0, key1)	((key0).as_uint == (key1).as_uint)
+
+/* A zone is a consecutive area of memory storing info for one type of page */
 typedef struct {
 #define ENTRY(zone_name)	UINT32 zone_name[zone_name##_SUB_PAGES];
-	ZONE_LIST
+	PAGE_TYPE_LIST
 #undef ENTRY
-} gtd_zone_t; 
+} gtd_zones_t; 
 
 /* ===========================================================================
  * Public Interface 
@@ -55,7 +67,7 @@ typedef struct {
 void gtd_init(void);
 void gtd_flush(void);
 
-vsp_t  gtd_get_vsp(UINT32 const index, gtd_zone_type_t const zone_type);
-void   gtd_set_vsp(UINT32 const index, vsp_t const vsp, gtd_zone_type_t const zone_type); 
+vsp_t  gtd_get_vsp(page_key_t const key);
+void   gtd_set_vsp(page_key_t const key, vsp_t const vsp); 
 
 #endif /* __GTD_H */

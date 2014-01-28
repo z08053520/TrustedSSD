@@ -18,10 +18,11 @@
 
 
 #include "jasmine.h"
+#include "dram.h"
 #include "ftl.h"
 
 sata_context_t		g_sata_context;
-sata_ncq_t			g_sata_ncq;
+sata_ncq_t		g_sata_ncq;
 volatile UINT32		g_sata_action_flags;
 
 #define HW_EQ_SIZE		128
@@ -35,7 +36,7 @@ static UINT8	queue_size = 0;
 static UINT8	queue_head = 0;
 static UINT8	queue_tail = 0;
 
-static UINT32 eventq_get_count(void)
+UINT32 eventq_get_count(void)
 {
 	return queue_size;
 }

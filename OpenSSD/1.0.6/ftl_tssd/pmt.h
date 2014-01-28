@@ -1,6 +1,7 @@
 #ifndef __PMT_H
 #define __PMT_H
 #include "jasmine.h"
+#include "task_engine.h"
 
 /* *
  * PMT = page-level mapping table
@@ -27,13 +28,18 @@
 #define PMT_ENTRIES_PER_PAGE		(BYTES_PER_PAGE / sizeof(UINT32))
 #define PMT_PAGES			COUNT_BUCKETS(PMT_ENTRIES, PMT_ENTRIES_PER_PAGE)
 
+#define pmt_get_index(lspn)	(lspn / PMT_ENTRIES_PER_SUB_PAGE)
+#define pmt_get_offset(lspn)	(lspn % PMT_ENTRIES_PER_SUB_PAGE)
+
 /* ===========================================================================
  * Public Interface 
  * =========================================================================*/
 
-void pmt_init(void);
+void	pmt_init(void);
 
-void pmt_update(UINT32 const lspn, vp_t const vp);
-void pmt_fetch(UINT32 const lspn,  vp_t* vp);
+task_res_t pmt_load(UINT32 const lpn);
+
+void 	pmt_update(UINT32 const lspn, vp_t const vp);
+void 	pmt_get(UINT32 const lspn,  vp_t* vp);
 
 #endif /* __PMT_H */

@@ -4,6 +4,7 @@
 
 #if OPTION_FTL_TEST
 #include "jasmine.h"
+#include "dram.h"
 #include "ftl.h"
 #include "bad_blocks.h"
 #include "gc.h"
@@ -120,7 +121,7 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 	perf_monitor_reset();
 	while (num_sectors_so_far < total_sectors_thr) {
 		FOR_EACH_BANK(bank) {
-			vpn = gc_allocate_new_vpn(bank);	
+			vpn = gc_allocate_new_vpn(bank, FALSE);	
 
 			nand_page_program_from_host(bank, 
 						    vpn / PAGES_PER_VBLK, 
@@ -169,7 +170,7 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 		bank = 0;
 		num_pages_so_far = 0;
 		while (num_pages_so_far < total_pages) {
-			vpn = gc_allocate_new_vpn(bank);	
+			vpn = gc_allocate_new_vpn(bank, FALSE);	
 		
 			// only write one sector
 			nand_page_ptprogram_from_host(bank, 

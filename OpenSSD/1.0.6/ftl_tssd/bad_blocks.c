@@ -1,5 +1,5 @@
 #include "bad_blocks.h"
-#include "ftl.h"
+#include "dram.h"
 
 #define _bmp_base_addr(bank)	(BAD_BLK_BMP_ADDR + bank * BAD_BLK_BMP_BYTES_PER_BANK)
 #define _bb_set_bmp(bank, blk)	set_bit_dram(_bmp_base_addr(bank), blk)

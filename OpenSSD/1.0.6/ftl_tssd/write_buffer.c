@@ -133,9 +133,18 @@ static void dump_state()
 	for(i = 0; i < MAX_NUM_LPNS; i++) {
 		if (lpns[i] == NULL_LPN) continue;
 
+		UINT8 lp_buf_id = lp_buf_ids[i];
 		uart_printf("[%u] lpn = %u, buf_id = %u, mask = ", 
-			    i, lpns[i], lp_buf_ids[i]);
+			    i, lpns[i], lp_buf_id);
 		uart_print_hex_64(lp_masks[i]);
+
+		UINT8 first_sector = begin_sector(lp_masks[i]),
+		      last_sector  = end_sector(lp_masks[i]) - 1;
+		uart_printf("\tsector %u (%u) to sector %u (%u)\r\n",
+				first_sector,
+				read_dram_32(WRITE_BUF(lp_buf_id) + first_sector * BYTES_PER_SECTOR),
+				last_sector,
+				read_dram_32(WRITE_BUF(lp_buf_id) + last_sector * BYTES_PER_SECTOR));
 	}
 	uart_print("");
 }

@@ -2,14 +2,14 @@
 #include "dram.h"
 #include "mem_util.h"
 
-static UINT32 gtd_zone_addr[NUM_GTD_ZONE_TYPES + 1] = {
-#define ENTRY(zone_name)		(GTD_ADDR + ((UINT32) &((gtd_zone_t*)0)->zone_name)),
-	ZONE_LIST
+static UINT32 gtd_zone_addr[NUM_PAGE_TYPES + 1] = {
+#define ENTRY(zone_name)	(GTD_ADDR + ((UINT32) &((gtd_zones_t*)0)->zone_name)),
+	PAGE_TYPE_LIST
 #undef ENTRY
 	NULL
 };
 
-#define GTD_ENTRY_ADDR(idx, type)	(gtd_zone_addr[type] + sizeof(UINT32) * idx)
+#define GTD_ENTRY_ADDR(key)	(gtd_zone_addr[(key).type] + sizeof(UINT32) * (key).idx)
 
 void gtd_init(void)
 {
@@ -25,16 +25,20 @@ void gtd_flush(void)
 	// TODO: flush GTD to flash
 }
 
-vsp_t gtd_get_vsp(UINT32 const index, gtd_zone_type_t const zone_type)
+vsp_t gtd_get_vsp(page_key_t const key)
 {
-	vsp_or_int res;	
-	res.as_int = read_dram_32(GTD_ENTRY_ADDR(index, zone_type));
-	return res.as_vsp;
+	vsp_t vsp = {
+		.as_uint = read_dram_32(GTD_ENTRY_ADDR(key))
+	};
+	/* uart_printf("gtd get: type = %u, idx = %u, bank = %u, vspn = %u\r\n", */
+	/* 		key.type, key.idx, vsp.bank, vsp.vspn); */
+	return vsp;
 }
 
-void   gtd_set_vsp(UINT32 const index, vsp_t const vsp, gtd_zone_type_t const zone_type)
+void   gtd_set_vsp(page_key_t const key, vsp_t const vsp)
 {
 	BUG_ON("set vspn in vpn #0 ", vsp.vspn < SUB_PAGES_PER_PAGE);
-	vsp_or_int val = {.as_vsp = vsp};
-	write_dram_32(GTD_ENTRY_ADDR(index, zone_type), val.as_int);
+	write_dram_32(GTD_ENTRY_ADDR(key), vsp.as_uint);
+	/* uart_printf("gtd get: type = %u, idx = %u, bank = %u, vspn = %u\r\n", */
+	/* 		key.type, key.idx, vsp.bank, vsp.vspn); */
 }

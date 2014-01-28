@@ -2,7 +2,6 @@
 #define __FTL_H
 
 #include "jasmine.h"
-#include "dram.h"
 
 /* ========================================================================= *
  * Public API 

@@ -27,7 +27,7 @@
 #define	BANK_BMP		0x00FF00FF
 #define	CLOCK_SPEED		175000000
 
-#define OPTION_ENABLE_ASSERT		0	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
+#define OPTION_ENABLE_ASSERT		1	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
 #define OPTION_UART_DEBUG		1	// 1 = enable UART message output, 0 = disable
 #define OPTION_SLOW_SATA		0	// 1 = SATA 1.5Gbps, 0 = 3Gbps
 #define OPTION_SUPPORT_NCQ		0	// 1 = support SATA NCQ (=FPDMA) for AHCI hosts, 0 = support only DMA mode
@@ -221,42 +221,30 @@ UINT8 begin_sector(sectors_mask_t const mask);
 UINT8 end_sector(sectors_mask_t const mask);
 
 /* virtual page */
-typedef struct _vp_t {
-	UINT32	bank  :5;
-	UINT32	vpn   :27; 
+typedef union {
+	struct {
+		UINT32	bank  :5;
+		UINT32	vpn   :27; 
+	};
+	UINT32	as_uint;
 } vp_t; 
 
-#define vp_equal(vp0, vp1)	( ((vp0).bank == (vp1).bank) && \
-				  ((vp0).vpn  == (vp1).vpn ) )
-#define vp_not_equal(vp0, vp1)	( ((vp0).bank != (vp1).bank) || \
-				  ((vp0).vpn  != (vp1).vpn ) )
-
-/* conversion betwen VP and UINT32 */
-typedef union {
-	vp_t    as_vp;
-	UINT32	as_int;
-} vp_or_int;
+#define vp_equal(vp0, vp1)		((vp0).as_uint == (vp1).as_uint)
+#define vp_not_equal(vp0, vp1)		((vp0).as_uint != (vp1).as_uint)
 
 /* virtual sub-page */
-typedef struct _vsp_t {
-	UINT32	bank  :5;
-	UINT32	vspn  :27; 
+typedef union {
+	struct {
+		UINT32	bank  :5;
+		UINT32	vspn  :27; 
+	};
+	UINT32	as_uint;
 } vsp_t; 
 
+#define vsp_is_equal(vsp0, vsp1)	((vsp0).as_uint == (vsp1).as_uint)
+#define vsp_not_equal(vsp0, vsp1)	((vsp0).as_uint != (vsp1).as_uint)
+
 #define NULL_LSPN			0xFFFFFFFF
-
-#define vsp_is_equal(vsp0, vsp1)	( ((vsp0).bank == (vsp1).bank) && \
-				  	  ((vsp0).vspn == (vsp1).vspn) )
-
-#define vsp_not_equal(vsp0, vsp1)	( ((vsp0).bank != (vsp1).bank) || \
-				  	  ((vsp0).vspn != (vsp1).vspn) )
-
-/* conversion betwen VSP and UINT32 */
-typedef union {
-	vsp_t   as_vsp;
-	UINT32	as_int;
-} vsp_or_int;
-
 
 #define COUNT_BUCKETS(TOTAL, BUCKET_SIZE) \
 	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )
@@ -345,19 +333,19 @@ scan_list_t;
 		#define ERROR(label, ...)
 	#endif
 	
-	#define BUG_ON(MESSAGE, COND) do {\
-		if (COND) {\
-			__BUG_REPORT(COND, MESSAGE);\
-			led_blink();\
-			while(1);\
-		}\
-	} while(0);
 	/* #define BUG_ON(MESSAGE, COND) do {\ */
 	/* 	if (COND) {\ */
-	/* 		uart_print("bug_on");	\ */
+	/* 		__BUG_REPORT(COND, MESSAGE);\ */
+	/* 		led_blink();\ */
 	/* 		while(1);\ */
 	/* 	}\ */
 	/* } while(0); */
+	#define BUG_ON(MESSAGE, COND) do {\
+		if (COND) {\
+			uart_printf("bug on at line %u in file %s\r\n", __LINE__, __FILE__);\
+			while(1);\
+		}\
+	} while(0);
 	
 #else
 	#define LOG(label, ...)

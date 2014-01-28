@@ -34,7 +34,10 @@ typedef struct {
 
 typedef struct {
 	UINT8		cmd_issued;
-	UINT8		cmd_done;
+	union {
+		UINT8		cmd_done;
+		UINT8		pmt_done;
+	};
 	vp_t		vp;
 	UINT32		buf;
 	sectors_mask_t 	valid_sectors;
@@ -76,17 +79,6 @@ UINT32	g_next_finishing_task_seq_id;
  *  Helper Functions 
  * =========================================================================*/
 
-static UINT8	auto_idle_bank(banks_mask_t const idle_banks)
-{
-	static UINT8 bank_i = NUM_BANKS - 1;
-
-	UINT8 i;
-	for (i = 0; i < NUM_BANKS; i++) {
-		bank_i = (bank_i + 1) % NUM_BANKS;
-		if (banks_has(idle_banks, bank_i)) return bank_i;
-	}
-	return NUM_BANKS;
-}
 
 /* ===========================================================================
  *  Task Handlers
@@ -106,18 +98,31 @@ static task_res_t preparation_state_handler(task_t* _task,
 	wr_buf->buf		= NULL;
 	/* Insert and merge into write buffer */
 	if (task->num_sectors < SECTORS_PER_PAGE) {
+		// DEBUG
+		/* UINT32 buf = SATA_WR_BUF_PTR(write_buf_id); */
+		/* uart_print("peek the content of SATA write buffer just before write buffer put"); */
+		/* uart_printf("\tSATA write buf id = %u, SATA write buf = %u\r\n", */
+		/* 		write_buf_id, buf); */
+		/* UINT8 first_sector = task->offset, */
+		/*       last_sector   = task->offset + task->num_sectors - 1; */
+		/* uart_printf("\tfrom sector %u (%u) to sector %u (%u)\r\n", */
+		/* 		first_sector, */
+		/* 		read_dram_32(buf + first_sector * BYTES_PER_SECTOR), */
+		/* 		last_sector, */
+		/* 		read_dram_32(buf + last_sector * BYTES_PER_SECTOR)); */
+
 		if (write_buffer_is_full()) {
 			if (context->idle_banks == 0) return TASK_BLOCKED;
 
 			UINT8 idle_bank  = auto_idle_bank(context->idle_banks);
 			wr_buf->vp.bank  = idle_bank;
-			wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank);
+			wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank, FALSE);
 			wr_buf->buf	 = FTL_WR_BUF(idle_bank);	
 
 			write_buffer_flush(wr_buf->buf, wr_buf->lspn, 
 					   &wr_buf->valid_sectors);
 		}
-		
+
 		write_buffer_put(task->lpn, task->offset, task->num_sectors, 
 				 SATA_WR_BUF_PTR(write_buf_id));
 	}
@@ -127,7 +132,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 
 		UINT8 idle_bank  = auto_idle_bank(context->idle_banks);
 		wr_buf->vp.bank  = idle_bank;
-		wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank);
+		wr_buf->vp.vpn   = gc_allocate_new_vpn(idle_bank, FALSE);
 		wr_buf->buf	 = SATA_WR_BUF_PTR(write_buf_id);
 		wr_buf->valid_sectors = FULL_MASK;
 
@@ -151,6 +156,8 @@ static task_res_t preparation_state_handler(task_t* _task,
 #endif
 
 	task_starts_writing_page(wr_buf->vp, task);
+	wr_buf->pmt_done = 0;
+
 	task->state = STATE_MAPPING;
 	return TASK_CONTINUED;
 }
@@ -161,16 +168,33 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 
 	/* DEBUG("write_task_handler>mapping", "task_id = %u", task->seq_id); */
+	task_swap_in(task, wr_buf, sizeof(*wr_buf));
 
+	task_res_t res = TASK_CONTINUED;
 	UINT8 sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
 		UINT32 lspn = wr_buf->lspn[sp_i];
 		if (lspn == NULL_LSPN) continue;
-		
-		pmt_fetch(lspn, & wr_buf->old_vp[sp_i]);		
+
+		if (mask_is_set(wr_buf->pmt_done, sp_i)) continue;
+
+		task_res_t sp_res = pmt_load(lspn);
+		/* TASK_BLOCKED > TASK_PAUSED > TASK_CONTINUED */
+		if (sp_res > res)  res = sp_res;
+
+		if (sp_res == TASK_BLOCKED) break;
+		else if (sp_res == TASK_PAUSED) continue;
+			
+		pmt_get(lspn, & wr_buf->old_vp[sp_i]);		
 		pmt_update(lspn, wr_buf->vp);
+		mask_set(wr_buf->pmt_done, sp_i);
 		/* uart_printf("pmt update: lspn %u --> bank %u, vpn %u\r\n", */ 
 		/* 	    lspn, wr_buf->vp.bank, wr_buf->vp.vpn); */
+	}
+
+	if (res) {
+		task_swap_out(task, wr_buf, sizeof(*wr_buf));
+		return res;
 	}
 	
 	task->waiting_banks 	= 0;
@@ -328,9 +352,10 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;	
 	
+	task_swap_in(task, wr_buf, sizeof(*wr_buf));
 	/* DEBUG("write_task_handler>finish", "task_id = %u", task->seq_id); */
+
 	// DEBUG	
-	/* task_swap_in(task, wr_buf, sizeof(*wr_buf)); */
 	/* if (wr_buf->buf) { */
 	/* 	uart_print("write buffer = ["); */
 	/* 	UINT8	sp_i; */
@@ -363,6 +388,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 	/* else { */
 	/* 	uart_print("in write buffer"); */
 	/* } */
+
 	g_num_ftl_write_tasks_finished++;
 	if (wr_buf->buf) task_ends_writing_page(wr_buf->vp, task);
 
@@ -420,6 +446,12 @@ void ftl_write_task_init(task_t *task, UINT32 const lpn,
 	
 	/* Assign an unique id to each task */
 	write_task->seq_id	= g_num_ftl_write_tasks_submitted++;
+	
+	/* uart_printf("task_init: seq_id = %u, lpn = %u, offset= %u, num_sectors = %u, " */
+	/* 	    "g_num_ftl_write_tasks_submitted = %u\r\n", */
+	/* 	    write_task->seq_id, write_task->lpn, write_task->offset, */ 
+	/* 	    write_task->num_sectors, */
+	/* 	    g_num_ftl_write_tasks_submitted); */
 }
 
 #if OPTION_FTL_TEST

@@ -18,7 +18,7 @@
 
 
 #include "jasmine.h"
-#include "ftl.h"
+#include "dram.h"
 
 #if OPTION_PROFILING
 #include "profiler.h"

@@ -1,7 +1,6 @@
 #ifndef __TASK_ENGINE_H
 #define __TASK_ENGINE_H
 #include "jasmine.h"
-#include "dram.h"
 
 #define MAX_NUM_TASK_TYPES_LOG2		3	
 #define MAX_NUM_TASK_STATES_LOG2	5	
@@ -57,7 +56,8 @@ void	_task_swap_in (task_t *task, void *data, UINT32 const bytes);
 void 	task_engine_init();
 BOOL8 	task_engine_register_task_type(UINT8 *type, 
 				       task_handler_t* handlers);
-void 	task_engine_submit(task_t *task);
+void 		task_engine_submit(task_t *task);
+task_res_t	task_engine_insert_and_process(task_t *task);
 /* return true if task engine is idle */
 BOOL8 	task_engine_run();
 

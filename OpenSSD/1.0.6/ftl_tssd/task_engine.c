@@ -21,6 +21,9 @@ static task_t _head;
 static task_t *head, *tail; 
 #define is_engine_idle()	(head == tail)
 
+/* previous task and current task when task engine is running */
+static	task_t *pre_task, *current_task;
+
 static task_handler_t* task_handlers[MAX_NUM_TASK_TYPES];
 static UINT8 num_task_types;
 
@@ -40,6 +43,16 @@ static 	banks_mask_t probe_idle_banks()
 			idle_banks |= (1 << bank_i);
 	}
 	return idle_banks;
+}
+
+static inline task_res_t process_task(task_t *task)
+{
+	task_res_t res;
+	do {
+		task_handler_t handler = task_handlers[task->type][task->state];
+		res = (*handler)(task, &context);
+	} while (res == TASK_CONTINUED);
+	return res;
 }
 
 /* ===========================================================================
@@ -119,10 +132,26 @@ void 	task_engine_submit(task_t *task)
 {
 	BUG_ON("task is null!", task == NULL);
 
-	/* DEBUG("task_engine", "submit task"); */
-
 	set_next_task(tail, task);
 	tail = task;
+}
+
+task_res_t	task_engine_insert_and_process(task_t *task)
+{
+	BUG_ON("insert task when engine is not running",
+		pre_task == NULL || current_task == NULL);
+	BUG_ON("task is null!", task == NULL);
+
+	task_res_t res = process_task(task);
+	if (res == TASK_FINISHED) {
+		task_deallocate(task);
+		return TASK_FINISHED;
+	}
+
+	set_next_task(pre_task, task);
+	set_next_task(task, current_task);
+	pre_task = task;
+	return res;
 }
 
 BOOL8 	task_engine_run()
@@ -136,33 +165,30 @@ BOOL8 	task_engine_run()
 	context.completed_banks = used_banks & context.idle_banks;
 
 	/* Iterate each task */
-	task_t *pre = head, *task = get_next_task(head);
-	while (task) {
-		if ((task->waiting_banks & context.idle_banks) == 0) 
+	pre_task = head, current_task = get_next_task(head);
+	while (current_task) {
+		if ((current_task->waiting_banks & context.idle_banks) == 0) 
 			goto next_task;
 		
-		task_res_t res;
-		do {
-			task_handler_t handler = task_handlers[task->type][task->state];
-			res = (*handler)(task, &context);
-		} while (res == TASK_CONTINUED);
+		task_res_t res = process_task(current_task);
 
-		if (res == TASK_BLOCKED) break;
-
-		/* Remove task that is done */
-		if (res == TASK_FINISHED) {
-			set_next_task(pre, get_next_task(task));
-			if (task == tail) tail = pre;
-			task_deallocate(task);
+		if (res == TASK_BLOCKED) {
+			/* Start all over again */
+			return FALSE;
 		}
-		/* TASK_PAUSED */
-		else {
+		else if (res == TASK_FINISHED) { 
+			/* Remove task that is done */
+			set_next_task(pre_task, get_next_task(current_task));
+			if (current_task == tail) tail = pre_task;
+			task_deallocate(current_task);
+		}
+		else { /* TASK_PAUSED */
 next_task:
-			pre  = task;
+			pre_task  = current_task;
 		}
-		task = get_next_task(pre);
+		current_task = get_next_task(pre_task);
 	}
-	
+	pre_task = current_task = NULL;
 	return is_engine_idle();
 }
 
@@ -170,12 +196,11 @@ next_task:
 flash is read by tasks */
 BOOL8 is_any_task_writing_page(vp_t const vp)
 {
-	vp_or_int	vp2int		= {.as_vp = vp};
 	UINT8	vp_idx			= mem_search_equ_sram(
 						tasks_writing_vps,
 						sizeof(vp_t),
 						MAX_NUM_TASKS,
-						vp2int.as_int);
+						vp.as_uint);
 	return vp_idx < MAX_NUM_TASKS;
 }
 

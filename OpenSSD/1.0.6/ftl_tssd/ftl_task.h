@@ -2,6 +2,7 @@
 #define __FTL_TASK_H
 
 #include "jasmine.h"
+#include "task_engine.h"
 
 #define lpn2lspn(lpn)		(lpn * SUB_PAGES_PER_PAGE)
 #define vpn2vspn(vpn)		(vpn * SUB_PAGES_PER_PAGE)
@@ -33,4 +34,5 @@
 		(*segment_handler)(begin_i, end_i);			\
 	}
 
+UINT8	auto_idle_bank(banks_mask_t const idle_banks);
 #endif
