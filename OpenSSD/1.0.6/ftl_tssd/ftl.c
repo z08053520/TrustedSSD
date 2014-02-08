@@ -20,7 +20,7 @@
 #endif
 
 /* ========================================================================= *
- * Macros, Data Structure and Gloal Variables 
+ * Macros, Data Structure and Gloal Variables
  * ========================================================================= */
 
 #define _KB 	1024
@@ -35,15 +35,15 @@
 } while(0);
 
 /* ========================================================================= *
- * Private Functions 
+ * Private Functions
  * ========================================================================= */
 
 static void sanity_check(void)
 {
-	BUG_ON("Address of SATA buffers must be a integer multiple of " 
-	       "SATA_BUF_PAGE_SIZE, which is set as BYTES_PER_PAGE when started", 
-			SATA_RD_BUF_ADDR   % BYTES_PER_PAGE != 0 || 
-			SATA_WR_BUF_ADDR   % BYTES_PER_PAGE != 0 || 
+	BUG_ON("Address of SATA buffers must be a integer multiple of "
+	       "SATA_BUF_PAGE_SIZE, which is set as BYTES_PER_PAGE when started",
+			SATA_RD_BUF_ADDR   % BYTES_PER_PAGE != 0 ||
+			SATA_WR_BUF_ADDR   % BYTES_PER_PAGE != 0 ||
 			COPY_BUF_ADDR % BYTES_PER_PAGE != 0);
 }
 
@@ -54,7 +54,7 @@ static void print_info(void)
 	uart_print("=== Memory Configuration ===");
 	PRINT_SIZE("DRAM", 		DRAM_SIZE);
 	PRINT_SIZE("page cache", 	PC_BYTES);
-	PRINT_SIZE("bad block bitmap",	BAD_BLK_BMP_BYTES); 
+	PRINT_SIZE("bad block bitmap",	BAD_BLK_BMP_BYTES);
 	PRINT_SIZE("non SATA buffer size",		NON_SATA_BUF_BYTES);
 	uart_printf("# of SATA read buffers == %d\r\n", NUM_SATA_RD_BUFFERS);
 	PRINT_SIZE("SATA read buffers", 		SATA_RD_BUF_BYTES);
@@ -66,12 +66,12 @@ static void print_info(void)
 }
 
 /* ========================================================================= *
- * Public API 
+ * Public API
  * ========================================================================= */
 
 void ftl_open(void) {
 	print_info();
-	
+
 	led(0);
     	sanity_check();
 
@@ -83,7 +83,7 @@ void ftl_open(void) {
 
 	bb_init();
 	gc_init();
-	
+
 	task_engine_init();
 
 	page_cache_init();
@@ -127,7 +127,7 @@ extern UINT32	g_num_ftl_write_tasks_submitted;
 BOOL8 ftl_main(void)
 {
 	/* Accept new SATA read/write requests if we can */
-	/* TODO: keep an extra free task for page cache load/flush task may 
+	/* TODO: keep an extra free task for page cache load/flush task may
 	 * not be the best way to prevent task from "dead lock" each other */
 	while (task_can_allocate(2)) {
 		/* Make sure we have a SATA request to process */
@@ -143,8 +143,8 @@ BOOL8 ftl_main(void)
 #if OPTION_FTL_TEST == 0
 		/* Check whether SATA buffer is ready */
 		if (sata_cmd.cmd_type == READ) {
-			UINT32	next_read_buf_id = 
-					(g_num_ftl_read_tasks_submitted + 1) % 
+			UINT32	next_read_buf_id =
+					(g_num_ftl_read_tasks_submitted + 1) %
 					NUM_SATA_RD_BUFFERS;
 			if (next_read_buf_id == GETREG(SATA_RBUF_PTR)) break;
 		}
@@ -159,24 +159,32 @@ BOOL8 ftl_main(void)
 		/* Process one page at a time */
 		UINT32 	lpn 	= sata_cmd.lba / SECTORS_PER_PAGE;
 		UINT8	offset 	= sata_cmd.lba % SECTORS_PER_PAGE;
-		UINT8	num_sectors = 
+		UINT8	num_sectors =
 				offset + sata_cmd.sector_count <= SECTORS_PER_PAGE ?
-					sata_cmd.sector_count :	
+					sata_cmd.sector_count :
 					SECTORS_PER_PAGE - offset;
 		/* uart_printf("> %s one page: lpn = %u, offset = %u, num_sectors = %u\r\n", */
-		/* 	   sata_cmd.cmd_type == READ ? "READ" : "WRITE", */ 
+		/* 	   sata_cmd.cmd_type == READ ? "READ" : "WRITE", */
 		/* 	   lpn, offset, num_sectors); */
 
 
 		/* Submit a new task */
-		task_t *task = task_allocate();		
+		task_t *task = task_allocate();
 		BUG_ON("allocation task failed", task == NULL);
+#if	OPTION_ACL
+		UINT32	uid = acl_skey2uid(sata_cmd.session_key);
+		if (sata_cmd.cmd_type == READ)
+			ftl_read_task_init(task, uid, lpn, offset, num_sectors);
+		else
+			ftl_write_task_init(task, uid, lpn, offset, num_sectors);
+#else
 		if (sata_cmd.cmd_type == READ)
 			ftl_read_task_init(task, lpn, offset, num_sectors);
 		else
 			ftl_write_task_init(task, lpn, offset, num_sectors);
+#endif
 		task_engine_submit(task);
-		
+
 		sata_cmd.lba += num_sectors;
 		sata_cmd.sector_count -= num_sectors;
 	}

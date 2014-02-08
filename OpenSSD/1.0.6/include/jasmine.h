@@ -35,43 +35,43 @@
 
 #define OPTION_PERF_TUNING		1
 
-/* About macro OPTION_FTL_TEST 
+/* About macro OPTION_FTL_TEST
  *
- * This macro can be defined in Makefile. If it is defined, then the firmware 
- * is running in FTL test mode without SATA communication; otherwise it is in 
- * normal mode. 
+ * This macro can be defined in Makefile. If it is defined, then the firmware
+ * is running in FTL test mode without SATA communication; otherwise it is in
+ * normal mode.
  *
  * To run unit tests, you have to specify which test case to run in the
  * Makefile, which will automatically define OPTION_FTL_TEST.
  * */
 
-/* About macro OPTION_PROFILING 
+/* About macro OPTION_PROFILING
  *
- * If this marco is defined, profiling will be enabled to analyze time spent 
+ * If this marco is defined, profiling will be enabled to analyze time spent
  * by major compoents/functions. This macro is defined in Makefile.
  * */
 
-/* About macro OPTION_FDE 
+/* About macro OPTION_FDE
  *
- * If this marco is defined, full disk encryption (FDE) will be enabled. 
+ * If this marco is defined, full disk encryption (FDE) will be enabled.
  * This macro is defined in Makefile.
  * */
 
 /* About macro OPTION_2_PLANE
- * 
+ *
  * Flash performance profiling result shows that flash throughput is
- * remarkably larger when the page size is 32KB. Thus, it is better to enable 
- * OPTION_2_PLANE. TSSD FTL can work with a page size of either 16KB or 32KB. 
+ * remarkably larger when the page size is 32KB. Thus, it is better to enable
+ * OPTION_2_PLANE. TSSD FTL can work with a page size of either 16KB or 32KB.
  * */
 #define	OPTION_2_PLANE			1	// 1 = 2-plane mode, 0 = 1-plane mode
 
-/* About macro OPTION_ACL 
+/* About macro OPTION_ACL
  *
  * Access Control Layer (ACL) implements the core feature-- fine-grained
  * access control--- of TrustedSSD, which makes the latter unique to all SSD.
  * Use macro OPTION_ACL to enable ACL.
  * */
-#define OPTION_ACL			0	
+#define OPTION_ACL			1
 
 #define CHN_WIDTH			2 	// 2 = 16bit IO
 #define NUM_CHNLS_MAX		4
@@ -138,7 +138,7 @@
 
 /* Use 4KB sub page as the unit of page translation to improve the performance */
 #define BYTES_PER_SUB_PAGE		4096
-#define SUB_PAGES_PER_PAGE		(BYTES_PER_PAGE / BYTES_PER_SUB_PAGE)	
+#define SUB_PAGES_PER_PAGE		(BYTES_PER_PAGE / BYTES_PER_SUB_PAGE)
 #define SECTORS_PER_SUB_PAGE		(BYTES_PER_SUB_PAGE / BYTES_PER_SECTOR)
 
 ////////////////////
@@ -200,7 +200,7 @@ typedef unsigned long long	UINT64;
 			((num_sectors) >= sizeof(UINT64) * 8? 		\
 				FULL_MASK :				\
 				(((1ULL << (num_sectors)) - 1) << (offset)))
-	#define count_sectors(mask)		__builtin_popcountll(mask) 
+	#define count_sectors(mask)		__builtin_popcountll(mask)
 	#define _begin_sector(mask)		__builtin_ctzll(mask)
 	#define _end_sector(mask)		((sizeof(sectors_mask_t) * 8) - __builtin_clzll(mask))
 #else
@@ -211,7 +211,7 @@ typedef unsigned long long	UINT64;
 			((num_sectors) >= sizeof(UINT32) * 8? 		\
 				FULL_MASK :				\
 				(((1UL << (num_sectors)) - 1) << (offset)))
-	#define count_sectors(mask)		__builtin_popcount(mask) 
+	#define count_sectors(mask)		__builtin_popcount(mask)
 	#define _begin_sector(mask)		__builtin_ctz(mask)
 	#define _end_sector(mask)		((sizeof(sectors_mask_t) * 8) - __builtin_clz(mask))
 #endif
@@ -224,10 +224,10 @@ UINT8 end_sector(sectors_mask_t const mask);
 typedef union {
 	struct {
 		UINT32	bank  :5;
-		UINT32	vpn   :27; 
+		UINT32	vpn   :27;
 	};
 	UINT32	as_uint;
-} vp_t; 
+} vp_t;
 
 #define vp_equal(vp0, vp1)		((vp0).as_uint == (vp1).as_uint)
 #define vp_not_equal(vp0, vp1)		((vp0).as_uint != (vp1).as_uint)
@@ -236,10 +236,10 @@ typedef union {
 typedef union {
 	struct {
 		UINT32	bank  :5;
-		UINT32	vspn  :27; 
+		UINT32	vspn  :27;
 	};
 	UINT32	as_uint;
-} vsp_t; 
+} vsp_t;
 
 #define vsp_is_equal(vsp0, vsp1)	((vsp0).as_uint == (vsp1).as_uint)
 #define vsp_not_equal(vsp0, vsp1)	((vsp0).as_uint != (vsp1).as_uint)
@@ -253,6 +253,8 @@ typedef union {
 #define MAX(X, Y)				((X) > (Y) ? (X) : (Y))
 
 void delay(UINT32 const count);
+
+typedef UINT32		uid_t;
 
 #include "flash.h"
 #include "sata.h"
@@ -291,12 +293,12 @@ scan_list_t;
 
 #if OPTION_UART_DEBUG
 	/* log levels */
-	#define LL_INFO 	0	
-	#define LL_DEBUG	1	
-	#define LL_WARNING 	2	
-	#define LL_ERROR	3	
+	#define LL_INFO 	0
+	#define LL_DEBUG	1
+	#define LL_WARNING 	2
+	#define LL_ERROR	3
 	/* only logs with level no less than LL_LEVEL are printed */
-	#define LL_LEVEL 	LL_DEBUG	
+	#define LL_LEVEL 	LL_DEBUG
 
 	#define __BUG_REPORT(_cond, _format, _args ...)\
 		uart_printf("%s:%d: error in function '%s' for condition '%s': "\
@@ -309,13 +311,13 @@ scan_list_t;
 		uart_printf(" <function %s, line %d, file %s>\r\n", __FUNCTION__, __LINE__, __FILE__);\
 	} while(0);
 
-	#if LL_INFO >= LL_LEVEL 
+	#if LL_INFO >= LL_LEVEL
 		#define INFO(label, ...) 	LOG(label, __VA_ARGS__)
 	#else
 		#define INFO(label, ...)
 	#endif
 
-	#if LL_DEBUG >= LL_LEVEL 
+	#if LL_DEBUG >= LL_LEVEL
 		#define DEBUG(label, ...) 	LOG(label, __VA_ARGS__)
 	#else
 		#define DEBUG(label, ...)
@@ -332,7 +334,7 @@ scan_list_t;
 	#else
 		#define ERROR(label, ...)
 	#endif
-	
+
 	/* #define BUG_ON(MESSAGE, COND) do {\ */
 	/* 	if (COND) {\ */
 	/* 		__BUG_REPORT(COND, MESSAGE);\ */
@@ -346,7 +348,7 @@ scan_list_t;
 			while(1);\
 		}\
 	} while(0);
-	
+
 #else
 	#define LOG(label, ...)
 	#define DEBUG(label, ...)

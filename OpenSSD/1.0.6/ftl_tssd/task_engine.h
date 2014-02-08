@@ -2,8 +2,8 @@
 #define __TASK_ENGINE_H
 #include "jasmine.h"
 
-#define MAX_NUM_TASK_TYPES_LOG2		3	
-#define MAX_NUM_TASK_STATES_LOG2	5	
+#define MAX_NUM_TASK_TYPES_LOG2		3
+#define MAX_NUM_TASK_STATES_LOG2	5
 #define MAX_NUM_TASK_TYPES		(1 << MAX_NUM_TASK_TYPES_LOG2)
 #define MAX_NUM_TASK_STATES		(1 << MAX_NUM_TASK_STATES_LOG2)
 
@@ -13,7 +13,7 @@ typedef enum {
 	/* PAUSED: task engine processes next task as the current task is paused */
 	TASK_PAUSED,
 	/* BLOCKED: task engine restarts to process earlier tasks */
-	TASK_BLOCKED,		
+	TASK_BLOCKED,
 	/* FINISHED: task engine removes a finished task from queue */
 	TASK_FINISHED
 } task_res_t;
@@ -22,7 +22,7 @@ typedef enum {
 typedef UINT8		task_id_t;
 
 #define ALL_BANKS	0xFFFF
-typedef UINT16		banks_mask_t;	
+typedef UINT16		banks_mask_t;
 
 #define TASK_PUBLIC_FIELDS					\
 	UINT8		type:MAX_NUM_TASK_TYPES_LOG2;		\
@@ -31,10 +31,16 @@ typedef UINT16		banks_mask_t;
 	task_id_t	_next_id:7;				\
 	banks_mask_t	waiting_banks;
 
+#if	OPTION_ACL
+	#define TASK_PRIVATE_FIELD_SIZE	16
+#else
+	#define TASK_PRIVATE_FIELD_SIZE	12
+#endif
+
 typedef struct {
 	TASK_PUBLIC_FIELDS
 	/* TODO: make this smaller */
-	UINT8		private_data[12];
+	UINT8		private_data[TASK_PRIVATE_FIELD_SIZE];
 } task_t;
 
 typedef struct {
@@ -54,7 +60,7 @@ void	_task_swap_out(task_t *task, void *data, UINT32 const bytes);
 void	_task_swap_in (task_t *task, void *data, UINT32 const bytes);
 
 void 	task_engine_init();
-BOOL8 	task_engine_register_task_type(UINT8 *type, 
+BOOL8 	task_engine_register_task_type(UINT8 *type,
 				       task_handler_t* handlers);
 void 		task_engine_submit(task_t *task);
 task_res_t	task_engine_insert_and_process(task_t *task);
@@ -71,7 +77,7 @@ void 	_task_starts_writing_page(vp_t const vp, task_t *task);
 				_task_ends_writing_page(vp, (task_t*)task)
 void 	_task_ends_writing_page(vp_t const vp, task_t *task);
 
-/*  Prevent pages with greater vpn is written earlier than one with less vpn 
+/*  Prevent pages with greater vpn is written earlier than one with less vpn
 in the same bank */
 BOOL8	is_there_any_earlier_writing(vp_t const vp);
 #endif

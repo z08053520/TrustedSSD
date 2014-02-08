@@ -4,21 +4,19 @@
 #if OPTION_ACL
 
 /* *
- * SOT = Sector Ownership Table 
- *	
- *	LBA (logical block/sector number) --> UID (user id)		
- *	
+ * SOT = Sector Ownership Table
+ *
+ *	LBA (logical block/sector number) --> UID (user id)
+ *
  *   Let's do some simple math to calculate the number of entries in SOT.
- *   For a 64GB flash, there are 64GB / 512B = 128M entries, occupying 
- *   128M * 2B / 32KB = 8K pages. 
+ *   For a 64GB flash, there are 64GB / 512B = 128M entries, occupying
+ *   128M * 2B / 32KB = 8K pages.
  * */
 
 
 /* ===========================================================================
  * Type and Macro Definitions
  * =========================================================================*/
-
-typedef UINT16		uid_t;
 
 #define SOT_ENTRIES			(SECTORS_PER_BANK * NUM_BANKS)
 
@@ -29,18 +27,17 @@ typedef UINT16		uid_t;
 #define SOT_PAGES			COUNT_BUCKETS(SOT_ENTRIES, SOT_ENTRIES_PER_PAGE)
 
 /* ===========================================================================
- * Public Interface 
+ * Public Interface
  * =========================================================================*/
 
 void sot_init();
 
-/* for individual sector  */
-void sot_fetch(UINT32 const lba, uid_t *uid);
-void sot_update(UINT32 const lba, uid_t const uid);
+task_res_t sot_load(UINT32 const lpn);
 
-/* for consecutive sectors */
-BOOL8 sot_check(UINT32 const lba_begin, UINT32 const num_sectors, uid_t const uid);
-void sot_set(UINT32 const lba_begin, UINT32 const num_sectors, uid_t const uid);
+BOOL8	sot_authenticate(UINT32 const lpn, UINT8 const offset,
+			 UINT8 const num_sectors, uid_t const expected_uid);
+void	sot_authorize  (UINT32 const lspn, UINT8 const offset,
+			UINT8 const num_sectors, uid_t const new_uid);
 
 #endif
 #endif

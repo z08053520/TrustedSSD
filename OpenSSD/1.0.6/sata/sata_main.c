@@ -31,7 +31,7 @@ volatile UINT32		g_sata_action_flags;
 #if OPTION_FTL_TEST
 
 #define	CMD_QUEUE_SIZE		12
-static CMD_T	queue[CMD_QUEUE_SIZE];	
+static CMD_T	queue[CMD_QUEUE_SIZE];
 static UINT8	queue_size = 0;
 static UINT8	queue_head = 0;
 static UINT8	queue_tail = 0;
@@ -41,7 +41,7 @@ UINT32 eventq_get_count(void)
 	return queue_size;
 }
 
-static void eventq_get(CMD_T* cmd) 
+static void eventq_get(CMD_T* cmd)
 {
 	if (queue_size == 0) {
 		cmd->sector_count = 0;
@@ -89,11 +89,11 @@ static void eventq_get(CMD_T* cmd)
 	UINT32 EQReadData0	= GETREG(SATA_EQ_DATA_0);
 	UINT32 EQReadData1	= GETREG(SATA_EQ_DATA_1);
 
-	cmd->lba			= EQReadData1 & 0x3FFFFFFF;
+	cmd->lba		= EQReadData1 & 0x3FFFFFFF;
 	cmd->sector_count	= EQReadData0 >> 16;
 	cmd->cmd_type		= EQReadData1 >> 31;
 #if OPTION_ACL
-	// FIXME: read real session_key from queue	
+	// FIXME: read real session_key from queue
 	cmd->session_key	= cmd->lba;
 #endif
 

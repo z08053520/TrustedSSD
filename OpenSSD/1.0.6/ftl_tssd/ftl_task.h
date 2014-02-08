@@ -4,6 +4,23 @@
 #include "jasmine.h"
 #include "task_engine.h"
 
+/* TODO: is it really necessary to use a 32-bit word to store seq_id? */
+/* TODO: What if seq_id overflow? */
+#define FTL_TASK_PUBLIC_FIELDS			\
+		UINT32		seq_id;		\
+		UINT32		lpn;		\
+		UINT8		offset;		\
+		UINT8		num_sectors;	\
+		UINT16		flags;		\
+		FTL_TASK_EXTRA_FIELDS
+
+#if	OPTION_ACL
+	#define FTL_TASK_EXTRA_FIELDS		\
+		uid_t	uid;
+#else
+	#define FTL_TASK_EXTRA_FIELDS
+#endif
+
 #define lpn2lspn(lpn)		(lpn * SUB_PAGES_PER_PAGE)
 #define vpn2vspn(vpn)		(vpn * SUB_PAGES_PER_PAGE)
 
