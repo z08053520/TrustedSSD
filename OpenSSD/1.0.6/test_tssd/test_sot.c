@@ -1,5 +1,5 @@
 /* ===========================================================================
- * Unit test for Sector Ownership Table 
+ * Unit test for Sector Ownership Table
  * =========================================================================*/
 #include "jasmine.h"
 #if OPTION_FTL_TEST
@@ -30,9 +30,9 @@ SETUP_BUF(uid, UID_BUF_ADDR, UID_BUF_SIZE);
 void ftl_test()
 {
 	uart_print("Running unit test for SOT...");
-	
+
 	UINT32 lba;
-	uid_t  uid;
+	user_id_t  uid;
 	UINT32 i;
 	UINT32 j, repeats = 4;
 
@@ -67,7 +67,7 @@ void ftl_test()
 			BUG_ON("SOT entry is not as expected", uid != get_uid(i));
 		}
 	}
-	
+
 	uart_print("Unit test for SOT passed ^_^");
 }
 

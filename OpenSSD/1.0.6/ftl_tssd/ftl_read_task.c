@@ -75,7 +75,7 @@ static task_res_t do_authenticate(ftl_read_task_t *task)
 
 	BOOL8 ok = sot_authenticate(task->lpn, task->offset,
 				    task->num_sectors, task->uid);
-	if (ok) task->flag |= FLAG_AUTHENTICATED;
+	if (ok) task->flags |= FLAG_AUTHENTICATED;
 	task->uid = 0;
 	return TASK_CONTINUED;
 }
@@ -304,9 +304,9 @@ static task_res_t finish_state_handler	(task_t* _task,
 
 #if OPTION_ACL
 	task_res_t auth_res = do_authenticate(task);
-	if (res != TASK_CONTINUED) return auth_res;
+	if (auth_res != TASK_CONTINUED) return auth_res;
 
-	BOOL8 access_denial = (task->flag & FLAG_AUTHENTICATED) == 0;
+	BOOL8 access_denial = (task->flags & FLAG_AUTHENTICATED) == 0;
 	if (access_denial) {
 		UINT32 	sata_buf = SATA_RD_BUF_PTR(task_buf_id(task));
 		/* TODO: randomize the content of a denied SATA request*/

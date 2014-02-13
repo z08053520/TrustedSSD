@@ -372,7 +372,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 
 #if OPTION_ACL
 	task_res_t auth_res = do_authorize(task);
-	if (res != TASK_CONTINUED) return auth_res;
+	if (auth_res != TASK_CONTINUED) return auth_res;
 #endif
 
 	task_swap_in(task, wr_buf, sizeof(*wr_buf));
@@ -457,7 +457,7 @@ void ftl_write_task_register()
 
 void ftl_write_task_init(task_t *task,
 #if	OPTION_ACL
-			UINT32 const uid,
+			user_id_t const uid,
 #endif
 			UINT32 const lpn,
 		   	UINT8 const offset, UINT8 const num_sectors)
