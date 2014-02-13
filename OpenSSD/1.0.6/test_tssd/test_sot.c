@@ -20,7 +20,7 @@
 #define LBA_BUF		TEMP_BUF_ADDR
 #define UID_BUF		HIL_BUF_ADDR
 
-#define BUF_SIZE	(BYTES_PER_PAGE / sizeof(uid_t))
+#define BUF_SIZE	(BYTES_PER_PAGE / sizeof(user_id_t))
 #define SAMPLE_SIZE	BUF_SIZE
 
 SETUP_BUF(lba,		LBA_BUF,	SECTORS_PER_PAGE);
@@ -42,7 +42,7 @@ void ftl_test()
 	UINT32	i, j;
 	UINT32	lba, lpn;
 	UINT8	offset, num_sectors;
-	uid_t	uid;
+	user_id_t	uid;
 
 	uart_print("Running unit test for SOT... ");
 	uart_printf("sample size = %d\r\n", SAMPLE_SIZE);
@@ -70,7 +70,7 @@ void ftl_test()
 		lpn = lba / SECTORS_PER_PAGE;
 		offset = lba % SECTORS_PER_PAGE;
 		num_sectors = random(1, SECTORS_PER_PAGE - offset);
-		uid = (uid_t) rand();
+		uid = (user_id_t) rand();
 
 		load_sot(lpn);
 		sot_authorize(lpn, offset, num_sectors, uid);

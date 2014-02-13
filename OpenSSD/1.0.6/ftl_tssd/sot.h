@@ -2,6 +2,7 @@
 #define __SOT_H
 #include "jasmine.h"
 #if OPTION_ACL
+#include "task_engine.h"
 
 /* *
  * SOT = Sector Ownership Table
@@ -20,10 +21,10 @@
 
 #define SOT_ENTRIES			(SECTORS_PER_BANK * NUM_BANKS)
 
-#define SOT_ENTRIES_PER_SUB_PAGE	(BYTES_PER_SUB_PAGE / sizeof(uid_t))
+#define SOT_ENTRIES_PER_SUB_PAGE	(BYTES_PER_SUB_PAGE / sizeof(user_id_t))
 #define SOT_SUB_PAGES			COUNT_BUCKETS(SOT_ENTRIES, SOT_ENTRIES_PER_SUB_PAGE)
 // TODO: remove?
-#define SOT_ENTRIES_PER_PAGE		(BYTES_PER_PAGE / sizeof(uid_t))
+#define SOT_ENTRIES_PER_PAGE		(BYTES_PER_PAGE / sizeof(user_id_t))
 #define SOT_PAGES			COUNT_BUCKETS(SOT_ENTRIES, SOT_ENTRIES_PER_PAGE)
 
 /* ===========================================================================
@@ -35,9 +36,9 @@ void sot_init();
 task_res_t sot_load(UINT32 const lpn);
 
 BOOL8	sot_authenticate(UINT32 const lpn, UINT8 const offset,
-			 UINT8 const num_sectors, uid_t const expected_uid);
+			 UINT8 const num_sectors, user_id_t const expected_uid);
 void	sot_authorize  (UINT32 const lspn, UINT8 const offset,
-			UINT8 const num_sectors, uid_t const new_uid);
+			UINT8 const num_sectors, user_id_t const new_uid);
 
 #endif
 #endif

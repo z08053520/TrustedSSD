@@ -2,8 +2,8 @@
 #if OPTION_ACL
 #include "sot.h"
 
-uid_t	acl_skey2uid(UINT32 const skey) {
-	return (uid_t)skey;
+user_id_t	acl_skey2uid(UINT32 const skey) {
+	return (user_id_t)skey;
 }
 
 #endif

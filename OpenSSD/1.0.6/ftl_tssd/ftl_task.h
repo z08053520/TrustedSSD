@@ -7,6 +7,7 @@
 /* TODO: is it really necessary to use a 32-bit word to store seq_id? */
 /* TODO: What if seq_id overflow? */
 #define FTL_TASK_PUBLIC_FIELDS			\
+		TASK_PUBLIC_FIELDS		\
 		UINT32		seq_id;		\
 		UINT32		lpn;		\
 		UINT8		offset;		\
@@ -16,7 +17,7 @@
 
 #if	OPTION_ACL
 	#define FTL_TASK_EXTRA_FIELDS		\
-		uid_t	uid;
+		user_id_t	uid;
 #else
 	#define FTL_TASK_EXTRA_FIELDS
 #endif
