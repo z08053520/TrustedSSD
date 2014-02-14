@@ -499,7 +499,12 @@ void ftl_write_task_force_flush()
 	UINT32	lpn	= 0;
 	UINT8	offset	= 0;
 	UINT8	num_sectors = 0;
+#if OPTION_ACL
+	user_id_t default_uid = 0;
+	ftl_write_task_init(task, default_uid, lpn, offset, num_sectors);
+#else
 	ftl_write_task_init(task, lpn, offset, num_sectors);
+#endif
 	task_engine_submit(task);
 
 	BOOL8 idle;
