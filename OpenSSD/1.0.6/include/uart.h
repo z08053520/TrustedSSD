@@ -63,7 +63,7 @@ typedef struct
 #if OPTION_UART_DEBUG
 
 void uart_init(void);
-void uart_print(char* string);
+void uart_print(const char* msg, ...);
 void uart_print_32(UINT32 num);
 void uart_print_hex(UINT32 num);
 void uart_printf(const char *msg, ...);

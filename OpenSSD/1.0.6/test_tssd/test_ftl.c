@@ -1,5 +1,5 @@
 /* ===========================================================================
- * Unit test for FTL 
+ * Unit test for FTL
  * =========================================================================*/
 
 #include "jasmine.h"
@@ -17,20 +17,27 @@
 #include "flash_util.h"
 #include "pmt.h"
 
-#define RAND_SEED	1234567
-#define MAX_NUM_SECTORS 512
+#define RAND_SEED		1234567
+#define MAX_NUM_SECTORS		512
 //#define MAX_NUM_SECTORS SECTORS_PER_PAGE
-#define MAX_NUM_REQS	MAX_LBA_BUF_ENTRIES
-/* #define MAX_NUM_REQS	16 */	
+#define MAX_NUM_REQS		MAX_LBA_BUF_ENTRIES
+/* #define MAX_NUM_REQS	16 */
 
 extern UINT32	g_num_ftl_write_tasks_submitted;
 extern UINT32	g_num_ftl_read_tasks_submitted;
 
-extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors, 
+extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 			   UINT32 const cmd_type);
 
+#define DEBUG_FTL
+#ifdef DEBUG_FTL
+	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
+#else
+	#define debug(format, ...)
+#endif
+
 /* ===========================================================================
- * DRAM buffer to store lbas and req_sizes 
+ * DRAM buffer to store lbas and req_sizes
  * =========================================================================*/
 
 #define LBA_BUF_ADDR		TEMP_BUF_ADDR
@@ -58,7 +65,7 @@ static void init_dram()
 }
 
 /* ===========================================================================
- * Fake SATA R/W requests 
+ * Fake SATA R/W requests
  * =========================================================================*/
 
 static void finish_all()
@@ -78,8 +85,8 @@ static void accept_all()
 	} while(!ftl_all_sata_cmd_accepted());
 }
 
-static void do_flash_write(UINT32 const lba, UINT32 const req_sectors, 
-			   UINT32 const sata_val, BOOL8 use_val_buf) 
+static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
+			   UINT32 const sata_val, BOOL8 use_val_buf)
 {
 	ftl_main();
 
@@ -100,9 +107,9 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 
 		/* mem_set_dram(sata_buf + BYTES_PER_SECTOR * sect_offset, */
 		/* 	     sata_val,  BYTES_PER_SECTOR * num_sectors); */
-	
+
 		/* uart_printf(">> lpn = %u, tmp_lba = %u, offset = %u, num_sectors = %u, " */
-		/* 		"sata_buf_id = %u, sata_buf = %u\r\n", */ 
+		/* 		"sata_buf_id = %u, sata_buf = %u\r\n", */
 		/* 	    lpn, lpn * SECTORS_PER_PAGE + sect_offset, sect_offset, num_sectors, */
 		/* 	    sata_buf_id, sata_buf); */
 
@@ -123,12 +130,12 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 
 			for (tmp_lba = lpn * SECTORS_PER_PAGE + sect_offset,
 			     sect_limit = sect_offset + num_sectors;
-			     sect_offset < sect_limit; 
+			     sect_offset < sect_limit;
 			     sect_offset++, tmp_lba++) {
 				/* set_val(tmp_lba, sata_val); */
 				set_val(tmp_lba, sector_vals[sect_offset]);
 				/* if (tmp_lba == 1083) */
-				/* 	uart_printf("lba = %u, req_sectors = %u\r\n", */ 
+				/* 	uart_printf("lba = %u, req_sectors = %u\r\n", */
 				/* 		    lba, req_sectors); */
 			}
 		}
@@ -151,12 +158,12 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 	/* finish_all(); */
 }
 
-static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors, 
-			    UINT32 sata_val,  BOOL8 const use_val_buf) 
+static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors,
+			    UINT32 sata_val,  BOOL8 const use_val_buf)
 {
-	// read from flash 
+	// read from flash
 	while(eventq_put(lba, req_sectors, READ)) ftl_main();
-	finish_all();	
+	finish_all();
 
 	UINT32 lpn          = lba / SECTORS_PER_PAGE;
 	UINT32 sect_offset  = lba % SECTORS_PER_PAGE;
@@ -165,34 +172,34 @@ static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors,
 	UINT32 num_bufs_rd  = COUNT_BUCKETS(req_sectors + sect_offset, SECTORS_PER_PAGE);
 	UINT32 sata_buf_id  = (g_num_ftl_read_tasks_submitted - num_bufs_rd) % NUM_SATA_RD_BUFFERS;
 	UINT32 sata_buf     = SATA_RD_BUF_PTR(sata_buf_id);
-	UINT32 tmp_lba, sect_limit;	
-	
-	// verify data by iterating each page in the SATA buffer 
+	UINT32 tmp_lba, sect_limit;
+
+	// verify data by iterating each page in the SATA buffer
 	while (remain_sects) {
 		if ((sect_offset + remain_sects) < SECTORS_PER_PAGE)
 			num_sectors = remain_sects;
 		else
 			num_sectors = SECTORS_PER_PAGE - sect_offset;
-		
-		/* uart_printf("> lpn = %u, offset = %u, num_sectors = %u\r\n", */ 
+
+		/* uart_printf("> lpn = %u, offset = %u, num_sectors = %u\r\n", */
 		/* 	    lpn, sect_offset, num_sectors); */
 
 		if (!use_val_buf) {
 			// verify data in buffer
-			BUG_ON("data in read buffer is not as expected (1)", 
-				is_buff_wrong(sata_buf, sata_val, 
+			BUG_ON("data in read buffer is not as expected (1)",
+				is_buff_wrong(sata_buf, sata_val,
 					      sect_offset, num_sectors));
 		}
 		else {
-			for (tmp_lba = lpn * SECTORS_PER_PAGE + sect_offset, 
+			for (tmp_lba = lpn * SECTORS_PER_PAGE + sect_offset,
 			     sect_limit = sect_offset + num_sectors;
-			     sect_offset < sect_limit; 
-			     sect_offset++, tmp_lba++) 
+			     sect_offset < sect_limit;
+			     sect_offset++, tmp_lba++)
 			{
 				sata_val = get_val(tmp_lba);
-				
-				BUG_ON("data in read buffer is not as expected (2)", 
-					is_buff_wrong(sata_buf, sata_val, 
+
+				BUG_ON("data in read buffer is not as expected (2)",
+					is_buff_wrong(sata_buf, sata_val,
 						      sect_offset, 1));
 			}
 		}
@@ -206,14 +213,14 @@ static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors,
 }
 
 /* ===========================================================================
- * Tests for sequential and random R/W 
+ * Tests for sequential and random R/W
  * =========================================================================*/
 
 /* #define NUM_SEQ_REQ_SIZES	1 */
 #define NUM_SEQ_REQ_SIZES	5
 #define KB2SEC(N)		(N * 1024 / 512)
 
-static void seq_rw_test() 
+static void seq_rw_test()
 {
 	uart_print("sequential read/write test");
 
@@ -262,7 +269,7 @@ static void seq_rw_test()
 			lba += req_sectors;
 			total_sectors += req_sectors;
 		}
-		perf_monitor_update(total_sectors);	
+		perf_monitor_update(total_sectors);
 	}
 
 	uart_print("done");
@@ -271,7 +278,7 @@ static void seq_rw_test()
 static void rnd_rw_test()
 {
 	uart_print("random read/write test");
-	
+
 	UINT32 num_requests = MAX_NUM_REQS;
 	/* UINT32 num_requests = 1024; */
 	UINT32 lba, req_size, val;
@@ -289,26 +296,26 @@ static void rnd_rw_test()
 	for (i = 0; i < num_requests; i++) {
 		lba 	  = random(0, MAX_LBA_LIMIT_BY_VAL_BUF);
 		val 	  = lba;
-		/* req_size  = random(1, MAX_NUM_SECTORS); */ 
-		req_size  = random(1, 64); 
+		/* req_size  = random(1, MAX_NUM_SECTORS); */
+		req_size  = random(1, 64);
 		if (lba + req_size > MAX_LBA_LIMIT_BY_VAL_BUF)
 			req_size = MAX_LBA_LIMIT_BY_VAL_BUF - lba + 1;
 
 		/* if (i<200) continue; */
-		
-		/* uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", */ 
+
+		/* uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", */
 		/* 	    i, lba, req_size, val); */
 
 		do_flash_write(lba, req_size, val, TRUE);
 
 		set_lba(i, lba);
 		set_req_size(i, req_size);
-	
+
 		total_sectors += req_size;
 	}
 	finish_all();
-	perf_monitor_update(total_sectors);	
-	
+	perf_monitor_update(total_sectors);
+
 	/* uart_print("check write operation by issuing flash cmds directly"); */
 	/* lba = 0; */
 	/* while (lba < MAX_LBA_LIMIT_BY_VAL_BUF) { */
@@ -329,14 +336,14 @@ static void rnd_rw_test()
 	/* 	UINT32	lspn = lba / SECTORS_PER_SUB_PAGE; */
 	/* 	vp_t	vp; */
 	/* 	pmt_fetch(lspn, &vp); */
-		
-	/* 	/1* uart_printf("lba %u, lspn %u is in vpn %u\r\n", *1/ */ 
+
+	/* 	/1* uart_printf("lba %u, lspn %u is in vpn %u\r\n", *1/ */
 	/* 	/1* 	    lba, lspn, vp.vpn); *1/ */
 
 	/* 	if (vp.vpn != NULL) { */
 	/* 		vsp_t	vsp = { */
-	/* 			.bank = vp.bank, */ 
-	/* 			.vspn = vp.vpn * SUB_PAGES_PER_PAGE */ 
+	/* 			.bank = vp.bank, */
+	/* 			.vspn = vp.vpn * SUB_PAGES_PER_PAGE */
 	/* 			      + sp_offset / SECTORS_PER_SUB_PAGE */
 	/* 		}; */
 	/* 		fu_read_sub_page(vsp, res_buf, FU_SYNC); */
@@ -347,12 +354,12 @@ static void rnd_rw_test()
 	/* 	sectors_mask_t valid_sectors; */
 	/* 	write_buffer_get(lpn, &wr_buf, &valid_sectors); */
 	/* 	if (wr_buf != NULL) */
-	/* 		fu_copy_buffer(res_buf, wr_buf, valid_sectors); */	
+	/* 		fu_copy_buffer(res_buf, wr_buf, valid_sectors); */
 
 	/* 	/1* uart_printf("result buf = ["); *1/ */
 	/* 	/1* for (offset = 0; offset < SECTORS_PER_SUB_PAGE; offset++) { *1/ */
 	/* 	/1* 	uart_printf("%u ", read_dram_32( *1/ */
-	/* 	/1* 				res_buf *1/ */ 
+	/* 	/1* 				res_buf *1/ */
 	/* 	/1* 				+ (sp_offset + offset) * BYTES_PER_SECTOR)); *1/ */
 	/* 	/1* } *1/ */
 	/* 	/1* uart_print("]"); *1/ */
@@ -364,12 +371,12 @@ static void rnd_rw_test()
 	/* 			continue; */
 	/* 		} */
 
-	/* 		/1* uart_printf("> expecting val %u for sector %u; actual val %u\r\n", *1/ */ 
-	/* 		/1* 	    lba + offset, val, *1/ */ 
-	/* 		/1* 	    read_dram_32(res_buf + *1/ */ 
+	/* 		/1* uart_printf("> expecting val %u for sector %u; actual val %u\r\n", *1/ */
+	/* 		/1* 	    lba + offset, val, *1/ */
+	/* 		/1* 	    read_dram_32(res_buf + *1/ */
 	/* 		/1* 		    (sp_offset + offset) * BYTES_PER_SECTOR)); *1/ */
 
-	/* 		BOOL8	wrong = is_buff_wrong(res_buf, */ 
+	/* 		BOOL8	wrong = is_buff_wrong(res_buf, */
 	/* 					      val, sp_offset + offset, 1); */
 	/* 		BUG_ON("written data is not as expected", wrong); */
 	/* 	} */
@@ -385,20 +392,20 @@ static void rnd_rw_test()
 	for (i = 0; i < num_requests; i++) {
 		lba	 = get_lba(i);
 		req_size = get_req_size(i);
-		
+
 		/* if (i<13) continue; */
-		/* uart_printf("> i = %u, lba = %u, req_size = %u\r\n", */ 
+		/* uart_printf("> i = %u, lba = %u, req_size = %u\r\n", */
 		/* 	    i, lba, req_size); */
 
 		do_flash_verify(lba, req_size, 0, TRUE);
-		total_sectors += req_size;		
+		total_sectors += req_size;
 	}
-	perf_monitor_update(total_sectors);	
+	perf_monitor_update(total_sectors);
 
 	uart_print("done");
 }
 
-static void long_seq_rw_test() 
+static void long_seq_rw_test()
 {
 	uart_print("long sequential read/write test");
 
@@ -424,7 +431,7 @@ static void long_seq_rw_test()
 		do_flash_write(lba, req_sectors, val, FALSE);
 
 		lba 		 += req_sectors;
-		pattern_i 	  = req_size_pattern[pattern_i+1] > 0 ? 
+		pattern_i 	  = req_size_pattern[pattern_i+1] > 0 ?
 					pattern_i + 1 : 0;
 		num_bytes_so_far += req_sectors * BYTES_PER_SECTOR;
 	}
@@ -442,7 +449,7 @@ static void long_seq_rw_test()
 		do_flash_verify(lba, req_sectors, val, FALSE);
 
 		lba 		 += req_sectors;
-		pattern_i 	  = req_size_pattern[pattern_i+1] > 0 ? 
+		pattern_i 	  = req_size_pattern[pattern_i+1] > 0 ?
 					pattern_i + 1 : 0;
 		num_bytes_so_far += req_sectors * BYTES_PER_SECTOR;
 	}
@@ -457,38 +464,38 @@ static void sparse_fixed_rw_test()
 	init_dram();
 
 	/* One PMT page covers 64K sectors */
-	UINT32	lba_step = 64 * 1024;	
-	UINT32	max_requests = MIN(MAX_NUM_REQS, NUM_LSECTORS / lba_step - 1); 
+	UINT32	lba_step = 64 * 1024;
+	UINT32	max_requests = MIN(MAX_NUM_REQS, NUM_LSECTORS / lba_step - 1);
 	UINT32	num_requests = 3000;
 	/* UINT32	num_requests = 15; */
 	uart_printf("max requests = %u\r\n", max_requests);
 	BUG_ON("too many requests", num_requests > max_requests);
-	
+
 	UINT32	lba, req_size, val;
 	UINT32	i;
 	UINT32	total_sectors;
 
-	UINT32	i_offset = 0;  
+	UINT32	i_offset = 0;
 
 	uart_print("sparse fixed-interval write");
 	perf_monitor_reset();
 	total_sectors = 0;
 	for (i = i_offset, lba = i_offset * lba_step; i < num_requests; i++, lba += lba_step) {
 		val 	  = lba;
-		req_size  = SECTORS_PER_PAGE; 
+		req_size  = SECTORS_PER_PAGE;
 
-		/* uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", */ 
+		/* uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", */
 		/* 	    i, lba, req_size, val); */
 
 		do_flash_write(lba, req_size, val, FALSE);
 
 		set_lba(i, lba);
 		set_req_size(i, req_size);
-	
+
 		total_sectors += req_size;
 	}
 	finish_all();
-	perf_monitor_update(total_sectors);	
+	perf_monitor_update(total_sectors);
 
 	uart_print("sparse fixed-interval read and verify");
 	perf_monitor_reset();
@@ -497,14 +504,14 @@ static void sparse_fixed_rw_test()
 		lba	 = get_lba(i);
 		req_size = get_req_size(i);
 		val	 = lba;
-		
-		/* uart_printf("> i = %u, lba = %u, req_size = %u\r\n", */ 
+
+		/* uart_printf("> i = %u, lba = %u, req_size = %u\r\n", */
 		/* 	    i, lba, req_size); */
 
 		do_flash_verify(lba, req_size, val, FALSE);
-		total_sectors += req_size;		
+		total_sectors += req_size;
 	}
-	perf_monitor_update(total_sectors);	
+	perf_monitor_update(total_sectors);
 	uart_print("done");
 }
 
@@ -515,13 +522,13 @@ static void sparse_rnd_rw_test()
 	init_dram();
 
 	/* One PMT page covers 64K sectors */
-	UINT32	lba_step = 64 * 1024;	
-	UINT32	max_requests = MIN(MAX_NUM_REQS, NUM_LSECTORS / lba_step - 1); 
+	UINT32	lba_step = 64 * 1024;
+	UINT32	max_requests = MIN(MAX_NUM_REQS, NUM_LSECTORS / lba_step - 1);
 	/* UINT32	num_requests = 1024; */
 	UINT32	num_requests = 3000;
 	uart_printf("max requests = %u\r\n", max_requests);
 	BUG_ON("too many requests", num_requests > max_requests);
-	
+
 	UINT32	lba_base, lba, offset, req_size, val;
 	UINT32	i;
 	UINT32	total_sectors;
@@ -536,19 +543,19 @@ static void sparse_rnd_rw_test()
 		/* req_size  = 1; */
 		val 	  = lba;
 
-		/* uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", */ 
+		/* uart_printf("> i = %u, lba = %u, req_size = %u, val = %u\r\n", */
 		/* 	    i, lba, req_size, val); */
 
 		do_flash_write(lba, req_size, val, FALSE);
 
 		set_lba(i, lba);
 		set_req_size(i, req_size);
-		
+
 		lba_base 	+= lba_step;
 		total_sectors	+= req_size;
 	}
 	finish_all();
-	perf_monitor_update(total_sectors);	
+	perf_monitor_update(total_sectors);
 
 	uart_print("sparse random read and verify");
 	perf_monitor_reset();
@@ -557,14 +564,14 @@ static void sparse_rnd_rw_test()
 		lba	 = get_lba(i);
 		req_size = get_req_size(i);
 		val	 = lba;
-		
-		/* uart_printf("> i = %u, lba = %u, req_size = %u\r\n", */ 
+
+		/* uart_printf("> i = %u, lba = %u, req_size = %u\r\n", */
 		/* 	    i, lba, req_size); */
 
 		do_flash_verify(lba, req_size, val, FALSE);
-		total_sectors += req_size;		
+		total_sectors += req_size;
 	}
-	perf_monitor_update(total_sectors);	
+	perf_monitor_update(total_sectors);
 	uart_print("done");
 }
 
@@ -580,11 +587,11 @@ void ftl_test()
 
 	seq_rw_test();
 	rnd_rw_test();
-	
+
 	sparse_fixed_rw_test();
 	sparse_rnd_rw_test();
-	
-  	long_seq_rw_test();	
+
+  	long_seq_rw_test();
 	long_seq_rw_test();
 
 
@@ -600,7 +607,7 @@ void ftl_test()
 /* 	for (sect_i = 0; sect_i < SECTORS_PER_PAGE; sect_i++) */
 /* 	{ */
 /* 		if (sect_i % 8 == 0) uart_printf("\r\n\t"); */
-/* 		UINT32 val = read_dram_32(buf + sect_i * BYTES_PER_SECTOR); */	
+/* 		UINT32 val = read_dram_32(buf + sect_i * BYTES_PER_SECTOR); */
 /* 		uart_printf("%u%s ", val, sect_i != 59 ? "," : ""); */
 /* 	} */
 /* 	uart_print("\r\n]"); */

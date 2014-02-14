@@ -20,6 +20,8 @@
 #include "jasmine.h"
 
 #if OPTION_UART_DEBUG
+#include <stdio.h>
+#include <stdarg.h>
 
 #define TXFIFO_FREE_CNT			((GETREG(UART_FIFOCNT) >> 6) & 0x03F)	// number of bytes that are not sent yet
 #define RXFIFO_PENDING_CNT		(GETREG(UART_FIFOCNT) & 0x03F)			// number of bytes received but not read yet
@@ -79,15 +81,6 @@ static void _uart_print(char* string)
 	}
 }
 
-void uart_print(char* string)
-{
-	_uart_print(string);
-
-	uart_txbyte('\r');
-	uart_txbyte('\n');
-}
-#include <stdio.h>
-
 typedef char* caddr_t;
 extern caddr_t _sbrk ( int incr );
 
@@ -100,6 +93,7 @@ void uart_print_32(UINT32 time)
 
     _uart_print(buf);
 }
+
 void uart_print_hex(UINT32 num)
 {
     char str[8];
@@ -131,47 +125,66 @@ void uart_print_hex(UINT32 num)
 	uart_txbyte('\r');
 	uart_txbyte('\n');
 }
+
 void uart_print_hex_64(UINT64 num)
 {
-    char str[16];
-    UINT8 remain=0;
-    UINT8 cnt = 0;
+	char str[16];
+	UINT8 remain=0;
+	UINT8 cnt = 0;
 
-    while (cnt < 16) {
-        remain = num%16;
-        num = num/16;
-        if (remain<10)
-            str[cnt]=remain+48;
-        else
-            str[cnt]=remain+55;
-        cnt++;
-    }
-    cnt--;
-    uart_txbyte('0');
-    uart_txbyte('x');
-
-    while (1) {
-    	uart_txbyte(str[cnt]);
-        if (cnt == 0) {
-            break;
-        }
+	while (cnt < 16) {
+		remain = num%16;
+		num = num/16;
+		if (remain<10)
+		    str[cnt]=remain+48;
+		else
+		    str[cnt]=remain+55;
+		cnt++;
+	}
 	cnt--;
-    }
+	uart_txbyte('0');
+	uart_txbyte('x');
+
+	while (1) {
+		uart_txbyte(str[cnt]);
+		if (cnt == 0) {
+		    break;
+		}
+		cnt--;
+	}
 	uart_txbyte('\r');
 	uart_txbyte('\n');
 }
-#include <stdarg.h>
-void uart_printf(const char *msg, ...)
+
+static void _uart_vprintf(const char *msg, va_list args)
 {
 	fflush(stdout);
 
 	char out[256];
-	va_list ap;
-	va_start(ap, msg);
-	int len = vsnprintf(out, 256, msg, ap);
-	va_end(ap);
+	int len = vsnprintf(out, 256, msg, args);
 	out[len] = '\0';
+
 	_uart_print(out);
+}
+
+void uart_printf(const char *msg, ...)
+{
+
+	va_list args;
+	va_start(args, msg);
+	_uart_vprintf(msg, args);
+	va_end(args);
+}
+
+void uart_print(const char* msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	_uart_vprintf(msg, args);
+	va_end(args);
+
+	uart_txbyte('\r');
+	uart_txbyte('\n');
 }
 
 #endif	// OPTION_UART_DEBUG
