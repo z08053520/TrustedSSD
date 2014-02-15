@@ -11,6 +11,7 @@
 #include "task_engine.h"
 #include "ftl_read_task.h"
 #include "ftl_write_task.h"
+#include "flash_mock.h"
 #include <stdlib.h>
 
 extern UINT32	g_num_ftl_write_tasks_submitted;
@@ -27,6 +28,39 @@ extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 #endif
 
 /* ===========================================================================
+ * Test Type
+ * =========================================================================*/
+
+typedef struct {
+	UINT32	min_lba, max_lba;
+	UINT32	min_req_size, max_req_size; /* in sectors */
+	UINT32	max_num_reqs;
+	UINT32	max_wr_bytes;
+} rw_test_params_t;
+
+typedef enum {
+	SEQ_RW_TEST,
+	RND_RW_TEST,
+	NUM_RW_TEST_TYPES
+} rw_test_type_t;
+
+typedef struct {
+	char*			name;
+	rw_test_type_t		type;
+	rw_test_params_t	params;
+} rw_test_t;
+
+typedef void (*rw_test_runner_t)(rw_test_params_t *params);
+
+static void seq_rw_test_runner(rw_test_params_t *params);
+static void rnd_rw_test_runner(rw_test_params_t *params);
+
+static rw_test_runner_t rw_test_runners[NUM_RW_TEST_TYPES] = {
+	seq_rw_test_runner,
+	rnd_rw_test_runner
+};
+
+/* ===========================================================================
  * DRAM buffers for verifying flash
  * =========================================================================*/
 
@@ -35,49 +69,36 @@ extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 SETUP_BUF(req_lba, 		REQ_LBA_BUF_ADDR, 	SECTORS_PER_PAGE);
 SETUP_BUF(req_size,		REQ_SIZE_BUF_ADDR, 	SECTORS_PER_PAGE);
 #define MAX_NUM_REQS		(BYTES_PER_PAGE / sizeof(UINT32))
-#define MAX_REQ_SIZE		256
 UINT32	req_pos;
 
-#define FLA_LBA_BUF_ADDR	COPY_BUF(0)
-#define FLA_VAL_BUF_ADDR	COPY_BUF(NUM_COPY_BUFFERS / 2)
-SETUP_BUF(fla_lba, 		FLA_LBA_BUF_ADDR,	NUM_COPY_BUFFERS / 2);
-SETUP_BUF(fla_val, 		FLA_VAL_BUF_ADDR, 	NUM_COPY_BUFFERS / 2);
-#define FLA_BUF_SIZE		(NUM_COPY_BUFFERS / 2 * BYTES_PER_PAGE / sizeof(UINT32))
-UINT32	fla_pos;
+#define MAX_REQ_SIZE		256
+#define REQS_VERIFY_THREASHOLD	(FLA_MOCK_BUF_SIZE / MAX_REQ_SIZE)
 
-/* assume the length of request is 256 sectors on average */
-#define REQS_VERIFY_THREASHOLD	(FLA_BUF_SIZE / MAX_REQ_SIZE)
-UINT32	fla_val_missing_count, fla_val_verified_count;
 UINT32	test_total_sectors;
 
-static void setup_test(rw_test_t *test)
+static void setup(rw_test_t *test)
 {
-	uart_printf("Running %u... ", test->name);
+	uart_printf("Running %s... ", test->name);
 
-	req_pos = fla_pos = 0;
-	fla_val_missing_count = fla_val_verified_count = 0;
+	req_pos = 0;
 	test_total_sectors = 0;
 
 	init_req_lba_buf(0);
 	init_req_size_buf(0);
-	init_fla_lba_buf(0xFFFFFFFF);
-	init_fla_val_buf(0xFFFFFFFF);
+
+	flash_mock_init();
 
 	timer_reset();
 }
 
-static void teardown_test(rw_test_t *test)
+static void teardown(rw_test_t *test)
 {
 	UINT32	seconds = timer_ellapsed_us() / 1000 / 1000;
 	UINT32	mb = test_total_sectors / 2048;
 
 	uart_print("Done.");
-	uart_print("Summary:")
-	uart_print("\t%u seconds used; "
-			"\t%u MB data written and read; "
-			"\t%u sectors verified, %u sectors missing.",
-			seconds, mb,
-			fla_val_missing_count, fla_val_verified_count);
+	uart_print("Summary: %u seconds used; %u MB data written and read.",
+			seconds, mb);
 }
 
 static BOOL8 time_to_verify()
@@ -104,41 +125,13 @@ static BOOL8 request_pop(UINT32 *lba, UINT32 *req_size)
 	return TRUE;
 }
 
-static UINT32 flash_find(UINT32 const lba)
-{
-	UINT32 pos = mem_search_equ_dram(FLA_LBA_BUF_ADDR,
-			sizeof(UINT32), FLA_BUF_SIZE, lba);
-	return pos;
-}
-
-static void flash_set(UINT32 const lba, UINT32 const val)
-{
-	UINT32	old_fla_pos = flash_find(lba);
-	if (old_fla_pos < FLA_BUF_SIZE)
-		set_fla_val(old_fla_pos, val);
-	else {
-		set_fla_lba(fla_pos, lba);
-		set_fla_val(fla_pos, val);
-		fla_pos = (fla_pos + 1) % FLA_BUF_SIZE;
-	}
-}
-
-static BOOL8 flash_get(UINT32 const lba, UINT32 *val)
-{
-	UINT32	fla_pos	= flash_find(lba);
-	if (fla_pos >= FLA_BUF_SIZE) return FALSE;
-
-	*val = get_fla_val(fla_pos);
-	return TRUE;
-}
-
 static void flash_set_page(UINT32 const lpn, UINT32 const sect_offset,
 		UINT32 const num_sectors, UINT32 vals[SECTORS_PER_PAGE])
 {
 	UINT32	lba = lpn * SECTORS_PER_PAGE + sect_offset;
 	UINT32	sect_end = sect_offset + num_sectors;
 	for (UINT32 sect_i = sect_offset; sect_i < sect_end; sect_i++, lba++)
-		flash_set(lba, vals[sect_i]);
+		flash_mock_set(lba, vals[sect_i]);
 }
 
 /* ===========================================================================
@@ -234,7 +227,7 @@ static void do_flash_verify(UINT32 lba, UINT32 const req_sectors)
 
 		UINT32	sect_end = sect_offset + num_sectors;
 		while (sect_offset < sect_end) {
-			if (flash_get(lba, &val)) {
+			if (flash_mock_get(lba, &val)) {
 				BUG_ON("data in read buffer is not as expected",
 					is_buff_wrong(sata_buf, val,
 						      sect_offset, 1));
@@ -256,41 +249,40 @@ static void do_flash_verify(UINT32 lba, UINT32 const req_sectors)
  *  Random and Sequential R/W Tests
  * =========================================================================*/
 
-typedef struct {
-	UINT32	min_lba, max_lba;
-	UINT32	min_req_size, max_req_size; /* in sectors */
-	UINT32	max_num_reqs;
-	UINT32	max_wr_bytes;
-} rw_test_params_t;
+static void seq_rw_test_runner(rw_test_params_t *params)
+{
+	UINT32	lba = params->min_lba,
+            wr_bytes = 0,
+            num_reqs = 0;
+	UINT32	req_size;
+	while (lba < params->max_lba &&
+	       wr_bytes < params->max_wr_bytes &&
+	       num_reqs < params->max_num_reqs) {
+		req_size = random(params->min_req_size, params->max_req_size);
+		do_flash_write(lba, req_size);
+		request_push(lba, req_size);
 
-typedef enum {
-	SEQ_RW_TEST,
-	RND_RW_TEST,
-	NUM_RW_TEST_TYPES
-} rw_test_type_t;
+		if (time_to_verify()) {
+			while (request_pop(&lba, &req_size))
+				do_flash_verify(lba, req_size);
+		}
 
-typedef struct {
-	char*			name;
-	rw_test_type_t		type;
-	rw_test_params_t	params;
-} rw_test_t;
+		num_reqs++;
+		lba += req_size;
+		wr_bytes += req_size * BYTES_PER_SECTOR;
+		test_total_sectors += req_size;
+	}
+	/* check remaining requests that are not verified yet */
+	finish_all();
+	while (request_pop(&lba, &req_size))
+		do_flash_verify(lba, req_size);
+}
 
-typedef void (*rw_test_runner_t)(rw_test_params_t *params);
-
-static void seq_rw_test(rw_test_params_t *params);
-static void rnd_rw_test(rw_test_params_t *params);
-
-static rw_test_runner_t rw_test_runners[NUM_RW_TEST_TYPES] = {
-	seq_rw_test_runner,
-	rnd_rw_test_runner
-};
-
-static void rnd_rw_test(rw_test_params_t *params)
+static void rnd_rw_test_runner(rw_test_params_t *params)
 {
 	UINT32	wr_bytes = 0,
-		num_reqs = 0;
+	        num_reqs = 0;
 	UINT32	lba, req_size;
-	request_clear();
 	while (wr_bytes < params->max_wr_bytes &&
 	       num_reqs < params->max_num_reqs) {
 		lba = random(params->min_lba, params->max_lba);
@@ -315,36 +307,6 @@ static void rnd_rw_test(rw_test_params_t *params)
 		do_flash_verify(lba, req_size);
 }
 
-static void seq_rw_test(rw_test_params_t *params)
-{
-	UINT32	lba = params->min_lba,
-		wr_bytes = 0,
-		num_reqs = 0;
-	UINT32	req_size;
-	request_clear();
-	while (lba < max_lba &&
-	       wr_bytes < params->max_wr_bytes &&
-	       num_reqs < params->max_num_reqs) {
-		req_size = random(params->min_req_size, params->max_req_size);
-		do_flash_write(lba, req_size);
-		request_push(lba, req_size);
-
-		if (time_to_verify()) {
-			while (request_pop(&lba, &req_size))
-				do_flash_verify(lba, req_size);
-		}
-
-		num_reqs++;
-		lba += req_size;
-		max_wr_bytes += req_size * BYTES_PER_SECTOR;
-		test_total_sectors += req_size;
-	}
-	/* check remaining requests that are not verified yet */
-	finish_all();
-	while (request_pop(&lba, &req_size))
-		do_flash_verify(lba, req_size);
-}
-
 /* ===========================================================================
  * Entry Point
  * =========================================================================*/
@@ -358,7 +320,6 @@ void ftl_test()
 {
 	uart_print("Start testing FTL unit test");
 
-	init_dram();
 	srand(RAND_SEED);
 
 	/* Prepare sequential rw tests */
@@ -418,8 +379,8 @@ void ftl_test()
 		rw_test_t *test = rw_tests[test_i];
 
 		setup(test);
-		(*rw_test_runners[test->type])(test->params);
-		teardown(test)
+		(*rw_test_runners[test->type])(&test->params);
+		teardown(test);
 	}
 
 	uart_print("FTL passed unit test ^_^");

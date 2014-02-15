@@ -64,6 +64,8 @@ UINT32	g_next_finishing_task_seq_id;
  *   Help Functions
  * =========================================================================*/
 
+#if OPTION_ACL
+
 #define FLAG_AUTHENTICATED	1
 
 static task_res_t do_authenticate(ftl_read_task_t *task)
@@ -79,6 +81,8 @@ static task_res_t do_authenticate(ftl_read_task_t *task)
 	task->uid = 0;
 	return TASK_CONTINUED;
 }
+
+#endif
 
 /* ===========================================================================
  *  Task Handlers

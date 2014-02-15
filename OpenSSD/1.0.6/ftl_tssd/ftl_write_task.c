@@ -75,6 +75,8 @@ UINT32	g_next_finishing_task_seq_id;
  *  Helper Functions
  * =========================================================================*/
 
+#if OPTION_ACL
+
 static task_res_t do_authorize(ftl_write_task_t *task)
 {
 	if (!task->uid)	return TASK_CONTINUED;
@@ -86,6 +88,8 @@ static task_res_t do_authorize(ftl_write_task_t *task)
 	task->uid = 0;
 	return TASK_CONTINUED;
 }
+
+#endif
 
 /* ===========================================================================
  *  Task Handlers

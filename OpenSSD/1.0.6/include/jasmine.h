@@ -344,7 +344,7 @@ scan_list_t;
 	/* } while(0); */
 	#define BUG_ON(MESSAGE, COND) do {\
 		if (COND) {\
-			uart_printf("bug on at line %u in file %s\r\n", __LINE__, __FILE__);\
+			uart_print("bug on at line %u in file %s", __LINE__, __FILE__);\
 			while(1);\
 		}\
 	} while(0);

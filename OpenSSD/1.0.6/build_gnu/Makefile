@@ -12,7 +12,7 @@ RM	= rm
 # withour any SATA communication; otherwise, a normal firmware that can handle 
 # SATA request will be generated.
 #TEST = flash_util
-#TEST = ftl
+TEST = ftl
 #TEST = gc
 #TEST = gtd
 #TEST = pmt
@@ -24,7 +24,7 @@ RM	= rm
 #TEST = ftl_read_task
 #TEST = ftl_write_task
 #TEST = fde
-TEST = flash_mock
+#TEST = flash_mock
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size
