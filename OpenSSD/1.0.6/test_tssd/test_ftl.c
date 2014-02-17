@@ -163,7 +163,12 @@ static void set_random_vals(UINT32 vals[SECTORS_PER_PAGE],
 	while (num_sectors--) vals[sect_offset++] = rand();
 }
 
+#if OPTION_ACL
+static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
+				UINT32 const session_key)
+#else
 static void do_flash_write(UINT32 const lba, UINT32 const req_sectors)
+#endif
 {
 	ftl_main();
 
@@ -173,6 +178,7 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors)
 	UINT32 remain_sects = req_sectors;
 	UINT32 sata_buf_id  = g_num_ftl_write_tasks_submitted % NUM_SATA_WR_BUFFERS;
 	UINT32 sata_buf     = SATA_WR_BUF_PTR(sata_buf_id);
+#endif
 
 	/* prepare SATA buffer by iterating pages in the request */
 	while (remain_sects) {
@@ -206,8 +212,13 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors)
 	accept_all();
 	/* finish_all(); */
 }
+#if OPTION_ACL
+static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors,
+				UINT32 const session_key)
+#else
 
-static void do_flash_verify(UINT32 lba, UINT32 const req_sectors)
+#endif
+static void do_flash_verify(UINT32 const lba, UINT32 const req_sectors)
 {
 	// read from flash
 	while(eventq_put(lba, req_sectors, READ)) ftl_main();
@@ -262,13 +273,15 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 	while (lba < params->max_lba &&
 	       wr_bytes < params->max_wr_bytes &&
 	       num_reqs < params->max_num_reqs) {
-		/* req_size = random(params->min_req_size, params->max_req_size); */
-		req_size = 1;
 
-		debug("write lba = %u, req_size = %u", lba, req_size);
+	#if OPTION_ACL
+		session_key = rand();
+		do_flash_write(lba, req_size, session_key);
+	#else
+
+	#endif
 
 		do_flash_write(lba, req_size);
-		request_push(lba, req_size);
 
 		if (time_to_verify()) {
 			while (request_pop(&lba, &req_size)) {

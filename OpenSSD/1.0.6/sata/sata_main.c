@@ -52,12 +52,18 @@ static void eventq_get(CMD_T* cmd)
 	cmd->lba 	  = head_cmd->lba;
 	cmd->sector_count = head_cmd->sector_count;
 	cmd->cmd_type 	  = head_cmd->cmd_type;
-
+#if OPTION_ACL
+	cmd->session_key  = head_cmd->session_key;
+#endif
 	queue_head = (queue_head + 1) % CMD_QUEUE_SIZE;
 	queue_size--;
 }
 
-BOOL8 eventq_put(UINT32 const lba, UINT32 const sector_count, UINT32 const cmd_type)
+BOOL8 eventq_put(UINT32 const lba, UINT32 const sector_count,
+#if OPTION_ACL
+		UINT32 const session_key,
+#endif
+		UINT32 const cmd_type)
 {
 	if (queue_size == CMD_QUEUE_SIZE) return TRUE;
 
@@ -65,6 +71,9 @@ BOOL8 eventq_put(UINT32 const lba, UINT32 const sector_count, UINT32 const cmd_t
 	tail_cmd->lba	= lba;
 	tail_cmd->sector_count = sector_count;
 	tail_cmd->cmd_type = cmd_type;
+#if OPTION_ACL
+	cmd->session_key = session_key;
+#endif
 
 	queue_tail = (queue_tail + 1) % CMD_QUEUE_SIZE;
 	queue_size++;
