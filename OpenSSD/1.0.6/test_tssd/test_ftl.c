@@ -20,7 +20,7 @@ extern UINT32	g_num_ftl_read_tasks_submitted;
 extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 			   UINT32 const cmd_type);
 
-#define DEBUG_FTL
+/* #define DEBUG_FTL */
 #ifdef DEBUG_FTL
 	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
 #else
@@ -69,7 +69,7 @@ static rw_test_runner_t rw_test_runners[NUM_RW_TEST_TYPES] = {
 SETUP_BUF(req_lba, 		REQ_LBA_BUF_ADDR, 	SECTORS_PER_PAGE);
 SETUP_BUF(req_size,		REQ_SIZE_BUF_ADDR, 	SECTORS_PER_PAGE);
 #define MAX_NUM_REQS		(BYTES_PER_PAGE / sizeof(UINT32))
-UINT32	req_pos;
+UINT32	req_buf_size;
 
 #define MAX_REQ_SIZE		256
 #define REQS_VERIFY_THREASHOLD	(FLA_MOCK_BUF_SIZE / MAX_REQ_SIZE)
@@ -80,7 +80,7 @@ static void setup(rw_test_t *test)
 {
 	uart_printf("Running %s... ", test->name);
 
-	req_pos = 0;
+	req_buf_size = 0;
 	test_total_sectors = 0;
 
 	init_req_lba_buf(0);
@@ -103,25 +103,26 @@ static void teardown(rw_test_t *test)
 
 static BOOL8 time_to_verify()
 {
-	return req_pos >= REQS_VERIFY_THREASHOLD;
+	return req_buf_size >= REQS_VERIFY_THREASHOLD;
 }
 
 static void request_push(UINT32 const lba, UINT32 const req_size)
 {
-	BUG_ON("can't push more requests", req_pos >= MAX_NUM_REQS);
+	BUG_ON("can't push more requests",
+		req_buf_size >= MAX_NUM_REQS);
 
-	set_req_lba(req_pos, lba);
-	set_req_size(req_pos, req_size);
-	req_pos++;
+	set_req_lba(req_buf_size, lba);
+	set_req_size(req_buf_size, req_size);
+	req_buf_size++;
 }
 
 static BOOL8 request_pop(UINT32 *lba, UINT32 *req_size)
 {
-	if (req_pos == 0) return FALSE;
+	if (req_buf_size == 0) return FALSE;
 
-	*lba = get_req_lba(req_pos);
-	*req_size = get_req_size(req_pos);
-	req_pos--;
+	req_buf_size--;
+	*lba = get_req_lba(req_buf_size);
+	*req_size = get_req_size(req_buf_size);
 	return TRUE;
 }
 
@@ -179,6 +180,9 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors)
 		    num_sectors = remain_sects;
 		else
 		    num_sectors = SECTORS_PER_PAGE - sect_offset;
+
+		debug("write lpn = %u, offset = %u, num_sectors = %u",
+			lpn, sect_offset, num_sectors);
 
 		UINT32	sector_vals[SECTORS_PER_PAGE] = {0};
 		set_random_vals(sector_vals, sect_offset, num_sectors);
@@ -258,13 +262,19 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 	while (lba < params->max_lba &&
 	       wr_bytes < params->max_wr_bytes &&
 	       num_reqs < params->max_num_reqs) {
-		req_size = random(params->min_req_size, params->max_req_size);
+		/* req_size = random(params->min_req_size, params->max_req_size); */
+		req_size = 1;
+
+		debug("write lba = %u, req_size = %u", lba, req_size);
+
 		do_flash_write(lba, req_size);
 		request_push(lba, req_size);
 
 		if (time_to_verify()) {
-			while (request_pop(&lba, &req_size))
+			while (request_pop(&lba, &req_size)) {
+				debug("read lba = %u, req_size = %u", lba, req_size);
 				do_flash_verify(lba, req_size);
+			}
 		}
 
 		num_reqs++;
@@ -274,8 +284,10 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 	}
 	/* check remaining requests that are not verified yet */
 	finish_all();
-	while (request_pop(&lba, &req_size))
+	while (request_pop(&lba, &req_size)) {
+		debug("read lba = %u, req_size = %u", lba, req_size);
 		do_flash_verify(lba, req_size);
+	}
 }
 
 static void rnd_rw_test_runner(rw_test_params_t *params)
@@ -331,9 +343,9 @@ void ftl_test()
 			.max_lba = MAX_UINT32,
 			.min_req_size = 1,
 			.max_req_size = 256,
-			/* .max_num_reqs = MAX_UINT32, */
-			.max_num_reqs = 8,
-			.max_wr_bytes = 256 * MB
+			.max_num_reqs = MAX_UINT32,
+			/* .max_num_reqs = 1, */
+			.max_wr_bytes = 64 * MB
 		}
 	};
 
@@ -346,9 +358,9 @@ void ftl_test()
 			.max_lba = 2048,	/* first 1MB */
 			.min_req_size = 1,
 			.max_req_size = 256,
-			/* .max_num_reqs = MAX_UINT32, */
-			.max_num_reqs = 8,
-			.max_wr_bytes = 256 * MB
+			.max_num_reqs = MAX_UINT32,
+			/* .max_num_reqs = 8, */
+			.max_wr_bytes = 64 * MB
 		}
 	};
 
@@ -360,9 +372,9 @@ void ftl_test()
 			.max_lba = MAX_LBA,
 			.min_req_size = 1,
 			.max_req_size = 256,
-			/* .max_num_reqs = MAX_UINT32, */
-			.max_num_reqs = 8,
-			.max_wr_bytes = 256 * MB
+			.max_num_reqs = MAX_UINT32,
+			/* .max_num_reqs = 8, */
+			.max_wr_bytes = 16 * MB
 		}
 	};
 

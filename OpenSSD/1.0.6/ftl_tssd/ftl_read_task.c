@@ -14,6 +14,13 @@
  *  Macros, types and global variables
  * =========================================================================*/
 
+/* #define DEBUG_READ_TASK */
+#ifdef DEBUG_READ_TASK
+	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
+#else
+	#define debug(format, ...)
+#endif
+
 typedef enum {
 	STATE_PREPARATION,
 	STATE_MAPPING,
@@ -95,7 +102,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 
 	UINT32 read_buf_id	= task_buf_id(task);
 
-	/* uart_printf("preparation > seq_id = %u\r\n", task->seq_id); */
+	debug("preparation > seq_id = %u", task->seq_id);
 
 	sectors_mask_t	target_sectors = init_mask(task->offset,
 						   task->num_sectors);
@@ -108,17 +115,16 @@ static task_res_t preparation_state_handler(task_t* _task,
 
 	sectors_mask_t	common_sectors = valid_sectors & target_sectors;
 	if (common_sectors) {
-		/* uart_print("found data in write buffer"); */
+		debug("found data in write buffer");
 
 		fu_copy_buffer(SATA_RD_BUF_PTR(read_buf_id),
 			    buf, common_sectors);
 
 		target_sectors &= ~common_sectors;
-		/* In case we can serve all sectors from write buffer */
-		if (target_sectors == 0) {
-			task->state = STATE_FINISH;
-			return TASK_CONTINUED;
-		}
+	}
+	if (target_sectors == 0) {
+		task->state = STATE_FINISH;
+		return TASK_CONTINUED;
 	}
 next_state_mapping:
 	segments->task_target_sectors = target_sectors;
@@ -138,7 +144,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 #endif
 
 	task_swap_in(task, segments, sizeof(*segments));
-	/* uart_printf("mapping > seq_id = %u\r\n", task->seq_id); */
+	debug("mapping > seq_id = %u", task->seq_id);
 	task_res_t res = pmt_load(task->lpn * SUB_PAGES_PER_PAGE);
 	if (res != TASK_CONTINUED) {
 		task_swap_out(task, segments, sizeof(*segments));
@@ -206,7 +212,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 #if OPTION_ACL
 	do_authenticate(task);
 #endif
-	/* uart_printf("flash > seq_id = %u\r\n", task->seq_id); */
+	debug("flash > seq_id = %u", task->seq_id);
 
 	task_swap_in(task, segments, sizeof(*segments));
 
@@ -299,7 +305,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;
 
-	/* uart_printf("finish > seq_id = %u\r\n", task->seq_id); */
+	debug("finish > seq_id = %u", task->seq_id);
 #if OPTION_FDE
 	/* Add decryption overhead */
 	fde_decrypt(COPY_BUF(0) + task->offset * BYTES_PER_SECTOR,

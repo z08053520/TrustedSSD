@@ -15,6 +15,13 @@
  *  Macros, types and global variables
  * =========================================================================*/
 
+/* #define DEBUG_WRITE_TASK */
+#ifdef DEBUG_WRITE_TASK
+	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
+#else
+	#define debug(format, ...)
+#endif
+
 typedef enum {
 	STATE_PREPARATION,
 	STATE_MAPPING,
@@ -100,9 +107,9 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;
 
-	/* DEBUG("write_task_handler>preparation", */
-	/*       "task_id = %u, lpn = %u, offset = %u, num_sectors = %u", */
-	/*       task->seq_id, task->lpn, task->offset, task->num_sectors); */
+	debug("write_task_handler>preparation",
+	      "task_id = %u, lpn = %u, offset = %u, num_sectors = %u",
+	      task->seq_id, task->lpn, task->offset, task->num_sectors);
 
 	UINT32 write_buf_id	= task_buf_id(task);
 
@@ -183,7 +190,8 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	if (auth_res == TASK_BLOCKED) return TASK_BLOCKED;
 #endif
 
-	/* DEBUG("write_task_handler>mapping", "task_id = %u", task->seq_id); */
+	debug("write_task_handler>mapping", "task_id = %u", task->seq_id);
+
 	task_swap_in(task, wr_buf, sizeof(*wr_buf));
 
 	task_res_t res = TASK_CONTINUED;
@@ -225,7 +233,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;
 
-	/* DEBUG("write_task_handler>read", "task_id = %u", task->seq_id); */
+	debug("write_task_handler>read", "task_id = %u", task->seq_id);
 #if OPTION_ACL
 	do_authorize(task);
 #endif
@@ -328,7 +336,7 @@ static task_res_t flash_write_state_handler(task_t* _task,
 {
 	ftl_write_task_t *task 	= (ftl_write_task_t*) _task;
 
-	/* DEBUG("write_task_handler>write", "task_id = %u", task->seq_id); */
+	debug("write_task_handler>write", "task_id = %u", task->seq_id);
 #if OPTION_ACL
 	do_authorize(task);
 #endif
@@ -380,7 +388,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 #endif
 
 	task_swap_in(task, wr_buf, sizeof(*wr_buf));
-	/* DEBUG("write_task_handler>finish", "task_id = %u", task->seq_id); */
+	debug("write_task_handler>finish", "task_id = %u", task->seq_id);
 
 	// DEBUG
 	/* if (wr_buf->buf) { */

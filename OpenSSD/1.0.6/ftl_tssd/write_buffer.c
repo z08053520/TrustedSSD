@@ -5,8 +5,15 @@
 #include "flash_util.h"
 
 /* ========================================================================= *
- * Macros, Data Structure and Gloal Variables 
+ * Macros, Data Structure and Gloal Variables
  * ========================================================================= */
+
+/* #define DEBUG_WRITE_BUFFER */
+#ifdef DEBUG_WRITE_BUFFER
+	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
+#else
+	#define debug(format, ...)
+#endif
 
 /* For each write buffer, two fields are mainted: mask and size. */
 typedef UINT8 		buf_id_t;
@@ -19,7 +26,7 @@ static UINT8		buf_sizes[NUM_WRITE_BUFFERS];
 
 #define next_buf_id(buf_id)		(((buf_id) + 1) % NUM_WRITE_BUFFERS)
 
-/* For each logical page which has some part in write buffer, three fields are 
+/* For each logical page which has some part in write buffer, three fields are
  * maintained: lpn, valid sector mask and buffer id. */
 #define MAX_NUM_LPNS			(8 * NUM_WRITE_BUFFERS)
 #define NULL_LPN			0xFFFFFFFF
@@ -30,7 +37,7 @@ static buf_id_t		lp_buf_ids[MAX_NUM_LPNS];
 
 
 /* ========================================================================= *
- * Private Functions 
+ * Private Functions
  * ========================================================================= */
 
 static void buf_mask_align_to_sp(sectors_mask_t *mask)
@@ -44,21 +51,21 @@ static void buf_mask_align_to_sp(sectors_mask_t *mask)
 	}
 }
 
-static void buf_mask_add(UINT32 const buf_id, 
+static void buf_mask_add(UINT32 const buf_id,
 			 sectors_mask_t const lp_mask)
 {
 	sectors_mask_t lp_mask_aligned = lp_mask;
-	buf_mask_align_to_sp(&lp_mask_aligned);	
+	buf_mask_align_to_sp(&lp_mask_aligned);
 
 	buf_masks[buf_id] |= lp_mask_aligned;
 	buf_sizes[buf_id] = count_sectors(buf_masks[buf_id]);
 }
 
-static void buf_mask_remove(UINT32 const buf_id, 
+static void buf_mask_remove(UINT32 const buf_id,
 			    sectors_mask_t const lp_mask)
 {
 	sectors_mask_t lp_mask_aligned = lp_mask;
-	buf_mask_align_to_sp(&lp_mask_aligned);	
+	buf_mask_align_to_sp(&lp_mask_aligned);
 
 	buf_masks[buf_id] &= ~lp_mask_aligned;
 	buf_sizes[buf_id] = count_sectors(buf_masks[buf_id]);
@@ -68,7 +75,7 @@ static BOOL8 find_index_of_lpn(UINT32 const lpn, UINT32 *lpn_idx)
 {
 	UINT32 idx = mem_search_equ_sram(lpns, sizeof(UINT32), MAX_NUM_LPNS, lpn);
 	if (idx >= MAX_NUM_LPNS) return FALSE;
-	
+
 	*lpn_idx = idx;
 	return TRUE;
 }
@@ -92,18 +99,18 @@ static void remove_lpn_by_index(UINT32 const lpn_idx)
 
 static buf_id_t find_fullest_buffer()
 {
-	buf_id_t max_buf_id   =  mem_search_min_max(buf_sizes, 
-						  sizeof(buf_id_t), 
+	buf_id_t max_buf_id   =  mem_search_min_max(buf_sizes,
+						  sizeof(buf_id_t),
 						  NUM_WRITE_BUFFERS,
 						  MU_CMD_SEARCH_MAX_SRAM);
 	// head buf has priority
 	UINT8  max_buf_size = buf_sizes[max_buf_id];
 	if (max_buf_id != head_buf_id && buf_sizes[head_buf_id] == max_buf_size)
 		max_buf_id  = head_buf_id;
-	
+
 	return max_buf_id;
 }
- 
+
 
 static void dump_state()
 {
@@ -111,8 +118,8 @@ static void dump_state()
 
 	uart_print("");
 	DEBUG("write buffer", "=========== buffer state ========");
-	
-	uart_printf("head_buf_id = %u, # clean buffers = %u\r\n", 
+
+	uart_printf("head_buf_id = %u, # clean buffers = %u\r\n",
 		    head_buf_id, num_clean_buffers);
 
 	uart_print("buf_masks=[");
@@ -134,7 +141,7 @@ static void dump_state()
 		if (lpns[i] == NULL_LPN) continue;
 
 		UINT8 lp_buf_id = lp_buf_ids[i];
-		uart_printf("[%u] lpn = %u, buf_id = %u, mask = ", 
+		uart_printf("[%u] lpn = %u, buf_id = %u, mask = ",
 			    i, lpns[i], lp_buf_id);
 		uart_print_hex_64(lp_masks[i]);
 
@@ -154,7 +161,7 @@ static UINT8 allocate_buffer_for(sectors_mask_t const mask)
 	UINT8 new_buf_id = head_buf_id;
 	do {
 		if ((buf_masks[new_buf_id] & mask) == 0) {
-			if (buf_masks[new_buf_id] == 0) 
+			if (buf_masks[new_buf_id] == 0)
 				num_clean_buffers--;
 			return new_buf_id;
 		}
@@ -173,7 +180,7 @@ static UINT32 get_free_lpn_index()
 }
 
 /* ========================================================================= *
- * Public API 
+ * Public API
  * ========================================================================= */
 
 void write_buffer_init()
@@ -202,8 +209,8 @@ void write_buffer_init()
 	}
 }
 
-void write_buffer_get(UINT32 const lpn, 
-		      UINT32 *buf, 
+void write_buffer_get(UINT32 const lpn,
+		      UINT32 *buf,
 		      sectors_mask_t *valid_sectors)
 {
 	UINT32 	lpn_idx;
@@ -216,22 +223,25 @@ void write_buffer_get(UINT32 const lpn,
 	*valid_sectors = lp_masks[lpn_idx];
 }
 
-void write_buffer_put(UINT32 const lpn, 
-		      UINT8  const sector_offset, 
+void write_buffer_put(UINT32 const lpn,
+		      UINT8  const sector_offset,
 		      UINT8  const num_sectors,
 		      UINT32 const buf)
 {
 	if (num_sectors == 0) return;
 	BUG_ON("buffer is full!", write_buffer_is_full());
 
+	/* uart_print("before put"); */
+	/* dump_state(); */
+
 	sectors_mask_t  lp_new_mask = init_mask(sector_offset, num_sectors);
-	buf_id_t	new_buf_id  = NULL_BID;	
+	buf_id_t	new_buf_id  = NULL_BID;
 
 	// DEBUG
 	/* uart_printf("lpn = %u, offset = %u, num_sectors = %u\r\n", lpn, sector_offset, num_sectors); */
 	/* uart_printf("lp_new_mask = ");uart_print_hex_64(lp_new_mask); */
 
-	// Try to merge with the same lpn in the buffer 
+	// Try to merge with the same lpn in the buffer
 	UINT32 lp_idx;
 	if (find_index_of_lpn(lpn, &lp_idx)) {
 		sectors_mask_t	lp_old_mask  = lp_masks[lp_idx];
@@ -247,12 +257,12 @@ void write_buffer_put(UINT32 const lpn,
 		}
 		// Otherwise
 		else {
-			// we need to find another buffer that fits both 
+			// we need to find another buffer that fits both
 			// old & new data
 			sectors_mask_t merged_mask = lp_old_mask | lp_new_mask;
 			new_buf_id = allocate_buffer_for(merged_mask);
 
-			// move useful part of old data to new buffer 
+			// move useful part of old data to new buffer
 			sectors_mask_t old_useful_mask = lp_old_mask & rvs_common_mask;
 			fu_copy_buffer(WRITE_BUF(new_buf_id),
 				       WRITE_BUF(old_buf_id),
@@ -260,20 +270,20 @@ void write_buffer_put(UINT32 const lpn,
 
 			// update old buffer
 			buf_mask_remove(old_buf_id, lp_old_mask);
-			if (buf_sizes[old_buf_id] == 0) 
+			if (buf_sizes[old_buf_id] == 0)
 				num_clean_buffers++;
 
 			// Update new buffer
 			buf_mask_add(new_buf_id, old_useful_mask);
 		}
-	
+
 		lp_masks[lp_idx]    |= lp_new_mask;
 		lp_buf_ids[lp_idx]   = new_buf_id;
 	}
 	// New lpn
 	else {
 		new_buf_id 	   = allocate_buffer_for(lp_new_mask);
-		
+
 		lp_idx	   	   = get_free_lpn_index();
 		lpns[lp_idx]	   = lpn;
 		lp_masks[lp_idx]   = lp_new_mask;
@@ -281,8 +291,8 @@ void write_buffer_put(UINT32 const lpn,
 
 		num_lpns++;
 	}
-		
-	// Do insertion 
+
+	// Do insertion
 	fu_copy_buffer(WRITE_BUF(new_buf_id),
 		       buf,
 		       lp_new_mask);
@@ -311,8 +321,8 @@ void write_buffer_set_mode(BOOL8 const use_single_buffer)
 BOOL8 write_buffer_is_full()
 {
 #if OPTION_FTL_TEST
-	return 	(num_lpns == MAX_NUM_LPNS) || 
-		(single_buffer_mode  && (num_clean_buffers < NUM_WRITE_BUFFERS)) || 
+	return 	(num_lpns == MAX_NUM_LPNS) ||
+		(single_buffer_mode  && (num_clean_buffers < NUM_WRITE_BUFFERS)) ||
 		(!single_buffer_mode && (num_clean_buffers == 0));
 #else
 	return num_lpns == MAX_NUM_LPNS || num_clean_buffers == 0;
@@ -326,14 +336,14 @@ void write_buffer_drop(UINT32 const lpn)
 
 	buf_id_t buf_id = lp_buf_ids[lpn_idx];
 	remove_lpn_by_index(lpn_idx);
-	
+
 	if (buf_sizes[buf_id] == 0) num_clean_buffers++;
 }
 
 #define begin_subpage(mask)	(begin_sector(mask) / SECTORS_PER_SUB_PAGE)
 #define end_subpage(mask)	COUNT_BUCKETS(end_sector(mask), SECTORS_PER_SUB_PAGE)
 
-void write_buffer_flush(UINT32 const buf, UINT32 *lspns, 
+void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 			sectors_mask_t *valid_sectors)
 {
 	/* find a vicitim buffer */
@@ -361,20 +371,20 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 		       end_sp	   = end_subpage(lp_mask);
 		BUG_ON("empty sub page", begin_sp == end_sp);
 		UINT8  sp_offset   = begin_sp;
-		UINT32 lspn_base   = lpn * SUB_PAGES_PER_PAGE; 
+		UINT32 lspn_base   = lpn * SUB_PAGES_PER_PAGE;
 		UINT32 lspn	   = lspn_base + begin_sp,
 		       end_lspn	   = lspn_base + end_sp;
 		while (lspn < end_lspn) {
 			UINT8	lsp_mask = (lp_mask >> (SECTORS_PER_SUB_PAGE * sp_offset));
-		
-			if (lsp_mask) lspns[sp_offset] = lspn;	
-			
+
+			if (lsp_mask) lspns[sp_offset] = lspn;
+
 			lspn++;
 			sp_offset++;
 		}
-		
+
 		// remove the lpn from buffer
-		remove_lpn_by_index(lpn_i);	
+		remove_lpn_by_index(lpn_i);
 
 		lpn_i++;
 	}
@@ -382,7 +392,7 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 	// Copy buffer
 	UINT32 offset 	   	= begin_sector(*valid_sectors),
 	       num_sectors 	= end_sector(*valid_sectors) - offset;
-	mem_copy(buf + offset * BYTES_PER_SECTOR, 
+	mem_copy(buf + offset * BYTES_PER_SECTOR,
 		 WRITE_BUF(buf_id) + offset * BYTES_PER_SECTOR,
 		 num_sectors * BYTES_PER_SECTOR);
 
@@ -390,20 +400,20 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 	BUG_ON("buf mask is not cleared", buf_masks[buf_id] != 0ULL);
 	BUG_ON("buf size is not zero", buf_sizes[buf_id] != 0);
 	num_clean_buffers++;
-	if (buf_id == head_buf_id) 
+	if (buf_id == head_buf_id)
 		head_buf_id = next_buf_id(head_buf_id);
-	
+
 	/* uart_print("after flush"); */
 	/* dump_state(); */
 }
 
 // Debug
 UINT8 begin_sector(sectors_mask_t const mask) {
-	ASSERT(mask!=0);
+	BUG_ON("mask should not be empty", mask==0);
 	return _begin_sector(mask);
 }
 
 UINT8 end_sector(sectors_mask_t const mask) {
-	ASSERT(mask!=0);
+	BUG_ON("mask should not be empty", mask==0);
 	return _end_sector(mask);
 }
