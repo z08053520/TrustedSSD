@@ -375,6 +375,11 @@ void ftl_read_task_init(task_t *task,
 {
 	ftl_read_task_t *read_task = (ftl_read_task_t*) task;
 
+#if OPTION_ACL
+	// DEBUG
+	/* uart_print("ftl_read_task_init uid = %u", uid); */
+#endif
+
 	read_task->type		= ftl_read_task_type;
 	read_task->state	= STATE_PREPARATION;
 

@@ -72,7 +72,7 @@ BOOL8 eventq_put(UINT32 const lba, UINT32 const sector_count,
 	tail_cmd->sector_count = sector_count;
 	tail_cmd->cmd_type = cmd_type;
 #if OPTION_ACL
-	cmd->session_key = session_key;
+	tail_cmd->session_key = session_key;
 #endif
 
 	queue_tail = (queue_tail + 1) % CMD_QUEUE_SIZE;

@@ -27,7 +27,7 @@
 #define	BANK_BMP		0x00FF00FF
 #define	CLOCK_SPEED		175000000
 
-#define OPTION_ENABLE_ASSERT		1	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
+#define OPTION_ENABLE_ASSERT		0	// 1 = enable ASSERT() for debugging, 0 = disable ASSERT()
 #define OPTION_UART_DEBUG		1	// 1 = enable UART message output, 0 = disable
 #define OPTION_SLOW_SATA		0	// 1 = SATA 1.5Gbps, 0 = 3Gbps
 #define OPTION_SUPPORT_NCQ		0	// 1 = support SATA NCQ (=FPDMA) for AHCI hosts, 0 = support only DMA mode

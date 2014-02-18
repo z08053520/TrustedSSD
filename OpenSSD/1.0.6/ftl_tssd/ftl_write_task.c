@@ -480,6 +480,11 @@ void ftl_write_task_init(task_t *task,
 	write_task->state	= STATE_PREPARATION;
 
 #if	OPTION_ACL
+	// DEBUG
+	/* uart_print("ftl_write_task_init uid = %u", uid); */
+#endif
+
+#if	OPTION_ACL
 	write_task->uid		= uid;
 #endif
 	write_task->lpn 	= lpn;
