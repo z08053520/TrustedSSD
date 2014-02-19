@@ -7,23 +7,23 @@
 #include "target.h"
 
 /* ========================================================================= *
- * Page Cache  
+ * Page Cache
  * ========================================================================= */
 
 #define PC_ADDR			DRAM_BASE
 #define PC_END			(PC_ADDR + PC_BYTES)
-#define NUM_PC_BUFFERS		128	
-/* #define NUM_PC_BUFFERS		4 */
+/* #define NUM_PC_BUFFERS		128 */
+#define NUM_PC_BUFFERS		1
 #define NUM_PC_SUB_PAGES	(NUM_PC_BUFFERS * SUB_PAGES_PER_PAGE)
 #define PC_BYTES		(NUM_PC_BUFFERS * BYTES_PER_PAGE)
 #define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * (i))
 
 /* ========================================================================= *
- * Bad Block 
+ * Bad Block
  * ========================================================================= */
 
 /* bitmap of bad blocks */
-#define BAD_BLK_BMP_ADDR        	PC_END	
+#define BAD_BLK_BMP_ADDR        	PC_END
 #define BAD_BLK_BMP_END			(BAD_BLK_BMP_ADDR + BAD_BLK_BMP_BYTES)
 #define BAD_BLK_BMP_BYTES_PER_BANK	COUNT_BUCKETS(VBLKS_PER_BANK, 8)
 #define BAD_BLK_BMP_REAL_BYTES		(BAD_BLK_BMP_BYTES_PER_BANK * NUM_BANKS)
@@ -38,7 +38,7 @@
 					  * BYTES_PER_PAGE)
 
 /* ========================================================================= *
- * GTD 
+ * GTD
  * ========================================================================= */
 #include "gtd.h"
 #define GTD_SIZE		sizeof(gtd_zones_t)
@@ -48,17 +48,17 @@
 #define GTD_END			(GTD_ADDR + GTD_BYTES)
 
 /* ========================================================================= *
- *  Task Engine 
+ *  Task Engine
  * ========================================================================= */
 #define TASK_SWAP_ADDR		GTD_END
 #define TASK_SWAP_BYTES		BYTES_PER_PAGE
 #define TASK_SWAP_END		(TASK_SWAP_ADDR + TASK_SWAP_BYTES)
-#define MAX_NUM_TASKS		16	
+#define MAX_NUM_TASKS		16
 #define SWAP_BYTES_PER_TASK	(TASK_SWAP_BYTES / MAX_NUM_TASKS)
 #define TASK_SWAP_BUF(task_id)	(TASK_SWAP_ADDR + (task_id) * SWAP_BYTES_PER_TASK)
 
 /* ========================================================================= *
- *  Page Cache Flush Task 
+ *  Page Cache Flush Task
  * ========================================================================= */
 #define PC_FLUSH_BUF_ADDR	TASK_SWAP_END
 #define PC_FLUSH_BUF_END	(PC_FLUSH_BUF_ADDR + PC_FLUSH_BYTES)
@@ -73,7 +73,7 @@
 #define NUM_READ_BUFFERS	1
 #define NUM_WRITE_BUFFERS	8
 
-#define READ_BUF_ADDR		PC_FLUSH_BUF_END	
+#define READ_BUF_ADDR		PC_FLUSH_BUF_END
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)
 #define READ_BUF_END		(READ_BUF_ADDR + READ_BUF_BYTES)
 
@@ -94,7 +94,7 @@
 #define NUM_HIL_BUFFERS		1
 #define NUM_TEMP_BUFFERS	1
 
-#define COPY_BUF_ADDR          	WRITE_BUF_END 
+#define COPY_BUF_ADDR          	WRITE_BUF_END
 #define COPY_BUF_BYTES          (NUM_COPY_BUFFERS * BYTES_PER_PAGE)
 
 #define FTL_RD_BUF_ADDR		(COPY_BUF_ADDR + COPY_BUF_BYTES)
@@ -117,7 +117,7 @@
 #define FTL_RD_BUF(BANK)       	(FTL_RD_BUF_ADDR + ((BANK) * BYTES_PER_PAGE))
 
 #define NUM_FTL_BUFFERS		(NUM_FTL_RD_BUFFERS + NUM_FTL_WR_BUFFERS)
-#define	FTL_BUF_BYTES		(FTL_RD_BUF_BYTES   + FTL_WR_BUF_BYTES) 
+#define	FTL_BUF_BYTES		(FTL_RD_BUF_BYTES   + FTL_WR_BUF_BYTES)
 
 /* ========================================================================= *
  * SATA Buffers
@@ -135,8 +135,8 @@
 #define NUM_SATA_RD_BUFFERS	(COUNT_BUCKETS(NUM_SATA_RW_BUFFERS / 8, NUM_BANKS) * NUM_BANKS)
 #define NUM_SATA_WR_BUFFERS	(NUM_SATA_RW_BUFFERS - NUM_SATA_RD_BUFFERS)
 
-#define SATA_BUFS_ADDR		NON_SATA_BUF_END	
-#define SATA_RD_BUF_ADDR	SATA_BUFS_ADDR	
+#define SATA_BUFS_ADDR		NON_SATA_BUF_END
+#define SATA_RD_BUF_ADDR	SATA_BUFS_ADDR
 #define SATA_RD_BUF_BYTES      	(NUM_SATA_RD_BUFFERS * BYTES_PER_PAGE)
 
 #define SATA_WR_BUF_ADDR       	(SATA_RD_BUF_ADDR + SATA_RD_BUF_BYTES)

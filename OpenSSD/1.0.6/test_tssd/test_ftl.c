@@ -22,7 +22,7 @@ extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 #endif
 				UINT32 const cmd_type);
 
-/* #define DEBUG_FTL */
+#define DEBUG_FTL
 #ifdef DEBUG_FTL
 	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
 #else
@@ -322,7 +322,7 @@ static void _do_flash_verify(UINT32 lba, UINT32 const req_sectors,
 static void do_flash_verify(UINT32 lba, UINT32 const req_sectors,
 				BOOL8 const val_per_req)
 {
-	UINT32 skey;
+	UINT32 skey = 0;
 	if (val_per_req) {
 		/* Invariant: req_buf_size is always the current
 		 * request to be verified */
@@ -335,10 +335,9 @@ static void do_flash_verify(UINT32 lba, UINT32 const req_sectors,
 	UINT32 tmp_skey;
 	UINT32 num_sectors = 0;
 	UINT32 lba_begin = lba, lba_end = lba + req_sectors;
-	BOOL8 has_lba;
 	while (lba < lba_end) {
-		debug("skey = %u for lba = %u", tmp_skey, lba);
 		tmp_skey = get_skey(lba);
+		debug("skey = %u for lba = %u", tmp_skey, lba);
 		if (tmp_skey != skey) {
 			if (num_sectors) {
 				_do_flash_verify(lba_begin, num_sectors,
@@ -544,18 +543,18 @@ void ftl_test()
 			.min_lba = 0,
 			.max_lba = MAX_LBA,
 			.min_req_size = 1,
-			.max_req_size = 256,
+			.max_req_size = 64,
 			/* .max_req_size = 1, */
-			.max_num_reqs = MAX_UINT32,
-			/* .max_num_reqs = 8, */
+			/* .max_num_reqs = MAX_UINT32, */
+			.max_num_reqs = 9,
 			.max_wr_bytes = 256 * MB
 		}
 	};
 
 	/* Run all tests */
 	rw_test_t* rw_tests[]	= {
-		&seq_rw_test,
-		&rnd_rw_test,
+		/* &seq_rw_test, */
+		/* &rnd_rw_test, */
 		&sparse_rw_test
 	};
 
