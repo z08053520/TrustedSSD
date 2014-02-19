@@ -54,5 +54,9 @@ UINT32 random(UINT32 const min, UINT32 const max);
 BOOL8 is_buff_wrong(UINT32 buff_addr, UINT32 val,
 		    UINT8 offset, UINT8 num_sectors);
 
+void  dump_buffer(UINT32 const buff_addr,
+		  UINT8 const offset,
+		  UINT8 const num_sectors);
+
 #endif
 #endif

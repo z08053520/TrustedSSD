@@ -107,7 +107,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	ftl_write_task_t *task = (ftl_write_task_t*) _task;
 
-	debug("write_task_handler>preparation",
+	debug("write_task_handler>preparation"
 	      "task_id = %u, lpn = %u, offset = %u, num_sectors = %u",
 	      task->seq_id, task->lpn, task->offset, task->num_sectors);
 

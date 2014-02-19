@@ -47,7 +47,7 @@ TARGETBIN = $(TARGET).bin
 ifdef TEST
 CFLAGS += -D OPTION_FTL_TEST
 VPATH  += :../test_tssd
-SRCS   += test_${TEST}.c test_util.c flash_mock.c
+SRCS   += test_${TEST}.c test_util.c
 endif
 
 PROFILING =
