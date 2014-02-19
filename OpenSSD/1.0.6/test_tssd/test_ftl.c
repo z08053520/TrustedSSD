@@ -11,7 +11,6 @@
 #include "task_engine.h"
 #include "ftl_read_task.h"
 #include "ftl_write_task.h"
-#include "flash_mock.h"
 #include <stdlib.h>
 
 extern UINT32	g_num_ftl_write_tasks_submitted;
@@ -44,6 +43,7 @@ typedef struct {
 typedef enum {
 	SEQ_RW_TEST,
 	RND_RW_TEST,
+	SPARSE_RW_TEST,
 	NUM_RW_TEST_TYPES
 } rw_test_type_t;
 
@@ -57,10 +57,12 @@ typedef void (*rw_test_runner_t)(rw_test_params_t *params);
 
 static void seq_rw_test_runner(rw_test_params_t *params);
 static void rnd_rw_test_runner(rw_test_params_t *params);
+static void sparse_rw_test_runner(rw_test_params_t *params);
 
 static rw_test_runner_t rw_test_runners[NUM_RW_TEST_TYPES] = {
 	seq_rw_test_runner,
-	rnd_rw_test_runner
+	rnd_rw_test_runner,
+	sparse_rw_test_runner
 };
 
 /* ===========================================================================
@@ -75,7 +77,17 @@ SETUP_BUF(req_size,		REQ_SIZE_BUF_ADDR, 	SECTORS_PER_PAGE);
 UINT32	req_buf_size;
 
 #define MAX_REQ_SIZE		256
-#define REQS_VERIFY_THREASHOLD	(FLA_MOCK_BUF_SIZE / MAX_REQ_SIZE)
+
+#define VAL_BUF_ADDR		_COPY_BUF(0)
+#define VAL_BUF_BYTES		(NUM_COPY_BUFFERS / 2 * BYTES_PER_PAGE)
+#define MAX_NUM_VALS		(VAL_BUF_BYTES / sizeof(UINT32))
+SETUP_BUF(val,			VAL_BUF_ADDR,	NUM_COPY_BUFFERS / 2);
+UINT32	val_buf_size;
+
+#if OPTION_ACL
+#define SKEY_BUF_ADDR		_COPY_BUF(NUM_COPY_BUFFERS / 2)
+SETUP_BUF(skey,			SKEY_BUF_ADDR,	NUM_COPY_BUFFERS / 2);
+#endif
 
 UINT32	test_total_sectors;
 
@@ -89,7 +101,8 @@ static void setup(rw_test_t *test)
 	init_req_lba_buf(0);
 	init_req_size_buf(0);
 
-	flash_mock_init();
+	init_val_buf(0);
+	init_skey_buf(0);
 
 	timer_reset();
 }
@@ -106,7 +119,7 @@ static void teardown(rw_test_t *test)
 
 static BOOL8 time_to_verify()
 {
-	return req_buf_size >= REQS_VERIFY_THREASHOLD;
+	return req_buf_size >= MAX_NUM_REQS || val_buf_size >= MAX_NUM_VALS;
 }
 
 static void request_push(UINT32 const lba, UINT32 const req_size)
@@ -127,25 +140,6 @@ static BOOL8 request_pop(UINT32 *lba, UINT32 *req_size)
 	*lba = get_req_lba(req_buf_size);
 	*req_size = get_req_size(req_buf_size);
 	return TRUE;
-}
-
-static void flash_set_page(UINT32 const lpn, UINT32 const sect_offset,
-		UINT32 const num_sectors, UINT32 vals[SECTORS_PER_PAGE]
-#if OPTION_ACL
-		,UINT32 const session_key
-#endif
-		)
-{
-	UINT32	lba = lpn * SECTORS_PER_PAGE + sect_offset;
-	UINT32	sect_end = sect_offset + num_sectors;
-	UINT32  val;
-	for (UINT32 sect_i = sect_offset; sect_i < sect_end; sect_i++, lba++) {
-		val = vals[sect_i] & 0xFFFF;
-#if OPTION_ACL
-		val |= (session_key << 16);
-#endif
-		flash_mock_set(lba, val);
-	}
 }
 
 /* ===========================================================================
@@ -176,7 +170,11 @@ static void set_random_vals(UINT32 vals[SECTORS_PER_PAGE],
 	while (num_sectors--) vals[sect_offset++] = rand() & 0xFFFF;
 }
 
-static void do_flash_write(UINT32 const lba, UINT32 const req_sectors)
+#define VAL_PER_REQ		1
+#define VAL_PER_LBA		0
+
+static void do_flash_write(UINT32 lba, UINT32 const req_sectors,
+				BOOL8 const val_per_req)
 {
 	ftl_main();
 
@@ -188,8 +186,18 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors)
 	UINT32 sata_buf     = SATA_WR_BUF_PTR(sata_buf_id);
 
 #if OPTION_ACL
-	UINT32 session_key  = rand() & 0xFFFF;
+	UINT32 session_key  = rand();
 #endif
+
+	UINT32 val;
+	if (val_per_req) {
+		val = random();
+		set_val(val_buf_size, val);
+#if OPTION_ACL
+		set_skey(val_buf_size, session_key);
+#endif
+		val_buf_size++;
+	}
 
 	/* prepare SATA buffer by iterating pages in the request */
 	while (remain_sects) {
@@ -202,20 +210,24 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors)
 			lpn, sect_offset, num_sectors);
 
 		UINT32	sector_vals[SECTORS_PER_PAGE] = {0};
-		set_random_vals(sector_vals, sect_offset, num_sectors);
-		/* UINT32	base_val = lpn * SECTORS_PER_PAGE; */
-		/* set_vals(sector_vals, base_val, */
-		/* 	 sect_offset, num_sectors); */
-		fill_buffer(sata_buf, sect_offset, num_sectors, sector_vals);
-
+		if (val_per_req) {
+			clear_vals(sector_vals, val);
+		}
+		else {
+			UINT32 sect_i = sect_offset,
+			       sect_end = sect_offset + num_sectors;
+			while (sect_i < sect_end) {
+				val = rand();
+				sector_vals[sect_i] = val;
+				set_val(lba, val);
 #if OPTION_ACL
-		/* DEBUG */
-		flash_set_page(lpn, sect_offset, num_sectors, sector_vals,
-				session_key);
-				/* 1234); */
-#else
-		flash_set_page(lpn, sect_offset, num_sectors, sector_vals);
+				set_skey(lba, session_key);
 #endif
+				sect_i++;
+				lba++;
+			}
+		}
+		fill_buffer(sata_buf, sect_offset, num_sectors, sector_vals);
 
 		lpn++;
 		sect_offset   = 0;
@@ -237,11 +249,11 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors)
 	/* finish_all(); */
 }
 
-static void _do_flash_verify(UINT32 lba, UINT32 const req_sectors
+static void _do_flash_verify(UINT32 lba, UINT32 const req_sectors,
 #if OPTION_ACL
-				, UINT32 const session_key
+				UINT32 const session_key,
 #endif
-				)
+				BOOL8 const val_per_req)
 {
 	debug("verify lba = %u, req_sectors = %u",
 		lba, req_sectors);
@@ -266,6 +278,13 @@ static void _do_flash_verify(UINT32 lba, UINT32 const req_sectors
 	UINT32 sata_buf_id  = (g_num_ftl_read_tasks_submitted - num_bufs_rd) % NUM_SATA_RD_BUFFERS;
 	UINT32 sata_buf     = SATA_RD_BUF_PTR(sata_buf_id);
 	UINT32 val;
+	BOOL8 wrong;
+
+	if (val_per_req) {
+		/* Invariant: req_buf_size is always the id of the
+		 * current request to be verified */
+		val = get_val(req_buf_size);
+	}
 
 	/* verify data by iterating each page in the SATA buffer */
 	while (remain_sects) {
@@ -274,18 +293,23 @@ static void _do_flash_verify(UINT32 lba, UINT32 const req_sectors
 		else
 			num_sectors = SECTORS_PER_PAGE - sect_offset;
 
-		UINT32	sect_end = sect_offset + num_sectors;
-		while (sect_offset < sect_end) {
-			BOOL8 has_lba = flash_mock_get(lba, &val);
-			BUG_ON("not found lba!", !has_lba);
+		if (val_per_req) {
+			wrong = is_buff_wrong(sata_buf, val,
+						sect_offset, num_sectors);
+			BUG_ON("data in read buffer is not as expected", wrong);
+		}
+		else {
+			UINT32	sect_end = sect_offset + num_sectors;
+			while (sect_offset < sect_end) {
+				val = get_val(lba);
+				wrong = is_buff_wrong(sata_buf, val,
+							sect_offset, 1);
+				BUG_ON("data in read buffer is not as expected",
+					wrong);
 
-			val &= 0xFFFF;
-			BUG_ON("data in read buffer is not as expected",
-				is_buff_wrong(sata_buf, val,
-					      sect_offset, 1));
-
-			sect_offset++;
-			lba++;
+				sect_offset++;
+				lba++;
+			}
 		}
 
 		lpn++;
@@ -297,22 +321,30 @@ static void _do_flash_verify(UINT32 lba, UINT32 const req_sectors
 }
 
 #if OPTION_ACL
-static void do_flash_verify(UINT32 lba, UINT32 const req_sectors)
+static void do_flash_verify(UINT32 lba, UINT32 const req_sectors,
+				BOOL8 const val_per_req)
 {
-	UINT32 skey = 0, tmp_skey;
+	UINT32 skey;
+	if (val_per_req) {
+		/* Invariant: req_buf_size is always the current
+		 * request to be verified */
+		skey = get_skey(req_buf_size);
+		_do_flash_verify(lba, req_sectors, skey, VAL_PER_REQ);
+		return;
+	}
+
+	/* For val per LBA */
+	UINT32 tmp_skey;
 	UINT32 num_sectors = 0;
 	UINT32 lba_begin = lba, lba_end = lba + req_sectors;
 	BOOL8 has_lba;
 	while (lba < lba_end) {
-		has_lba = flash_mock_get(lba, &tmp_skey);
-		BUG_ON("session key for the LBA is not recorded!", !has_lba);
-		tmp_skey = tmp_skey >> 16;
-
 		debug("skey = %u for lba = %u", tmp_skey, lba);
-
+		tmp_skey = get_skey(lba);
 		if (tmp_skey != skey) {
 			if (num_sectors) {
-				_do_flash_verify(lba_begin, num_sectors, skey);
+				_do_flash_verify(lba_begin, num_sectors,
+							skey, VAL_PER_LBA);
 				num_sectors = 0;
 				lba_begin = lba;
 			}
@@ -321,10 +353,11 @@ static void do_flash_verify(UINT32 lba, UINT32 const req_sectors)
 		lba++;
 		num_sectors++;
 	}
-	_do_flash_verify(lba_begin, num_sectors, skey);
+	_do_flash_verify(lba_begin, num_sectors, skey, VAL_PER_LBA);
 }
 #else
-#define do_flash_verify(lba, req_sectors) _do_flash_verify(lba, req_sectors);
+#define do_flash_verify(lba, req_sectors, val_per_req)		\
+		_do_flash_verify(lba, req_sectors, val_per_req)
 #endif
 
 /* ===========================================================================
@@ -334,8 +367,8 @@ static void do_flash_verify(UINT32 lba, UINT32 const req_sectors)
 static void seq_rw_test_runner(rw_test_params_t *params)
 {
 	UINT32	lba = params->min_lba,
-            wr_bytes = 0,
-            num_reqs = 0;
+		wr_bytes = 0,
+		num_reqs = 0;
 	UINT32	req_size;
 	while (lba < params->max_lba &&
 	       wr_bytes < params->max_wr_bytes &&
@@ -345,13 +378,14 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 
 		debug("write lba = %u, req_size = %u", lba, req_size);
 
-		do_flash_write(lba, req_size);
+		do_flash_write(lba, req_size, VAL_PER_REQ);
 		request_push(lba, req_size);
 
 		if (time_to_verify()) {
+			finish_all();
 			while (request_pop(&lba, &req_size)) {
 				debug("read lba = %u, req_size = %u", lba, req_size);
-				do_flash_verify(lba, req_size);
+				do_flash_verify(lba, req_size, VAL_PER_REQ);
 			}
 		}
 
@@ -364,12 +398,17 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 	finish_all();
 	while (request_pop(&lba, &req_size)) {
 		debug("read lba = %u, req_size = %u", lba, req_size);
-		do_flash_verify(lba, req_size);
+		do_flash_verify(lba, req_size, VAL_PER_REQ);
 	}
 }
 
+#define MAX_LBA_FOR_RND_TEST	(MAX_NUM_VALS - 1)
+
 static void rnd_rw_test_runner(rw_test_params_t *params)
 {
+	if (params->max_lba > MAX_LBA_FOR_RND_TEST)
+		params->max_lba = MAX_LBA_FOR_RND_TEST;
+
 	UINT32	wr_bytes = 0,
 	        num_reqs = 0;
 	UINT32	lba, req_size;
@@ -377,14 +416,18 @@ static void rnd_rw_test_runner(rw_test_params_t *params)
 	       num_reqs < params->max_num_reqs) {
 		lba = random(params->min_lba, params->max_lba);
 		req_size = random(params->min_req_size, params->max_req_size);
-		if (lba + req_size > params->max_lba)
-			req_size = params->max_lba - lba + 1;
-		do_flash_write(lba, req_size);
+		if (lba + req_size > params->max_lba + 1)
+			req_size = params->max_lba + 1 - lba;
 
+		do_flash_write(lba, req_size, VAL_PER_LBA);
 		request_push(lba, req_size);
+
 		if (time_to_verify()) {
-			while (request_pop(&lba, &req_size))
-				do_flash_verify(lba, req_size);
+			finish_all();
+			while (request_pop(&lba, &req_size)) {
+				debug("read lba = %u, req_size = %u", lba, req_size);
+				do_flash_verify(lba, req_size, VAL_PER_LBA);
+			}
 		}
 
 		num_reqs++;
@@ -394,9 +437,55 @@ static void rnd_rw_test_runner(rw_test_params_t *params)
 	/* check remaining requests that are not verified yet */
 	finish_all();
 	while (request_pop(&lba, &req_size))
-		do_flash_verify(lba, req_size);
+		do_flash_verify(lba, req_size, VAL_PER_LBA);
 }
 
+#define SPARSE_LBA_INTERVAL	(PMT_ENTRIES_PER_SUB_PAGE * SECTORS_PER_SUB_PAGE)
+#define MAX_NUM_SPARSE_REQS	(NUM_LSECTORS / SPARSE_LBA_INTERVAL)
+
+static void sparse_rw_test_runner(rw_test_params_t *params)
+{
+	if (params->max_num_reqs > MAX_NUM_SPARSE_REQS)
+		params->max_num_reqs = MAX_NUM_SPARSE_REQS;
+
+	UINT32	lba, base_lba = 0,
+		wr_bytes = 0,
+		num_reqs = 0;
+	UINT32	req_size;
+
+	while (wr_bytes < params->max_wr_bytes &&
+	       num_reqs < params->max_num_reqs) {
+		lba = rand() % SPARSE_LBA_INTERVAL;
+		req_size = random(params->min_req_size, params->max_req_size);
+		if (lba + req_size > SPARSE_LBA_INTERVAL)
+			req_size = SPARSE_LBA_INTERVAL - lba;
+		lba += base_lba;
+
+		debug("write lba = %u, req_size = %u", lba, req_size);
+
+		do_flash_write(lba, req_size, VAL_PER_REQ);
+		request_push(lba, req_size);
+
+		if (time_to_verify()) {
+			finish_all();
+			while (request_pop(&lba, &req_size)) {
+				debug("read lba = %u, req_size = %u", lba, req_size);
+				do_flash_verify(lba, req_size, VAL_PER_REQ);
+			}
+		}
+
+		num_reqs++;
+		base_lba += SPARSE_LBA_INTERVAL;
+		wr_bytes += req_size * BYTES_PER_SECTOR;
+		test_total_sectors += req_size;
+	}
+	/* check remaining requests that are not verified yet */
+	finish_all();
+	while (request_pop(&lba, &req_size)) {
+		debug("read lba = %u, req_size = %u", lba, req_size);
+		do_flash_verify(lba, req_size, VAL_PER_REQ);
+	}
+}
 /* ===========================================================================
  * Entry Point
  * =========================================================================*/
@@ -429,8 +518,8 @@ void ftl_test()
 	};
 
 	/* Prepare random rw tests */
-	rw_test_t rnd_rw_test_dense = {
-		.name = "dense random r/w test",
+	rw_test_t rnd_rw_test= {
+		.name = "random r/w test",
 		.type = RND_RW_TEST,
 		.params = {
 			.min_lba = 0,
@@ -444,9 +533,9 @@ void ftl_test()
 		}
 	};
 
-	rw_test_t rnd_rw_test_sparse = {
-		.name = "sparse random r/w test",
-		.type = RND_RW_TEST,
+	rw_test_t sparse_rw_test = {
+		.name = "sparse r/w test",
+		.type = SPARSE_RW_TEST,
 		.params = {
 			.min_lba = 0,
 			.max_lba = MAX_LBA,
@@ -462,9 +551,8 @@ void ftl_test()
 	/* Run all tests */
 	rw_test_t* rw_tests[]	= {
 		&seq_rw_test,
-
-		&rnd_rw_test_sparse,
-		&rnd_rw_test_dense
+		&rnd_rw_test,
+		&sparse_rw_test
 	};
 
 	uart_print("request verify threashold = %u", REQS_VERIFY_THREASHOLD);
