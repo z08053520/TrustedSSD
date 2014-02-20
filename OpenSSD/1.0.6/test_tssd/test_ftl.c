@@ -22,7 +22,7 @@ extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 #endif
 				UINT32 const cmd_type);
 
-#define DEBUG_FTL
+/* #define DEBUG_FTL */
 #ifdef DEBUG_FTL
 	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
 #else
@@ -138,7 +138,10 @@ static void request_push(UINT32 const lba, UINT32 const req_size)
 
 static BOOL8 request_pop(UINT32 *lba, UINT32 *req_size)
 {
-	if (req_buf_size == 0) return FALSE;
+	if (req_buf_size == 0) {
+		val_buf_size = 0;
+		return FALSE;
+	}
 
 	req_buf_size--;
 	*lba = get_req_lba(req_buf_size);
@@ -450,9 +453,9 @@ static void sparse_rw_test_runner(rw_test_params_t *params)
 		params->max_num_reqs = MAX_NUM_SPARSE_REQS;
 
 	UINT32	lba, base_lba = 0,
-		wr_bytes = 0,
-		num_reqs = 0;
+		wr_bytes = 0;
 	UINT32	req_size;
+	UINT32	num_reqs = 0;
 
 	while (wr_bytes < params->max_wr_bytes &&
 	       num_reqs < params->max_num_reqs) {
@@ -462,17 +465,20 @@ static void sparse_rw_test_runner(rw_test_params_t *params)
 			req_size = SPARSE_LBA_INTERVAL - lba;
 		lba += base_lba;
 
-		debug("write lba = %u, req_size = %u", lba, req_size);
-
 		do_flash_write(lba, req_size, VAL_PER_REQ);
 		request_push(lba, req_size);
+
+		debug("%u) write lba = %u, req_size = %u", num_reqs, lba, req_size);
 
 		if (time_to_verify()) {
 			finish_all();
 			while (request_pop(&lba, &req_size)) {
-				debug("read lba = %u, req_size = %u", lba, req_size);
+				debug("%u, %u] read lba = %u, req_size = %u",
+					req_buf_size, num_reqs, lba, req_size);
 				do_flash_verify(lba, req_size, VAL_PER_REQ);
 			}
+			BUG_ON("request queue is not empty!",
+				req_buf_size != 0);
 		}
 
 		num_reqs++;
@@ -483,7 +489,8 @@ static void sparse_rw_test_runner(rw_test_params_t *params)
 	/* check remaining requests that are not verified yet */
 	finish_all();
 	while (request_pop(&lba, &req_size)) {
-		debug("read lba = %u, req_size = %u", lba, req_size);
+		debug("%u, %u) read lba = %u, req_size = %u",
+			req_buf_size, num_reqs, lba, req_size);
 		do_flash_verify(lba, req_size, VAL_PER_REQ);
 	}
 }
@@ -545,16 +552,16 @@ void ftl_test()
 			.min_req_size = 1,
 			.max_req_size = 64,
 			/* .max_req_size = 1, */
-			/* .max_num_reqs = MAX_UINT32, */
-			.max_num_reqs = 9,
-			.max_wr_bytes = 256 * MB
+			.max_num_reqs = MAX_UINT32,
+			/* .max_num_reqs = 1024, */
+			.max_wr_bytes = 512 * MB
 		}
 	};
 
 	/* Run all tests */
 	rw_test_t* rw_tests[]	= {
-		/* &seq_rw_test, */
-		/* &rnd_rw_test, */
+		&seq_rw_test,
+		&rnd_rw_test,
 		&sparse_rw_test
 	};
 

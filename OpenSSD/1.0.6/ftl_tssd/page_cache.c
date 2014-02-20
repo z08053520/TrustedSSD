@@ -7,16 +7,23 @@
 #include "page_cache_flush_task.h"
 
 /* ========================================================================= *
- * Macros, Data Structure and Gloal Variables 
+ * Macros, Data Structure and Gloal Variables
  * ========================================================================= */
 
+#define DEBUG_PAGE_CACHE
+#ifdef DEBUG_PAGE_CACHE
+	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
+#else
+	#define debug(format, ...)
+#endif
+
 static const page_key_t	NULL_KEY = {.as_uint = 0xFFFFFFFF};
-#define NULL_TIMESTAMP		0xFFFFFFFF 
+#define NULL_TIMESTAMP		0xFFFFFFFF
 
 /* For each cached sub page, we record **key**, **timestamp** and **flag** */
 static page_key_t cached_keys[NUM_PC_SUB_PAGES];
 static UINT32 	timestamps[NUM_PC_SUB_PAGES];
-static UINT8	flags[NUM_PC_SUB_PAGES];	
+static UINT8	flags[NUM_PC_SUB_PAGES];
 
 static UINT32 	num_free_sub_pages;
 static UINT32 	current_timestamp;
@@ -29,7 +36,7 @@ static UINT32 	current_timestamp;
 #endif
 #endif
 
-/* merge buffer */	
+/* merge buffer */
 static UINT8  	to_be_merged_pages;
 static UINT32 	to_be_merged_page_indexes[SUB_PAGES_PER_PAGE];
 
@@ -38,18 +45,18 @@ static page_key_t	last_key;
 static UINT32 		last_page_idx;
 
 /* ========================================================================= *
- * Private Functions 
+ * Private Functions
  * ========================================================================= */
 
 static UINT32	find_page(page_key_t const key)
 {
 	// try to find cached page given key
-	UINT32 page_idx; 
+	UINT32 page_idx;
 	if (page_key_equal(last_key, key))
 		page_idx = last_page_idx;
 	else {
-		page_idx = mem_search_equ_sram(cached_keys, 
-					       sizeof(UINT32), 
+		page_idx = mem_search_equ_sram(cached_keys,
+					       sizeof(UINT32),
 					       NUM_PC_SUB_PAGES, key.as_uint);
 		if (page_idx >= NUM_PC_SUB_PAGES) return NUM_PC_SUB_PAGES;
 		last_key = key;
@@ -71,12 +78,12 @@ static void handle_timestamp_overflow()
 }
 
 /* ========================================================================= *
- * Public Functions 
+ * Public Functions
  * ========================================================================= */
 
 void page_cache_init(void)
 {
-	BUG_ON("# of sub pages is not a multiple of 8", 
+	BUG_ON("# of sub pages is not a multiple of 8",
 			NUM_PC_SUB_PAGES % SUB_PAGES_PER_PAGE != 0);
 	///BUG_ON("Capacity too large", NUM_PC_SUB_PAGES > 255);
 
@@ -90,7 +97,7 @@ void page_cache_init(void)
 
 	num_free_sub_pages = NUM_PC_SUB_PAGES;
 	current_timestamp  = 0;
-	
+
 	to_be_merged_pages = 0;
 
 	last_key = NULL_KEY;
@@ -121,7 +128,7 @@ BOOL8 	page_cache_get (page_key_t const key,
 	if (will_modify) set_dirty(flags[page_idx]);
 	// update timestamp for LRU cache policy
 	timestamps[page_idx] = current_timestamp++;
-	if (unlikely(current_timestamp == NULL_TIMESTAMP)) 
+	if (unlikely(current_timestamp == NULL_TIMESTAMP))
 		handle_timestamp_overflow();
 	return FALSE;
 }
@@ -134,7 +141,7 @@ void	page_cache_put (page_key_t const key,
 	UINT32	old_page_idx = find_page(key);
 	BUG_ON("page is already in cache", old_page_idx < NUM_PC_SUB_PAGES);
 
-	UINT32	free_page_idx = mem_search_equ_sram(cached_keys, 
+	UINT32	free_page_idx = mem_search_equ_sram(cached_keys,
 						   sizeof(UINT32),
 						   NUM_PC_SUB_PAGES,
 						   NULL_KEY.as_uint);
@@ -142,10 +149,10 @@ void	page_cache_put (page_key_t const key,
 
 	cached_keys[free_page_idx] = key;
 	timestamps[free_page_idx]  = current_timestamp++;
-	if (unlikely(current_timestamp == NULL_TIMESTAMP)) 
-		handle_timestamp_overflow();	
+	if (unlikely(current_timestamp == NULL_TIMESTAMP))
+		handle_timestamp_overflow();
 	flags[free_page_idx]	   = flag;
-	
+
 	*buf = PC_SUB_PAGE(free_page_idx);
 
 	num_free_sub_pages--;
@@ -158,7 +165,7 @@ BOOL8	page_cache_get_flag(page_key_t const key, UINT8 *flag)
 		*flag = 0;
 		return 1;
 	}
-	*flag = flags[page_idx];	
+	*flag = flags[page_idx];
 	return 0;
 }
 
@@ -182,13 +189,13 @@ BOOL8	page_cache_evict()
 	while (to_be_merged_pages < SUB_PAGES_PER_PAGE) {
 		// The LRU (Least Recently Used) page is victim
 		UINT32 lru_page_idx = mem_search_min_max(
-						 timestamps, 
-						 sizeof(UINT32), 
+						 timestamps,
+						 sizeof(UINT32),
 						 NUM_PC_SUB_PAGES,
 						 MU_CMD_SEARCH_MIN_SRAM);
 		BUG_ON("imposibble timestamp", timestamps[lru_page_idx] == NULL_TIMESTAMP);
 		/* uart_printf("evict page %u with tiemstamp %u and flag %u...", */
-		/* 	    lru_page_idx, timestamps[lru_page_idx], */ 
+		/* 	    lru_page_idx, timestamps[lru_page_idx], */
 		/* 	    flags[lru_page_idx]); */
 
 		/* TODO: handle this situation more gracefully*/
@@ -204,23 +211,23 @@ BOOL8	page_cache_evict()
 			/* uart_printf(" not dirty\r\n"); */
 			return FALSE;
 		}
-		
+
 		to_be_merged_page_indexes[to_be_merged_pages++] = lru_page_idx;
-		/* uart_printf(" moved to merge buffer (%u/%u)\r\n", */ 
+		/* uart_printf(" moved to merge buffer (%u/%u)\r\n", */
 		/* 	    to_be_merged_pages, SUB_PAGES_PER_PAGE); */
 	}
 	return TRUE; /* need to flush merge buffer */
 }
 
-void	page_cache_flush(UINT32 const merge_buf, 
+void	page_cache_flush(UINT32 const merge_buf,
 			 page_key_t merged_keys[SUB_PAGES_PER_PAGE])
 {
-	BUG_ON("merge buffer is not full", 
+	BUG_ON("merge buffer is not full",
 		to_be_merged_pages != SUB_PAGES_PER_PAGE);
 
 	UINT8	sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
-		UINT32	page_idx  =  to_be_merged_page_indexes[sp_i];	
+		UINT32	page_idx  =  to_be_merged_page_indexes[sp_i];
 		merged_keys[sp_i] = cached_keys[page_idx];
 		mem_copy(merge_buf + sp_i * BYTES_PER_SUB_PAGE,
 			 PC_SUB_PAGE(page_idx),
@@ -241,15 +248,15 @@ task_res_t	page_cache_load(page_key_t const key)
 	/* uart_print("here2"); */
 		UINT8 flag;
 		page_cache_get_flag(key, &flag);
-		return is_reserved(flag) ? 
+		return is_reserved(flag) ?
 				/* loading */
-				TASK_PAUSED : 
+				TASK_PAUSED :
 				/* in cache */
-				TASK_CONTINUED;	
+				TASK_CONTINUED;
 	}
 
 	/* uart_print("here3"); */
-	/* Flush page cache */ 
+	/* Flush page cache */
 	if (page_cache_is_full()) {
 	/* uart_print("here4"); */
 		BOOL8 need_flush = page_cache_evict();
@@ -273,7 +280,7 @@ task_res_t	page_cache_load(page_key_t const key)
 			return TASK_BLOCKED;
 		}
 	}
-	
+
 	/* uart_print("here5"); */
 	if (!task_can_allocate(1)) return TASK_BLOCKED;
 

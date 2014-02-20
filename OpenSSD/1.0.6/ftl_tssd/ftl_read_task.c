@@ -115,8 +115,6 @@ static task_res_t preparation_state_handler(task_t* _task,
 
 	sectors_mask_t	common_sectors = valid_sectors & target_sectors;
 	if (common_sectors) {
-		debug("found data in write buffer");
-
 		fu_copy_buffer(SATA_RD_BUF_PTR(read_buf_id),
 			    buf, common_sectors);
 
@@ -320,7 +318,8 @@ static task_res_t finish_state_handler	(task_t* _task,
 	if (access_denial) {
 		UINT32 	sata_buf = SATA_RD_BUF_PTR(task_buf_id(task));
 		/* TODO: randomize the content of a denied SATA request*/
-		mem_set_dram(sata_buf, 0, BYTES_PER_PAGE);
+		/* DEBUG */
+		mem_set_dram(sata_buf, 1234, BYTES_PER_PAGE);
 	}
 #endif
 
