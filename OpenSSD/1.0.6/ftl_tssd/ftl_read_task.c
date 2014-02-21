@@ -73,10 +73,12 @@ UINT32	g_next_finishing_task_seq_id;
 #if OPTION_ACL
 
 #define FLAG_AUTHENTICATED	1
+/* when uid equals NULL_ID, acl work has been done */
+#define NULL_UID		0xFFFFFFFF
 
 static task_res_t do_authenticate(ftl_read_task_t *task)
 {
-	if (!task->uid)	return TASK_CONTINUED;
+	if (task->uid == NULL_UID) return TASK_CONTINUED;
 
 	task_res_t res = sot_load(task->lpn);
 	if (res != TASK_CONTINUED) return res;
@@ -84,7 +86,7 @@ static task_res_t do_authenticate(ftl_read_task_t *task)
 	BOOL8 ok = sot_authenticate(task->lpn, task->offset,
 				    task->num_sectors, task->uid);
 	if (ok) task->flags |= FLAG_AUTHENTICATED;
-	task->uid = 0;
+	task->uid = NULL_UID;
 	return TASK_CONTINUED;
 }
 

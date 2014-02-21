@@ -20,7 +20,7 @@ typedef enum {
 
 typedef struct {
 	TASK_PUBLIC_FIELDS
-	vp_t	vp;	
+	vp_t	vp;
 } page_cache_flush_task_t;
 
 typedef struct {
@@ -50,7 +50,7 @@ static task_handler_t handlers[NUM_STATES] = {
 
 static UINT32	flush_buf_id = 0;
 
-static task_res_t preparation_state_handler(task_t* _task, 
+static task_res_t preparation_state_handler(task_t* _task,
 				     	    task_context_t* context)
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
@@ -66,19 +66,19 @@ static task_res_t preparation_state_handler(task_t* _task,
 	return TASK_CONTINUED;
 }
 
-static task_res_t mapping_state_handler	(task_t* _task, 
+static task_res_t mapping_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
 	task_swap_in(task, merge_buf, sizeof(*merge_buf));
-	
+
 	/* uart_printf("flush task: mapping..."); */
 
 	if (context->idle_banks == 0) {
 		/* uart_print("no idle banks"); */
-		task_swap_out(task, merge_buf, sizeof(*merge_buf));	
-		return TASK_BLOCKED;
+		task_swap_out(task, merge_buf, sizeof(*merge_buf));
+		return TASK_PAUSED;
 	}
 
 	/* uart_print("to flash"); */
@@ -86,7 +86,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	UINT32	vpn	= gc_allocate_new_vpn(bank, TRUE);
 	task->vp.bank 	= bank;
 	task->vp.vpn	= vpn;
-	
+
 	vsp_t	vsp	= {.bank = bank, .vspn = vpn * SUB_PAGES_PER_PAGE};
 	UINT8	sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
@@ -95,26 +95,26 @@ static task_res_t mapping_state_handler	(task_t* _task,
 		vsp.vspn++;
 	}
 	task->state = STATE_FLASH;
-	return TASK_CONTINUED;     				
+	return TASK_CONTINUED;
 }
 
-static task_res_t flash_state_handler	(task_t* _task, 
+static task_res_t flash_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
 	/* uart_print("flush task: flash... paused"); */
 
-	fu_write_page(task->vp, merge_buf->buf);	
+	fu_write_page(task->vp, merge_buf->buf);
 	UINT8 bank = task->vp.bank;
 	banks_del(context->idle_banks, bank);
-	
+
 	task->state = STATE_FINISH;
 	task->waiting_banks = (1 << bank);
 	return TASK_PAUSED;
 }
 
-static task_res_t finish_state_handler	(task_t* _task, 
+static task_res_t finish_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
