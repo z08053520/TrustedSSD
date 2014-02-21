@@ -4,7 +4,7 @@
 #include "mem_util.h"
 
 /* ===========================================================================
- *  Macros, Types and Variables  
+ *  Macros, Types and Variables
  * =========================================================================*/
 
 /* Allocate memory for tasks using slab */
@@ -18,7 +18,7 @@ define_slab_implementation(task, task_t, MAX_NUM_TASKS);
 #define set_next_task(task, next_task)	(task->_next_id = task2id(next_task))
 
 static task_t _head;
-static task_t *head, *tail; 
+static task_t *head, *tail;
 #define is_engine_idle()	(head == tail)
 
 /* previous task and current task when task engine is running */
@@ -31,7 +31,7 @@ static task_context_t context;
 static vp_t tasks_writing_vps[MAX_NUM_TASKS];
 
 /* ===========================================================================
- *  Private Functions 
+ *  Private Functions
  * =========================================================================*/
 
 static 	banks_mask_t probe_idle_banks()
@@ -39,7 +39,7 @@ static 	banks_mask_t probe_idle_banks()
 	banks_mask_t idle_banks = 0;
 	UINT8 bank_i;
 	for (bank_i = 0; bank_i < NUM_BANKS; bank_i++) {
-		if (BSP_FSM(bank_i) == BANK_IDLE) 
+		if (BSP_FSM(bank_i) == BANK_IDLE)
 			idle_banks |= (1 << bank_i);
 	}
 	return idle_banks;
@@ -78,36 +78,36 @@ void	task_deallocate(task_t *task)
 	return slab_deallocate_task(task);
 }
 
-void	_task_swap_out(task_t *task, void *data, UINT32 const bytes)
+void	_task_swap_out(task_t *task)
 {
 	if (task->swapped_out) return;
 
-	task_id_t task_id  = task2id(task);	
+	task_id_t task_id  = task2id(task);
 	UINT32	  swap_buf = TASK_SWAP_BUF(task_id);
-	mem_copy(swap_buf, data, bytes);
+	mem_copy(swap_buf, task_swap_buf, TASK_SWAP_BUF_BYTES);
 	task->swapped_out = TRUE;
 }
 
-void	_task_swap_in (task_t *task, void *data, UINT32 const bytes)
+void	_task_swap_in (task_t *task)
 {
 	if (!task->swapped_out) return;
 
-	task_id_t task_id  = task2id(task);	
+	task_id_t task_id  = task2id(task);
 	UINT32	  swap_buf = TASK_SWAP_BUF(task_id);
-	mem_copy(data, swap_buf, bytes);
+	mem_copy(task_swap_buf, swap_buf, TASK_SWAP_BUF_BYTES);
 	task->swapped_out = FALSE;
 }
 
 void 	task_engine_init()
 {
-	init_slab_task();	
+	init_slab_task();
 
 	num_task_types = 0;
 	mem_set_sram(task_handlers, NULL, sizeof(task_handler_t*) * MAX_NUM_TASK_TYPES);
 
 	tail = head = &_head;
 	head->_next_id = NULL_TASK_ID;
-	
+
 	context.idle_banks = ALL_BANKS;
 	context.completed_banks = 0;
 
@@ -118,7 +118,7 @@ void 	task_engine_init()
 	}
 }
 
-BOOL8 	task_engine_register_task_type(UINT8 *type, 
+BOOL8 	task_engine_register_task_type(UINT8 *type,
 				       task_handler_t* handlers)
 {
 	if (num_task_types == MAX_NUM_TASK_TYPES) return TRUE;
@@ -167,16 +167,16 @@ BOOL8 	task_engine_run()
 	/* Iterate each task */
 	pre_task = head, current_task = get_next_task(head);
 	while (current_task) {
-		if ((current_task->waiting_banks & context.idle_banks) == 0) 
+		if ((current_task->waiting_banks & context.idle_banks) == 0)
 			goto next_task;
-		
+
 		task_res_t res = process_task(current_task);
 
 		if (res == TASK_BLOCKED) {
 			/* Start all over again */
 			return FALSE;
 		}
-		else if (res == TASK_FINISHED) { 
+		else if (res == TASK_FINISHED) {
 			/* Remove task that is done */
 			set_next_task(pre_task, get_next_task(current_task));
 			if (current_task == tail) tail = pre_task;
@@ -207,7 +207,7 @@ BOOL8 is_any_task_writing_page(vp_t const vp)
 void _task_starts_writing_page(vp_t const vp, task_t *task)
 {
 	UINT8 	vp_idx 			= task2id(task);
-	BUG_ON("last writing page is not finished yet", 
+	BUG_ON("last writing page is not finished yet",
 		tasks_writing_vps[vp_idx].vpn != 0);
 	tasks_writing_vps[vp_idx].bank	= vp.bank;
 	tasks_writing_vps[vp_idx].vpn  	= vp.vpn;
@@ -216,7 +216,7 @@ void _task_starts_writing_page(vp_t const vp, task_t *task)
 void _task_ends_writing_page(vp_t const vp, task_t *task)
 {
 	UINT8 	vp_idx 			= task2id(task);
-	BUG_ON("not start writing page yet or finished already", 
+	BUG_ON("not start writing page yet or finished already",
 		tasks_writing_vps[vp_idx].vpn == 0);
 	tasks_writing_vps[vp_idx].bank	= NUM_BANKS;
 	tasks_writing_vps[vp_idx].vpn  	= 0;

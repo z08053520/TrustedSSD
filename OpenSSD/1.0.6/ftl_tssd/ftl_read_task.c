@@ -35,17 +35,16 @@ typedef struct {
 
 typedef struct {
 	sectors_mask_t	task_target_sectors;
-	UINT8		num_segments;
 	vp_t		vp[SUB_PAGES_PER_PAGE];
 	UINT8		offset[SUB_PAGES_PER_PAGE];
 	UINT8		num_sectors[SUB_PAGES_PER_PAGE];
+	UINT8		num_segments;
 	UINT8		has_holes;
 	UINT8		cmd_issued;
 	UINT8		cmd_done;
 } segments_t;
 
-segments_t	_segments;
-segments_t	*segments;
+segments_t* const segments = (segments_t*) task_swap_buf;
 
 #define task_buf_id(task)	(((task)->seq_id) % NUM_SATA_RD_BUFFERS)
 
@@ -136,18 +135,16 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;
 
+	debug("mapping > seq_id = %u", task->seq_id);
+
 #if OPTION_ACL
 	task_res_t auth_res = do_authenticate(task);
-	if (auth_res == TASK_BLOCKED) return TASK_BLOCKED;
+	if (auth_res == TASK_BLOCKED) task_swap_and_return(task, TASK_BLOCKED);
 #endif
-
-	task_swap_in(task, segments, sizeof(*segments));
-	debug("mapping > seq_id = %u", task->seq_id);
 	task_res_t res = pmt_load(task->lpn * SUB_PAGES_PER_PAGE);
-	if (res != TASK_CONTINUED) {
-		task_swap_out(task, segments, sizeof(*segments));
-		return res;
-	}
+	if (res != TASK_CONTINUED) task_swap_and_return(task, res);
+
+	task_swap_in(task);
 
 	UINT8	num_segments = 0;
 	/* Iterate each sub-page */
@@ -212,7 +209,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 #endif
 	debug("flash > seq_id = %u", task->seq_id);
 
-	task_swap_in(task, segments, sizeof(*segments));
+	task_swap_in(task);
 
 	UINT32 	sata_buf = SATA_RD_BUF_PTR(task_buf_id(task));
 	UINT8 	seg_i, num_segments = segments->num_segments;
@@ -289,10 +286,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 		context->idle_banks &= ~this_bank;
 	}
 
-	if (task->waiting_banks) {
-		task_swap_out(task, segments, sizeof(*segments));
-		return TASK_PAUSED;
-	}
+	if (task->waiting_banks) task_swap_and_return(task, TASK_PAUSED);
 
 	task->state = STATE_FINISH;
 	return TASK_CONTINUED;
@@ -353,6 +347,8 @@ void ftl_read_task_register()
 
 	BUG_ON("ftl read task structure is too large to fit into "
 	       "general task structure", sizeof(ftl_read_task_t) > sizeof(task_t));
+	BUG_ON("swap buffer required by ftl read task is too large",
+		sizeof(segments_t) > TASK_SWAP_BUF_BYTES);
 
 	g_num_ftl_read_tasks_submitted = 0;
 	g_num_ftl_read_tasks_finished  = 0;
