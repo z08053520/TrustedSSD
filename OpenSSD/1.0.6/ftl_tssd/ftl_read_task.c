@@ -78,15 +78,19 @@ UINT32	g_next_finishing_task_seq_id;
 
 static task_res_t do_authenticate(ftl_read_task_t *task)
 {
+	debug("\t> do_authenticate: task->uid = %u", task->uid);
 	if (task->uid == NULL_UID) return TASK_CONTINUED;
+	debug("\t\there1");
 
 	task_res_t res = sot_load(task->lpn);
 	if (res != TASK_CONTINUED) return res;
+	debug("\t\there2");
 
 	BOOL8 ok = sot_authenticate(task->lpn, task->offset,
 				    task->num_sectors, task->uid);
 	if (ok) task->flags |= FLAG_AUTHENTICATED;
 	task->uid = NULL_UID;
+	debug("\t\there3: ok = %u", ok);
 	return TASK_CONTINUED;
 }
 
@@ -355,8 +359,6 @@ void ftl_read_task_register()
 	g_num_ftl_read_tasks_submitted = 0;
 	g_num_ftl_read_tasks_finished  = 0;
 	g_next_finishing_task_seq_id   = 0;
-
-	segments = &_segments;
 
 	BOOL8 res = task_engine_register_task_type(
 			&ftl_read_task_type, handlers);

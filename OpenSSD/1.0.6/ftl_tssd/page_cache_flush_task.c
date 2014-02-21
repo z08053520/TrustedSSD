@@ -71,15 +71,11 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
-	task_swap_in(task, merge_buf, sizeof(*merge_buf));
+	task_swap_in(task);
 
 	/* uart_printf("flush task: mapping..."); */
 
-	if (context->idle_banks == 0) {
-		/* uart_print("no idle banks"); */
-		task_swap_out(task, merge_buf, sizeof(*merge_buf));
-		return TASK_PAUSED;
-	}
+	if (context->idle_banks == 0) task_swap_and_return(task, TASK_PAUSED);
 
 	/* uart_print("to flash"); */
 	UINT8	bank	= auto_idle_bank(context->idle_banks);

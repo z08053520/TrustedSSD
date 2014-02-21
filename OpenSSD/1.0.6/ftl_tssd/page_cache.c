@@ -10,7 +10,7 @@
  * Macros, Data Structure and Gloal Variables
  * ========================================================================= */
 
-#define DEBUG_PAGE_CACHE
+/* #define DEBUG_PAGE_CACHE */
 #ifdef DEBUG_PAGE_CACHE
 	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
 #else
@@ -113,11 +113,17 @@ BOOL8	page_cache_has (page_key_t const key)
 BOOL8 	page_cache_get (page_key_t const key,
 			UINT32 *addr, BOOL8 const will_modify)
 {
+	debug("\t> page_cache_get(type = %s, idx = %u)",
+		key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
+		key.idx);
+
 	UINT32	page_idx = find_page(key);
 	if (page_idx >= NUM_PC_SUB_PAGES) {
+		debug("\t\t NOT found");
 		*addr = NULL;
 		return TRUE;
 	}
+	debug("\t\t found");
 
 	*addr = PC_SUB_PAGE(page_idx);
 
@@ -137,6 +143,10 @@ void	page_cache_put (page_key_t const key,
 			UINT32 *buf, UINT8 const flag)
 {
 	BUG_ON("page cache is full", page_cache_is_full());
+
+	debug("\t> page_cache_put(type = %s, idx = %u)",
+		key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
+		key.idx);
 
 	UINT32	old_page_idx = find_page(key);
 	BUG_ON("page is already in cache", old_page_idx < NUM_PC_SUB_PAGES);
@@ -186,6 +196,8 @@ BOOL8	page_cache_evict()
 {
 	BUG_ON("no pages to evict", num_free_sub_pages == NUM_PC_SUB_PAGES);
 
+	debug("\t> page_cache_evict");
+
 	while (to_be_merged_pages < SUB_PAGES_PER_PAGE) {
 		// The LRU (Least Recently Used) page is victim
 		UINT32 lru_page_idx = mem_search_min_max(
@@ -203,19 +215,24 @@ BOOL8	page_cache_evict()
 		#define NEED_BLOCK	2
 		if (is_reserved(flags[lru_page_idx])) return NEED_BLOCK;
 
+		debug("\t\t evicted! now there are %u pages to be merged",
+			to_be_merged_pages+1);
+
 		timestamps[lru_page_idx]  = NULL_TIMESTAMP;
 		if (!is_dirty(flags[lru_page_idx])) {
 			cached_keys[lru_page_idx] = NULL_KEY;
 			flags[lru_page_idx] = 0;
 			num_free_sub_pages++;
-			/* uart_printf(" not dirty\r\n"); */
+			debug(" not dirty\r\n");
 			return FALSE;
 		}
+		debug(" not dirty\r\n");
 
 		to_be_merged_page_indexes[to_be_merged_pages++] = lru_page_idx;
 		/* uart_printf(" moved to merge buffer (%u/%u)\r\n", */
 		/* 	    to_be_merged_pages, SUB_PAGES_PER_PAGE); */
 	}
+	debug("\t\t need flush!");
 	return TRUE; /* need to flush merge buffer */
 }
 
@@ -224,6 +241,7 @@ void	page_cache_flush(UINT32 const merge_buf,
 {
 	BUG_ON("merge buffer is not full",
 		to_be_merged_pages != SUB_PAGES_PER_PAGE);
+	debug("\t> page_cache_flush");
 
 	UINT8	sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
@@ -243,9 +261,11 @@ void	page_cache_flush(UINT32 const merge_buf,
 
 task_res_t	page_cache_load(page_key_t const key)
 {
-	/* uart_printf("page_cache_load(%u)\r\n", key); */
+	debug("\t> page_cache_load(type = %s, idx = %u)",
+		key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
+		key.idx);
 	if (page_cache_has(key)) {
-	/* uart_print("here2"); */
+		debug("\t\tthe page is in cache");
 		UINT8 flag;
 		page_cache_get_flag(key, &flag);
 		return is_reserved(flag) ?
@@ -255,12 +275,13 @@ task_res_t	page_cache_load(page_key_t const key)
 				TASK_CONTINUED;
 	}
 
-	/* uart_print("here3"); */
+	debug("\t\tthe page is NOT in page");
 	/* Flush page cache */
 	if (page_cache_is_full()) {
-	/* uart_print("here4"); */
+		debug("\t\tpage cache is full, need to evict");
 		BOOL8 need_flush = page_cache_evict();
 		if (need_flush == TRUE) {
+			debug("\t\tneed to flush");
 			/* uart_print("try flush task"); */
 			/* One load task plus one flush task */
 			if (!task_can_allocate(1)) return TASK_BLOCKED;
@@ -274,9 +295,11 @@ task_res_t	page_cache_load(page_key_t const key)
 			page_cache_flush_task_init(pc_flush_task);
 			task_res_t res = task_engine_insert_and_process(
 						pc_flush_task);
+			debug("\t\tinsert pc flush task: res = %u", res);
 			if (res == TASK_BLOCKED) return TASK_BLOCKED;
 		}
 		else if (need_flush == NEED_BLOCK) {
+			debug("\t\tneed to block");
 			return TASK_BLOCKED;
 		}
 	}
@@ -295,5 +318,6 @@ task_res_t	page_cache_load(page_key_t const key)
 	task_t	*pc_load_task = task_allocate();
 	page_cache_load_task_init(pc_load_task, key);
 	task_res_t res = task_engine_insert_and_process(pc_load_task);
+	debug("\t\tinsert pc load task: res = %u", res);
 	return res == TASK_FINISHED ? TASK_CONTINUED : res;
 }

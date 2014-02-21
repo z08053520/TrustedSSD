@@ -43,7 +43,7 @@ typedef struct {
 	UINT8		private_data[TASK_PRIVATE_FIELD_SIZE];
 } task_t;
 
-#define TASK_SWAP_BUF_BYTES	80
+#define TASK_SWAP_BUF_BYTES	88
 UINT8	task_swap_buf[TASK_SWAP_BUF_BYTES];
 
 typedef struct {

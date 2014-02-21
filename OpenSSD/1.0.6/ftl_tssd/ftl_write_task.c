@@ -376,7 +376,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 
 #if OPTION_ACL
 	task_res_t auth_res = do_authorize(task);
-	if (auth_res != TASK_CONTINUED) task_swap_and_return(auth_res);
+	if (auth_res != TASK_CONTINUED) task_swap_and_return(task, auth_res);
 #endif
 
 	task_swap_in(task);
@@ -447,14 +447,13 @@ void ftl_write_task_register()
 
 	BUG_ON("ftl write task structure is too large to fit into "
 	       "general task structure", sizeof(ftl_write_task_t) > sizeof(task_t));
+	uart_print("wr_buf_t size == %u", sizeof(wr_buf_t));
 	BUG_ON("swap buffer required by ftl write task is too large",
 		sizeof(wr_buf_t) > TASK_SWAP_BUF_BYTES);
 
 	g_num_ftl_write_tasks_submitted = 0;
 	g_num_ftl_write_tasks_finished  = 0;
 	g_next_finishing_task_seq_id 	= 0;
-
-	wr_buf = &_wr_buf;
 
 	BOOL8 res = task_engine_register_task_type(
 			&ftl_write_task_type, handlers);

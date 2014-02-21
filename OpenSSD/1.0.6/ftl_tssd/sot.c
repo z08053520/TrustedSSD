@@ -41,6 +41,9 @@ void sot_init()
 
 task_res_t sot_load(UINT32 const lpn)
 {
+	// DEBUG
+	/* uart_print("\t> sot_load: lpn = %u", lpn); */
+
 	UINT32	lba	   = lpn * SECTORS_PER_PAGE;
 	UINT32	sot_index  = sot_get_index(lba);
 	page_key_t key	   = {.type = PAGE_TYPE_SOT, .idx = sot_index};
@@ -51,6 +54,9 @@ task_res_t sot_load(UINT32 const lpn)
 BOOL8	sot_authenticate(UINT32 const lpn, UINT8 const sect_offset,
 			 UINT8 const num_sectors, user_id_t const expected_uid)
 {
+	// DEBUG
+	/* uart_print("\t> sot_authenticate: lpn = %u", lpn); */
+
 	UINT32	lba	= lpn * SECTORS_PER_PAGE + sect_offset;
 	UINT32	index	= sot_get_index(lba);
 	UINT32	offset	= sot_get_offset(lba);
@@ -71,13 +77,16 @@ BOOL8	sot_authenticate(UINT32 const lpn, UINT8 const sect_offset,
 void	sot_authorize  (UINT32 const lpn, UINT8 const sect_offset,
 			UINT8 const num_sectors, user_id_t const new_uid)
 {
+	// DEBUG
+	/* uart_print("\t> sot_authorize: lpn = %u", lpn); */
+
 	UINT32	lba	= lpn * SECTORS_PER_PAGE + sect_offset;
 	UINT32	index	= sot_get_index(lba);
 	UINT32	offset	= sot_get_offset(lba);
 
 	UINT32	sot_buf;
 	page_key_t sot_key = {.type = PAGE_TYPE_SOT, .idx = index};
-	page_cache_get(sot_key, &sot_buf, FALSE);
+	page_cache_get(sot_key, &sot_buf, TRUE);
 
 	UINT8	i;
 	for (i = 0; i < num_sectors; i++) {
