@@ -71,17 +71,19 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
-	task_swap_in(task);
-
 	/* uart_printf("flush task: mapping..."); */
 
-	if (context->idle_banks == 0) task_swap_and_return(task, TASK_PAUSED);
+	// FIXME: need a permanent solution
+	/* if (context->idle_banks == 0) task_swap_and_return(task, TASK_PAUSED); */
+	BUG_ON("No idle banks!", context->idle_banks == 0);
 
 	/* uart_print("to flash"); */
 	UINT8	bank	= auto_idle_bank(context->idle_banks);
 	UINT32	vpn	= gc_allocate_new_vpn(bank, TRUE);
 	task->vp.bank 	= bank;
 	task->vp.vpn	= vpn;
+
+	task_starts_writing_page(task->vp, task);
 
 	vsp_t	vsp	= {.bank = bank, .vspn = vpn * SUB_PAGES_PER_PAGE};
 	UINT8	sp_i;
@@ -115,12 +117,9 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
-	/* uart_printf("flush task: finish..."); */
-	if (!banks_has(context->completed_banks, task->vp.bank)) {
-		/* uart_print("not completed"); */
+	if (!banks_has(context->completed_banks, task->vp.bank))
 		return TASK_PAUSED;
-	}
-	/* uart_print("completed!!!"); */
+	task_ends_writing_page(task->vp, task);
 	return TASK_FINISHED;
 }
 

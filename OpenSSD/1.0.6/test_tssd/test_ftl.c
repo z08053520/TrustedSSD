@@ -239,7 +239,7 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 
 	// write to flash
 #if OPTION_ACL
-	if (req_buf_size % 200 == 0) {
+	if (req_buf_size % 500 == 0) {
 		uart_print("%u) write lba = %u, req_sectors = %u, skey = %u",
 			req_buf_size, lba, req_sectors, session_key);
 	}
@@ -378,15 +378,16 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 		req_size = random(params->min_req_size, params->max_req_size);
 		/* req_size = 1; */
 
-		debug("write lba = %u, req_size = %u", lba, req_size);
-
 		do_flash_write(lba, req_size, VAL_PER_REQ);
 		request_push(lba, req_size);
 
 		if (time_to_verify()) {
 			finish_all();
 			while (request_pop(&lba, &req_size)) {
-				debug("read lba = %u, req_size = %u", lba, req_size);
+				/* if (req_buf_size % 500 == 0) { */
+					uart_print("%u, %u] read lba = %u, req_size = %u",
+						req_buf_size, num_reqs, lba, req_size);
+				/* } */
 				do_flash_verify(lba, req_size, VAL_PER_REQ);
 			}
 		}
@@ -399,7 +400,10 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 	/* check remaining requests that are not verified yet */
 	finish_all();
 	while (request_pop(&lba, &req_size)) {
-		debug("read lba = %u, req_size = %u", lba, req_size);
+		/* if (req_buf_size % 500 == 0) { */
+			uart_print("%u, %u] read lba = %u, req_size = %u",
+				req_buf_size, num_reqs, lba, req_size);
+		/* } */
 		do_flash_verify(lba, req_size, VAL_PER_REQ);
 	}
 }
@@ -421,15 +425,12 @@ static void rnd_rw_test_runner(rw_test_params_t *params)
 		if (lba + req_size - 1> params->max_lba)
 			req_size = params->max_lba  - lba + 1;
 
-		debug("write lba = %u, req_size = %u", lba, req_size);
-
 		do_flash_write(lba, req_size, VAL_PER_LBA);
 		request_push(lba, req_size);
 
 		if (time_to_verify()) {
 			finish_all();
 			while (request_pop(&lba, &req_size)) {
-				debug("in loop: read lba = %u, req_size = %u", lba, req_size);
 				do_flash_verify(lba, req_size, VAL_PER_LBA);
 			}
 		}
@@ -441,7 +442,6 @@ static void rnd_rw_test_runner(rw_test_params_t *params)
 	/* check remaining requests that are not verified yet */
 	finish_all();
 	while (request_pop(&lba, &req_size)) {
-		debug("out of loop: read lba = %u, req_size = %u", lba, req_size);
 		do_flash_verify(lba, req_size, VAL_PER_LBA);
 	}
 }
@@ -473,10 +473,10 @@ static void sparse_rw_test_runner(rw_test_params_t *params)
 		if (time_to_verify()) {
 			finish_all();
 			while (request_pop(&lba, &req_size)) {
-				if (req_buf_size % 200 == 0) {
+				/* if (req_buf_size % 500 == 0) { */
 					uart_print("%u, %u] read lba = %u, req_size = %u",
 						req_buf_size, num_reqs, lba, req_size);
-				}
+				/* } */
 				do_flash_verify(lba, req_size, VAL_PER_REQ);
 			}
 			BUG_ON("request queue is not empty!",
@@ -491,10 +491,10 @@ static void sparse_rw_test_runner(rw_test_params_t *params)
 	/* check remaining requests that are not verified yet */
 	finish_all();
 	while (request_pop(&lba, &req_size)) {
-		if (req_buf_size % 200 == 0) {
+		/* if (req_buf_size % 10 == 0) { */
 			uart_print("%u, %u] read lba = %u, req_size = %u",
 				req_buf_size, num_reqs, lba, req_size);
-		}
+		/* } */
 		do_flash_verify(lba, req_size, VAL_PER_REQ);
 	}
 }
@@ -525,8 +525,8 @@ void ftl_test()
 			.min_req_size = 1,
 			.max_req_size = 256,
 			/* .max_req_size = 1, */
-			.max_num_reqs = MAX_UINT32,
-			/* .max_num_reqs = 1, */
+			/* .max_num_reqs = MAX_UINT32, */
+			.max_num_reqs = 9,
 			.max_wr_bytes = 256 * MB
 		}
 	};
@@ -554,11 +554,11 @@ void ftl_test()
 			.min_lba = 0,
 			.max_lba = MAX_LBA,
 			.min_req_size = 1,
-			.max_req_size = 1,
+			.max_req_size = 256,
 			/* .max_req_size = 1, */
-			.max_num_reqs = MAX_UINT32,
-			/* .max_num_reqs = 4096, */
-			.max_wr_bytes = 16 * MB
+			/* .max_num_reqs = MAX_UINT32, */
+			.max_num_reqs = 64,
+			.max_wr_bytes = 512 * MB
 		}
 	};
 

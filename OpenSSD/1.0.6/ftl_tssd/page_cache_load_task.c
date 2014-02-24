@@ -19,7 +19,7 @@ typedef enum {
 
 typedef struct {
 	TASK_PUBLIC_FIELDS
-	page_key_t	key;	
+	page_key_t	key;
 	UINT32		buf;
 	vsp_t		vsp;
 } page_cache_load_task_t;
@@ -42,7 +42,7 @@ static task_handler_t handlers[NUM_STATES] = {
  *  Task Handlers
  * =========================================================================*/
 
-static task_res_t preparation_state_handler(task_t* _task, 
+static task_res_t preparation_state_handler(task_t* _task,
 				     	    task_context_t* context)
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
@@ -50,17 +50,17 @@ static task_res_t preparation_state_handler(task_t* _task,
 	/* uart_print("preparation"); */
 
 	page_cache_put(task->key, &(task->buf), PC_FLAG_RESERVED);
-	task->state = STATE_MAPPING;	
+	task->state = STATE_MAPPING;
 	return TASK_CONTINUED;
 }
 
-static task_res_t mapping_state_handler	(task_t* _task, 
+static task_res_t mapping_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
 	/* uart_printf("mapping.."); */
-	task->vsp = gtd_get_vsp(task->key);	
+	task->vsp = gtd_get_vsp(task->key);
 
 	/* need to load from flash */
 	if (task->vsp.vspn != 0) {
@@ -76,15 +76,18 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	return TASK_FINISHED;
 }
 
-static task_res_t flash_state_handler	(task_t* _task, 
+static task_res_t flash_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
 	UINT8	bank = task->vsp.bank;
-	if (!banks_has(context->idle_banks, bank)) return TASK_PAUSED;	
+	if (!banks_has(context->idle_banks, bank)) return TASK_PAUSED;
 
-	fu_read_sub_page(task->vsp, FTL_RD_BUF(bank), FU_ASYNC);	
+	vp_t	vp = {.bank = bank, .vpn = task->vsp.vspn / SUB_PAGES_PER_PAGE};
+	if (is_any_task_writing_page(vp)) return TASK_PAUSED;
+
+	fu_read_sub_page(task->vsp, FTL_RD_BUF(bank), FU_ASYNC);
 	banks_del(context->idle_banks, bank);
 
 	task->state = STATE_FINISH;
@@ -92,17 +95,16 @@ static task_res_t flash_state_handler	(task_t* _task,
 	return TASK_PAUSED;
 }
 
-static task_res_t finish_state_handler	(task_t* _task, 
+static task_res_t finish_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
 	/* uart_print("finish1"); */
-	UINT8	bank = task->vsp.bank; 
-	if (!banks_has(context->completed_banks, bank)) 
+	UINT8	bank = task->vsp.bank;
+	if (!banks_has(context->completed_banks, bank))
 		return TASK_PAUSED;
 
-	/* uart_print("finish2"); */
 	UINT8	sp_offset = task->vsp.vspn % SUB_PAGES_PER_PAGE;
 	mem_copy(task->buf,
 		 FTL_RD_BUF(bank) + sp_offset * BYTES_PER_SUB_PAGE,
