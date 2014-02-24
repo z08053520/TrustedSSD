@@ -30,6 +30,12 @@ static UINT8 num_task_types;
 static task_context_t context;
 static vp_t tasks_writing_vps[MAX_NUM_TASKS];
 
+/* DEBUG */
+#define debug(format, ...)	\
+	do {			\
+		if (show_debug_msg) uart_print(format, ##__VA_ARGS__);\
+	} while(0)
+
 /* ===========================================================================
  *  Private Functions
  * =========================================================================*/
@@ -154,10 +160,21 @@ task_res_t	task_engine_insert_and_process(task_t *task)
 	return res;
 }
 
+//DEBUG
+UINT32 counter = 0;
+
 BOOL8 	task_engine_run()
 {
 	/* Wait for all flash commands are accepted */
 	while ((GETREG(WR_STAT) & 0x00000001) != 0);
+
+	debug("# free tasks = %u | ---------------------------------------",
+			slab_task_num_free);
+	/* counter++; */
+	/* if (counter % 3000000) { */
+	/* 	UINT32 us = timer_ellapsed_us(); */
+	/* 	if (us > 20 * 1000 * 1000) show_debug_msg = TRUE; */
+	/* } */
 
 	/* Gather events */
 	banks_mask_t used_banks = ~context.idle_banks;
@@ -168,14 +185,16 @@ BOOL8 	task_engine_run()
 	/* Iterate each task */
 	pre_task = head, current_task = get_next_task(head);
 	while (current_task) {
-		if ((current_task->waiting_banks & context.idle_banks) == 0)
-			goto next_task;
+		// FIXME: uncommenting this two lines will cause a bug that
+		// makes task engine go dead loop
+		/* if ((current_task->waiting_banks & context.idle_banks) == 0) */
+		/* 	goto next_task; */
 
 		task_res_t res = process_task(current_task);
 
 		if (res == TASK_BLOCKED) {
 			/* Start all over again */
-			break;
+			return FALSE;
 		}
 		else if (res == TASK_FINISHED) {
 			/* Remove task that is done */
@@ -189,8 +208,8 @@ next_task:
 		}
 		current_task = get_next_task(pre_task);
 	}
-	/* BUG_ON("warning: completion signal not received", */
-	/* 	context.completed_banks); */
+	BUG_ON("warning: completion signal not received",
+		context.completed_banks);
 	pre_task = current_task = NULL;
 	return is_engine_idle();
 }

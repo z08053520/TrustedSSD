@@ -14,9 +14,13 @@
  *  Macros, types and global variables
  * =========================================================================*/
 
-/* #define DEBUG_READ_TASK */
+#define DEBUG_READ_TASK
 #ifdef DEBUG_READ_TASK
-	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
+	/* #define debug(format, ...)	uart_print(format, ##__VA_ARGS__) */
+	#define debug(format, ...)	\
+		do {			\
+			if (show_debug_msg) uart_print(format, ##__VA_ARGS__);\
+		} while(0)
 #else
 	#define debug(format, ...)
 #endif
@@ -80,7 +84,6 @@ static task_res_t do_authenticate(ftl_read_task_t *task)
 {
 	debug("\t> do_authenticate: task->uid = %u", task->uid);
 	if (task->uid == NULL_UID) return TASK_CONTINUED;
-	debug("\t\there1");
 
 	task_res_t res = sot_load(task->lpn);
 	if (res != TASK_CONTINUED) return res;
@@ -191,7 +194,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 			mask_set(segments->has_holes, num_segments-1);
 	}
 
-	task->waiting_banks 	 = 0;
+	task->waiting_banks 	 = ALL_BANKS;
 	segments->num_segments   = num_segments;
 	segments->cmd_issued 	 = 0;
 	segments->cmd_done	 = 0;
@@ -210,13 +213,15 @@ static task_res_t flash_state_handler	(task_t* _task,
 {
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;
 
+	debug("flash > seq_id = %u", task->seq_id);
 #if OPTION_ACL
 	task_res_t auth_res = do_authenticate(task);
 	if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED);
 #endif
-	debug("flash > seq_id = %u", task->seq_id);
 
 	ftl_task_swap_in(task);
+
+	if (task->waiting_banks == ALL_BANKS) task->waiting_banks = 0;
 
 	UINT32 	sata_buf = SATA_RD_BUF_PTR(task_buf_id(task));
 	UINT8 	seg_i, num_segments = segments->num_segments;

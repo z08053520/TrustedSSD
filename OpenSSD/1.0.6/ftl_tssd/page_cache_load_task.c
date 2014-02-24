@@ -9,6 +9,17 @@
  *  Macros, types and global variables
  * =========================================================================*/
 
+#define DEBUG_PC_LOAD_TASK
+#ifdef DEBUG_PC_LOAD_TASK
+	/* #define debug(format, ...)	uart_print(format, ##__VA_ARGS__) */
+	#define debug(format, ...)	\
+		do {			\
+			if (show_debug_msg) uart_print(format, ##__VA_ARGS__);\
+		} while(0)
+#else
+	#define debug(format, ...)
+#endif
+
 typedef enum {
 	STATE_PREPARATION,
 	STATE_MAPPING,
@@ -47,7 +58,9 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
-	/* uart_print("preparation"); */
+	debug("pc load task> preparation, type = %s, idx = %u",
+		task->key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
+		task->key.idx);
 
 	page_cache_put(task->key, &(task->buf), PC_FLAG_RESERVED);
 	task->state = STATE_MAPPING;
@@ -59,12 +72,13 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
-	/* uart_printf("mapping.."); */
+	debug("pc load task> mapping, type = %s, idx = %u",
+		task->key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
+		task->key.idx);
 	task->vsp = gtd_get_vsp(task->key);
 
 	/* need to load from flash */
 	if (task->vsp.vspn != 0) {
-		/* uart_print("to flash"); */
 		task->state = STATE_FLASH;
 		return TASK_CONTINUED;
 	}
@@ -80,6 +94,10 @@ static task_res_t flash_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
+
+	debug("pc load task> flash, type = %s, idx = %u",
+		task->key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
+		task->key.idx);
 
 	UINT8	bank = task->vsp.bank;
 	if (!banks_has(context->idle_banks, bank)) return TASK_PAUSED;
@@ -99,6 +117,10 @@ static task_res_t finish_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
+
+	debug("pc load finish> flash, type = %s, idx = %u",
+		task->key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
+		task->key.idx);
 
 	/* uart_print("finish1"); */
 	UINT8	bank = task->vsp.bank;

@@ -10,9 +10,13 @@
  * Macros, Data Structure and Gloal Variables
  * ========================================================================= */
 
-/* #define DEBUG_PAGE_CACHE */
+#define DEBUG_PAGE_CACHE
 #ifdef DEBUG_PAGE_CACHE
-	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
+	/* #define debug(format, ...)	uart_print(format, ##__VA_ARGS__) */
+	#define debug(format, ...)	\
+		do {			\
+			if (show_debug_msg) uart_print(format, ##__VA_ARGS__);\
+		} while(0)
 #else
 	#define debug(format, ...)
 #endif
@@ -192,6 +196,40 @@ BOOL8	page_cache_is_full(void)
 	return num_free_sub_pages == 0;
 }
 
+static void dump_state()
+{
+	if (show_debug_msg) {
+		uart_print("free sub pages == %u, current timestamp == %u",
+				num_free_sub_pages, current_timestamp);
+
+		UINT8 i, size = NUM_PC_SUB_PAGES;
+
+		uart_printf("cached_keys = [\r\n\t");
+		for (i = 0; i < size; i++) {
+			if (i) uart_printf(", ");
+			uart_printf("<%s:%u>",
+				cached_keys[i].type == PAGE_TYPE_PMT ?
+					"PMT" : "SOT",
+				cached_keys[i].idx);
+		}
+		uart_print("]");
+
+		uart_printf("timestamps = [\r\n\t");
+		for (i = 0; i < size; i++) {
+			if (i) uart_printf(", ");
+			uart_printf("%u", timestamps[i]);
+		}
+		uart_print("]");
+
+		uart_printf("flags = [\r\n\t");
+		for (i = 0; i < size; i++) {
+			if (i) uart_printf(", ");
+			uart_printf("%u", flags[i]);
+		}
+		uart_print("]");
+	}
+}
+
 BOOL8	page_cache_evict()
 {
 	BUG_ON("no pages to evict", num_free_sub_pages == NUM_PC_SUB_PAGES);
@@ -213,7 +251,10 @@ BOOL8	page_cache_evict()
 		/* TODO: handle this situation more gracefully*/
 		/* BUG_ON("evicting reserved page", is_reserved(flags[lru_page_idx])); */
 		#define NEED_BLOCK	2
-		if (is_reserved(flags[lru_page_idx])) return NEED_BLOCK;
+		if (is_reserved(flags[lru_page_idx])) {
+			dump_state();
+			return NEED_BLOCK;
+		}
 
 		debug("\t\t evicted! now there are %u pages to be merged",
 			to_be_merged_pages+1);

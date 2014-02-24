@@ -216,6 +216,7 @@ typedef unsigned long long	UINT64;
 	#define _end_sector(mask)		((sizeof(sectors_mask_t) * 8) - __builtin_clz(mask))
 #endif
 // DEBUG
+BOOL8 show_debug_msg;
 
 UINT8 begin_sector(sectors_mask_t const mask);
 UINT8 end_sector(sectors_mask_t const mask);

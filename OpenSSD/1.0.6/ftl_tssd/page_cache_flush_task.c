@@ -10,6 +10,17 @@
  *  Macros, types and global variables
  * =========================================================================*/
 
+#define DEBUG_PC_FLUSH_TASK
+#ifdef DEBUG_PC_FLUSH_TASK
+	/* #define debug(format, ...)	uart_print(format, ##__VA_ARGS__) */
+	#define debug(format, ...)	\
+		do {			\
+			if (show_debug_msg) uart_print(format, ##__VA_ARGS__);\
+		} while(0)
+#else
+	#define debug(format, ...)
+#endif
+
 typedef enum {
 	STATE_PREPARATION,
 	STATE_MAPPING,
@@ -55,6 +66,9 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
+	debug("pc flush task> flash, task_ptr = %u",
+		(UINT32)task);
+
 	merge_buf->buf = PC_FLUSH_BUF(flush_buf_id);
 	flush_buf_id = (flush_buf_id + 1) % PC_FLUSH_BUFFERS;
 
@@ -68,6 +82,9 @@ static task_res_t mapping_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
+
+	debug("pc flush task> mapping, task_ptr = %u",
+		(UINT32)task);
 
 	/* if can't flush right now, block task engine, for the
 	 * upcoming tasks may immediately use the not-yet-flushed data */
@@ -102,6 +119,9 @@ static task_res_t flash_state_handler	(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
+	debug("pc flush task> flash, task_ptr = %u",
+		(UINT32)task);
+
 	/* uart_print("flush task: flash... paused"); */
 
 	fu_write_page(task->vp, merge_buf->buf);
@@ -117,6 +137,9 @@ static task_res_t finish_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
+
+	debug("pc flush task> finish, task_ptr = %u",
+		(UINT32)task);
 
 	UINT8 bank = task->vp.bank;
 	if (!banks_has(context->completed_banks, bank))
