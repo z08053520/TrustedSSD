@@ -28,7 +28,7 @@ typedef struct {
 	UINT32		buf;
 } merge_buf_t;
 merge_buf_t	_merge_buf;
-merge_buf_t	*merge_buf = &_merge_buf;
+merge_buf_t* const merge_buf = &_merge_buf;
 
 static UINT8	  page_cache_flush_task_type;
 
@@ -55,8 +55,6 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
-	/* uart_print("flush task: preparation"); */
-
 	merge_buf->buf = PC_FLUSH_BUF(flush_buf_id);
 	flush_buf_id = (flush_buf_id + 1) % PC_FLUSH_BUFFERS;
 
@@ -71,18 +69,21 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
-	/* uart_printf("flush task: mapping..."); */
+	/* if can't flush right now, block task engine, for the
+	 * upcoming tasks may immediately use the not-yet-flushed data */
+	if (context->idle_banks == 0) {
+		task_swap_out(task, merge_buf, sizeof(*merge_buf));
+		return TASK_BLOCKED;
+	}
 
-	// FIXME: need a permanent solution
-	/* if (context->idle_banks == 0) task_swap_and_return(task, TASK_PAUSED); */
-	BUG_ON("No idle banks!", context->idle_banks == 0);
+	task_swap_in(task, merge_buf, sizeof(*merge_buf));
 
-	/* uart_print("to flash"); */
 	UINT8	bank	= auto_idle_bank(context->idle_banks);
 	UINT32	vpn	= gc_allocate_new_vpn(bank, TRUE);
 	task->vp.bank 	= bank;
 	task->vp.vpn	= vpn;
 
+	/* prevent the incomplete virtual page from being read by other tasks */
 	task_starts_writing_page(task->vp, task);
 
 	vsp_t	vsp	= {.bank = bank, .vspn = vpn * SUB_PAGES_PER_PAGE};

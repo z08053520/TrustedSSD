@@ -48,7 +48,7 @@ typedef struct {
 	vp_t		old_vp[SUB_PAGES_PER_PAGE];
 } wr_buf_t;
 
-wr_buf_t* const wr_buf = (wr_buf_t*) task_swap_buf;
+wr_buf_t* const wr_buf = (wr_buf_t*) ftl_task_swap_buf;
 
 #define task_buf_id(task)	(((task)->seq_id) % NUM_SATA_WR_BUFFERS)
 
@@ -185,9 +185,9 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	debug("write_task_handler>mapping", "task_id = %u", task->seq_id);
 #if OPTION_ACL
 	task_res_t auth_res = do_authorize(task);
-	if (auth_res == TASK_BLOCKED) task_swap_and_return(task, TASK_BLOCKED);
+	if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED);
 #endif
-	task_swap_in(task);
+	ftl_task_swap_in(task);
 
 	task_res_t res = TASK_CONTINUED;
 	UINT8 sp_i;
@@ -211,7 +211,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 		/* 	    lspn, wr_buf->vp.bank, wr_buf->vp.vpn); */
 	}
 
-	if (res != TASK_CONTINUED) task_swap_and_return(task, res);
+	if (res != TASK_CONTINUED) ftl_task_swap_and_return(task, res);
 
 	task->waiting_banks 	= 0;
 	task->state 		= STATE_FLASH_READ;
@@ -230,7 +230,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 	do_authorize(task);
 #endif
 
-	task_swap_in(task);
+	ftl_task_swap_in(task);
 
 	BUG_ON("no valid sectors in write buffer", wr_buf->valid_sectors == 0);
 	UINT8	begin_sp = begin_subpage(wr_buf->valid_sectors),
@@ -315,7 +315,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 	}
 
 	/* if some sub-pages are not filled, pause this task */
-	if (task->waiting_banks) task_swap_and_return(task, TASK_PAUSED);
+	if (task->waiting_banks) ftl_task_swap_and_return(task, TASK_PAUSED);
 
 	task->state = STATE_FLASH_WRITE;
 	wr_buf->cmd_issued = FALSE;
@@ -333,7 +333,7 @@ static task_res_t flash_write_state_handler(task_t* _task,
 	do_authorize(task);
 #endif
 
-	task_swap_in(task);
+	ftl_task_swap_in(task);
 	UINT8	bank = wr_buf->vp.bank;
 
 	if (wr_buf->cmd_issued) {
@@ -341,12 +341,12 @@ static task_res_t flash_write_state_handler(task_t* _task,
 			task->state = STATE_FINISH;
 			return TASK_CONTINUED;
 		}
-		task_swap_and_return(task, TASK_PAUSED);
+		ftl_task_swap_and_return(task, TASK_PAUSED);
 	}
 	if (!banks_has(context->idle_banks, bank))
-		task_swap_and_return(task, TASK_PAUSED);
+		ftl_task_swap_and_return(task, TASK_PAUSED);
 	if (is_there_any_earlier_writing(wr_buf->vp))
-		task_swap_and_return(task, TASK_PAUSED);
+		ftl_task_swap_and_return(task, TASK_PAUSED);
 
 	/* offset and num_sectors must align with sub-page */
 	UINT32	vpn 		= wr_buf->vp.vpn,
@@ -366,7 +366,7 @@ static task_res_t flash_write_state_handler(task_t* _task,
 
 	banks_del(context->idle_banks, bank);
 	wr_buf->cmd_issued = TRUE;
-	task_swap_and_return(task, TASK_PAUSED);
+	ftl_task_swap_and_return(task, TASK_PAUSED);
 }
 
 static task_res_t finish_state_handler	(task_t* _task,
@@ -376,10 +376,10 @@ static task_res_t finish_state_handler	(task_t* _task,
 
 #if OPTION_ACL
 	task_res_t auth_res = do_authorize(task);
-	if (auth_res != TASK_CONTINUED) task_swap_and_return(task, auth_res);
+	if (auth_res != TASK_CONTINUED) ftl_task_swap_and_return(task, auth_res);
 #endif
 
-	task_swap_in(task);
+	ftl_task_swap_in(task);
 	debug("write_task_handler>finish", "task_id = %u", task->seq_id);
 
 	// DEBUG
@@ -449,7 +449,7 @@ void ftl_write_task_register()
 	       "general task structure", sizeof(ftl_write_task_t) > sizeof(task_t));
 	uart_print("wr_buf_t size == %u", sizeof(wr_buf_t));
 	BUG_ON("swap buffer required by ftl write task is too large",
-		sizeof(wr_buf_t) > TASK_SWAP_BUF_BYTES);
+		sizeof(wr_buf_t) > FTL_TASK_SWAP_BUF_BYTES);
 
 	g_num_ftl_write_tasks_submitted = 0;
 	g_num_ftl_write_tasks_finished  = 0;

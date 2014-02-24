@@ -78,23 +78,23 @@ void	task_deallocate(task_t *task)
 	return slab_deallocate_task(task);
 }
 
-void	_task_swap_out(task_t *task)
+void	_task_swap_out(task_t *task, void* buf, UINT32 const buf_size)
 {
 	if (task->swapped_out) return;
 
 	task_id_t task_id  = task2id(task);
 	UINT32	  swap_buf = TASK_SWAP_BUF(task_id);
-	mem_copy(swap_buf, task_swap_buf, TASK_SWAP_BUF_BYTES);
+	mem_copy(swap_buf, buf, buf_size);
 	task->swapped_out = TRUE;
 }
 
-void	_task_swap_in (task_t *task)
+void	_task_swap_in (task_t *task, void* buf, UINT32 const buf_size)
 {
 	if (!task->swapped_out) return;
 
 	task_id_t task_id  = task2id(task);
 	UINT32	  swap_buf = TASK_SWAP_BUF(task_id);
-	mem_copy(task_swap_buf, swap_buf, TASK_SWAP_BUF_BYTES);
+	mem_copy(buf, swap_buf, buf_size);
 	task->swapped_out = FALSE;
 }
 

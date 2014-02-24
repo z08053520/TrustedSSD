@@ -53,4 +53,16 @@
 	}
 
 UINT8	auto_idle_bank(banks_mask_t const idle_banks);
+
+#define FTL_TASK_SWAP_BUF_BYTES	88
+UINT8	ftl_task_swap_buf[FTL_TASK_SWAP_BUF_BYTES];
+#define ftl_task_swap_in(task)						\
+		task_swap_in(task, ftl_task_swap_buf, FTL_TASK_SWAP_BUF_BYTES)
+#define ftl_task_swap_out(task)						\
+		task_swap_out(task, ftl_task_swap_buf, FTL_TASK_SWAP_BUF_BYTES)
+#define ftl_task_swap_and_return(task, res)	do {	\
+		ftl_task_swap_out(task);		\
+		return res;				\
+	} while(0)
+
 #endif

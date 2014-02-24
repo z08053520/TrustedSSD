@@ -43,9 +43,6 @@ typedef struct {
 	UINT8		private_data[TASK_PRIVATE_FIELD_SIZE];
 } task_t;
 
-#define TASK_SWAP_BUF_BYTES	88
-UINT8	task_swap_buf[TASK_SWAP_BUF_BYTES];
-
 typedef struct {
 	banks_mask_t	idle_banks;
 	banks_mask_t	completed_banks;
@@ -57,14 +54,12 @@ BOOL8	task_can_allocate(UINT8 const num_tasks);
 task_t* task_allocate();
 void	task_deallocate(task_t *task);
 
-#define task_swap_out(task)			_task_swap_out((task_t*)task);
-#define task_swap_in(task)			_task_swap_in ((task_t*)task);
-#define task_swap_and_return(task, res)	do {		\
-	task_swap_out(task);				\
-	return res;					\
-} while(0)
-void	_task_swap_out(task_t *task);
-void	_task_swap_in (task_t *task);
+#define task_swap_out(task, buf, buf_size)	\
+		_task_swap_out((task_t*)(task), (void*)(buf), (buf_size));
+#define task_swap_in(task, buf, buf_size)			\
+		_task_swap_in((task_t*)(task), (void*)(buf), (buf_size));
+void	_task_swap_out(task_t *task, void* buf, UINT32 const buf_size);
+void	_task_swap_in (task_t *task, void* buf, UINT32 const buf_size);
 
 void 	task_engine_init();
 BOOL8 	task_engine_register_task_type(UINT8 *type,
