@@ -162,7 +162,8 @@ BOOL8 	task_engine_run()
 	/* Gather events */
 	banks_mask_t used_banks = ~context.idle_banks;
 	context.idle_banks	= probe_idle_banks();
-	context.completed_banks = used_banks & context.idle_banks;
+	banks_mask_t newly_completed_tasks = used_banks & context.idle_banks;
+	context.completed_banks |= newly_completed_tasks;
 
 	/* Iterate each task */
 	pre_task = head, current_task = get_next_task(head);
@@ -174,7 +175,7 @@ BOOL8 	task_engine_run()
 
 		if (res == TASK_BLOCKED) {
 			/* Start all over again */
-			return FALSE;
+			break;
 		}
 		else if (res == TASK_FINISHED) {
 			/* Remove task that is done */
@@ -188,6 +189,8 @@ next_task:
 		}
 		current_task = get_next_task(pre_task);
 	}
+	/* BUG_ON("warning: completion signal not received", */
+	/* 	context.completed_banks); */
 	pre_task = current_task = NULL;
 	return is_engine_idle();
 }

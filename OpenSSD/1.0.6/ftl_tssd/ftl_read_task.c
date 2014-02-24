@@ -232,6 +232,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 		/* if the flash read cmd for the segment has been sent */
 		if (is_cmd_issued(seg_i, segments)) {
 			if ((context->completed_banks & this_bank) == 0) continue;
+			context->completed_banks &= ~this_bank;
 
 			/* uart_printf("segment %u is done\r\n", seg_i); */
 

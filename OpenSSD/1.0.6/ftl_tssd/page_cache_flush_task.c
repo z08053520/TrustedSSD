@@ -118,8 +118,10 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	page_cache_flush_task_t *task = (page_cache_flush_task_t*)_task;
 
-	if (!banks_has(context->completed_banks, task->vp.bank))
+	UINT8 bank = task->vp.bank;
+	if (!banks_has(context->completed_banks, bank))
 		return TASK_PAUSED;
+	banks_del(context->completed_banks, bank);
 	task_ends_writing_page(task->vp, task);
 	return TASK_FINISHED;
 }

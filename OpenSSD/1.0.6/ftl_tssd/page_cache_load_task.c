@@ -104,6 +104,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 	UINT8	bank = task->vsp.bank;
 	if (!banks_has(context->completed_banks, bank))
 		return TASK_PAUSED;
+	banks_del(context->completed_banks, bank);
 
 	UINT8	sp_offset = task->vsp.vspn % SUB_PAGES_PER_PAGE;
 	mem_copy(task->buf,

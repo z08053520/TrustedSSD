@@ -300,6 +300,8 @@ static task_res_t flash_read_state_handler(task_t* _task,
 		}
 		/* if flash cmd is done */
 		else if (banks_has(context->completed_banks, bank)) {
+			banks_del(context->completed_banks, bank);
+
 			UINT32 	sp_target_buf = wr_buf->buf + sp_i * BYTES_PER_SUB_PAGE,
 				sp_src_buf    = FTL_RD_BUF(bank)+ sp_i * BYTES_PER_SUB_PAGE;
 			void (*segment_handler) (UINT8 const, UINT8 const) =
@@ -340,6 +342,7 @@ static task_res_t flash_write_state_handler(task_t* _task,
 
 	if (wr_buf->cmd_issued) {
 		if (banks_has(context->completed_banks, bank)) {
+			banks_del(context->completed_banks, bank);
 			task->state = STATE_FINISH;
 			return TASK_CONTINUED;
 		}
