@@ -211,7 +211,8 @@ static task_res_t flash_state_handler	(task_t* _task,
 	ftl_read_task_t *task = (ftl_read_task_t*) _task;
 
 #if OPTION_ACL
-	do_authenticate(task);
+	task_res_t auth_res = do_authenticate(task);
+	if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED);
 #endif
 	debug("flash > seq_id = %u", task->seq_id);
 

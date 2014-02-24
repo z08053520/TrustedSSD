@@ -227,7 +227,8 @@ static task_res_t flash_read_state_handler(task_t* _task,
 
 	debug("write_task_handler>read", "task_id = %u", task->seq_id);
 #if OPTION_ACL
-	do_authorize(task);
+	task_res_t auth_res = do_authorize(task);
+	if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED);
 #endif
 
 	ftl_task_swap_in(task);
@@ -330,7 +331,8 @@ static task_res_t flash_write_state_handler(task_t* _task,
 
 	debug("write_task_handler>write", "task_id = %u", task->seq_id);
 #if OPTION_ACL
-	do_authorize(task);
+	task_res_t auth_res = do_authorize(task);
+	if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED);
 #endif
 
 	ftl_task_swap_in(task);

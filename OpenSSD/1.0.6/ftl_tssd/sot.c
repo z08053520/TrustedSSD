@@ -47,8 +47,7 @@ task_res_t sot_load(UINT32 const lpn)
 	UINT32	lba	   = lpn * SECTORS_PER_PAGE;
 	UINT32	sot_index  = sot_get_index(lba);
 	page_key_t key	   = {.type = PAGE_TYPE_SOT, .idx = sot_index};
-	return page_cache_load(key) == TASK_CONTINUED ? TASK_CONTINUED
-						      : TASK_PAUSED;
+	return page_cache_load(key);
 }
 
 BOOL8	sot_authenticate(UINT32 const lpn, UINT8 const sect_offset,
