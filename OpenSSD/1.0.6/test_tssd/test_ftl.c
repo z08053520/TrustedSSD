@@ -473,11 +473,10 @@ static void sparse_rw_test_runner(rw_test_params_t *params)
 		if (time_to_verify()) {
 			finish_all();
 			while (request_pop(&lba, &req_size)) {
-				/* if (req_buf_size % 200 == 0 || req_buf_size < */
-				/* 		6840) { */
-				/* 	uart_print("%u, %u] read lba = %u, req_size = %u", */
-				/* 		req_buf_size, num_reqs, lba, req_size); */
-				/* } */
+				if (req_buf_size % 200 == 0) {
+					uart_print("%u, %u] read lba = %u, req_size = %u",
+						req_buf_size, num_reqs, lba, req_size);
+				}
 				do_flash_verify(lba, req_size, VAL_PER_REQ);
 			}
 			BUG_ON("request queue is not empty!",
@@ -492,10 +491,10 @@ static void sparse_rw_test_runner(rw_test_params_t *params)
 	/* check remaining requests that are not verified yet */
 	finish_all();
 	while (request_pop(&lba, &req_size)) {
-		/* if (req_buf_size % 200 == 0) { */
-		/* 	uart_print("%u, %u] read lba = %u, req_size = %u", */
-		/* 		req_buf_size, num_reqs, lba, req_size); */
-		/* } */
+		if (req_buf_size % 200 == 0) {
+			uart_print("%u, %u] read lba = %u, req_size = %u",
+				req_buf_size, num_reqs, lba, req_size);
+		}
 		do_flash_verify(lba, req_size, VAL_PER_REQ);
 	}
 }

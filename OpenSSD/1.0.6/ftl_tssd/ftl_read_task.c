@@ -295,6 +295,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 	if (task->waiting_banks) task_swap_and_return(task, TASK_PAUSED);
 
 	task->state = STATE_FINISH;
+	task->waiting_banks = ALL_BANKS;
 	return TASK_CONTINUED;
 }
 
