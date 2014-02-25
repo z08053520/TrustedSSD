@@ -1,0 +1,88 @@
+--------------------- FTL Seq R/W -----------------------
+FTL **sequential** read/write test (unit = 4096 bytes) begins...
+Write sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 8666988us (~8666ms), throughput 30MB/s
+> Total of 0 flash reads and 8185 flash writes
+> Total of 0 page cache flush
+> Total of 64 PMT cache miss count
+> Total of 512 SOT cache miss count
+Read sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 9913492us (~9913ms), throughput 27MB/s
+> Total of 65480 flash reads and 0 flash writes
+> Total of 0 page cache flush
+> Total of 0 PMT cache miss count
+> Total of 0 SOT cache miss count
+Done
+FTL **sequential** read/write test (unit = 16384 bytes) begins...
+Write sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 5970442us (~5970ms), throughput 44MB/s
+> Total of 0 flash reads and 8192 flash writes
+> Total of 0 page cache flush
+> Total of 0 PMT cache miss count
+> Total of 0 SOT cache miss count
+Read sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 2346271us (~2346ms), throughput 114MB/s
+> Total of 16370 flash reads and 0 flash writes
+> Total of 0 page cache flush
+> Total of 0 PMT cache miss count
+> Total of 0 SOT cache miss count
+Done
+FTL **sequential** read/write test (unit = 32768 bytes) begins...
+Write sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 2560073us (~2560ms), throughput 104MB/s
+> Total of 0 flash reads and 8192 flash writes
+> Total of 0 page cache flush
+> Total of 0 PMT cache miss count
+> Total of 0 SOT cache miss count
+Read sequentially 256MB of data
+> Transferred 268435456 bytes (~256MB) in 1453724us (~1453ms), throughput 184MB/s
+> Total of 8192 flash reads and 0 flash writes
+> Total of 0 page cache flush
+> Total of 0 PMT cache miss count
+> Total of 0 SOT cache miss count
+Done
+--------------------- FTL Rnd R/W -----------------------
+FTL **random** read/write test (unit = 4096 bytes) begins...
+Write randomly 128MB of data
+> Transferred 134217728 bytes (~128MB) in 9485557us (~9485ms), throughput 14MB/s
+> Total of 14192 flash reads and 6816 flash writes
+> Total of 1862 page cache flush
+> Total of 197 PMT cache miss count
+> Total of 15147 SOT cache miss count
+Read randomly 128MB of data
+> Transferred 134217728 bytes (~128MB) in 6841152us (~6841ms), throughput 19MB/s
+> Total of 29393 flash reads and 109 flash writes
+> Total of 109 page cache flush
+> Total of 43 PMT cache miss count
+> Total of 15032 SOT cache miss count
+Done
+FTL **random** read/write test (unit = 16384 bytes) begins...
+Write randomly 128MB of data
+> Transferred 134217728 bytes (~128MB) in 4242167us (~4242ms), throughput 31MB/s
+> Total of 3809 flash reads and 5328 flash writes
+> Total of 407 page cache flush
+> Total of 16 PMT cache miss count
+> Total of 3793 SOT cache miss count
+Read randomly 128MB of data
+> Transferred 134217728 bytes (~128MB) in 2442160us (~2442ms), throughput 54MB/s
+> Total of 12088 flash reads and 106 flash writes
+> Total of 106 page cache flush
+> Total of 21 PMT cache miss count
+> Total of 3771 SOT cache miss count
+Done
+FTL **random** read/write test (unit = 32768 bytes) begins...
+Write randomly 128MB of data
+> Transferred 134217728 bytes (~128MB) in 1955005us (~1955ms), throughput 68MB/s
+> Total of 1885 flash reads and 4264 flash writes
+> Total of 168 page cache flush
+> Total of 15 PMT cache miss count
+> Total of 1870 SOT cache miss count
+Read randomly 128MB of data
+> Transferred 134217728 bytes (~128MB) in 1736900us (~1736ms), throughput 77MB/s
+> Total of 9044 flash reads and 102 flash writes
+> Total of 102 page cache flush
+> Total of 7 PMT cache miss count
+> Total of 1876 SOT cache miss count
+Done
+--------------------------------------------------------
+Performance test is done ^_^

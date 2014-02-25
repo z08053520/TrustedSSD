@@ -1,5 +1,5 @@
 /* ===========================================================================
- * Test the performance of FTL, raw flash operations, DRAM and SRAM 
+ * Test the performance of FTL, raw flash operations, DRAM and SRAM
  * =========================================================================*/
 
 #if OPTION_FTL_TEST
@@ -10,8 +10,11 @@
 #include "gc.h"
 #include "test_util.h"
 
-extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors, 
-			   UINT32 const cmd_type);
+extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
+#if OPTION_ACL
+				UINT32 const session_key,
+#endif
+				UINT32 const cmd_type);
 
 static void sram_perf_test()
 {
@@ -20,10 +23,10 @@ static void sram_perf_test()
 	UINT32 sram_begin = SRAM_BASE,
 	       sram_end   = SRAM_BASE + 4096;
 	UINT32 sram_addr  = sram_begin;
-	
+
 	UINT32 total_operations = 64 * 1024;
 	UINT32 num_operations   = 0;
-	UINT32 bank, rbank; 
+	UINT32 bank, rbank;
 
 	// testing SRAM access
 	UINT32 sum = 0;
@@ -47,7 +50,7 @@ static void sram_perf_test()
 	timer_reset();
 	while (num_operations < total_operations) {
 		bank = 0;
-		while (rbank = REAL_BANK(bank), 
+		while (rbank = REAL_BANK(bank),
 		       bank < NUM_BANKS && _BSP_FSM(rbank) == BANK_IDLE)
 			bank++;
 
@@ -79,7 +82,7 @@ static void dram_perf_test()
 		num_pages_copied++;
 	}
 	time_us = timer_ellapsed_us();
-	uart_printf("DRAM copy throughput = %uMB/s (latency = %uus)\r\n", 
+	uart_printf("DRAM copy throughput = %uMB/s (latency = %uus)\r\n",
 		    num_bytes_to_copy / time_us, time_us / num_pages_copied);
 
 	uart_print("Next, test latency");
@@ -91,14 +94,14 @@ static void dram_perf_test()
 	while (num_mem_operations < total_mem_operations) {
 		write_dram_32(addr, addr);
 		read_dram_32(addr);
-		
+
 		addr += sizeof(UINT32);
-		if (addr >= end_addr) addr = begin_addr;	
+		if (addr >= end_addr) addr = begin_addr;
 
 		num_mem_operations += 2;	// read + write
 	}
 	time_us = timer_ellapsed_us();
-	uart_printf("DRAM access latency = %uns\r\n", 
+	uart_printf("DRAM access latency = %uns\r\n",
 		    1000 * time_us / total_mem_operations);
 
 	uart_print("Done");
@@ -115,16 +118,16 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 
 	UINT32 total_sectors_thr	= total_mb_thr * 1024 * 1024 / BYTES_PER_SECTOR;
 	UINT32 num_sectors_so_far;
-	
+
 	uart_printf("Write %uMB data parallelly into all banks\r\n", total_mb_thr);
 	num_sectors_so_far = 0;
 	perf_monitor_reset();
 	while (num_sectors_so_far < total_sectors_thr) {
 		FOR_EACH_BANK(bank) {
-			vpn = gc_allocate_new_vpn(bank, FALSE);	
+			vpn = gc_allocate_new_vpn(bank, FALSE);
 
-			nand_page_program_from_host(bank, 
-						    vpn / PAGES_PER_VBLK, 
+			nand_page_program_from_host(bank,
+						    vpn / PAGES_PER_VBLK,
 						    vpn % PAGES_PER_VBLK);
 
 			num_sectors_so_far += SECTORS_PER_PAGE;
@@ -139,15 +142,15 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 	perf_monitor_reset();
 	while (num_sectors_so_far < total_sectors_thr) {
 		FOR_EACH_BANK(bank) {
-			while (vpns[bank] % PAGES_PER_VBLK == 0 && 
+			while (vpns[bank] % PAGES_PER_VBLK == 0 &&
 			       bb_is_bad(bank, vpns[bank] / PAGES_PER_VBLK)) {
 				vpns[bank] += PAGES_PER_VBLK;
 			}
 			vpn = vpns[bank];
 
-			nand_page_read_to_host(bank, 
-					       vpn / PAGES_PER_VBLK, 
-					       vpn % PAGES_PER_VBLK); 
+			nand_page_read_to_host(bank,
+					       vpn / PAGES_PER_VBLK,
+					       vpn % PAGES_PER_VBLK);
 
 			vpns[bank]++;
 			num_sectors_so_far += SECTORS_PER_PAGE;
@@ -166,17 +169,17 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 	for(i = 0; i < 2; i++) {
 		uart_printf("Synchronously write individual %s one by one to a bank\r\n",
 			   i == 0 ? "sector" : "page");
-		timer_reset();	
+		timer_reset();
 		bank = 0;
 		num_pages_so_far = 0;
 		while (num_pages_so_far < total_pages) {
-			vpn = gc_allocate_new_vpn(bank, FALSE);	
-		
+			vpn = gc_allocate_new_vpn(bank, FALSE);
+
 			// only write one sector
-			nand_page_ptprogram_from_host(bank, 
-						      vpn / PAGES_PER_VBLK, 
-						      vpn % PAGES_PER_VBLK, 
-						      0, 
+			nand_page_ptprogram_from_host(bank,
+						      vpn / PAGES_PER_VBLK,
+						      vpn % PAGES_PER_VBLK,
+						      0,
 						      sectors[i]);
 			// wait until the new command is accepted by the target bank
 			while ((GETREG(WR_STAT) & 0x00000001) != 0);
@@ -186,7 +189,7 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 			num_pages_so_far ++;
 		}
 		time_us = timer_ellapsed_us();
-		uart_printf("Flash write latency = %uus (total time = %ums)\r\n", 
+		uart_printf("Flash write latency = %uus (total time = %ums)\r\n",
 			    time_us / total_pages, time_us / 1000);
 
 		uart_printf("Synchronously read individual %s one by one from a bank\r\n",
@@ -196,16 +199,16 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 		vpn = 0;
 		num_pages_so_far = 0;
 		while (num_pages_so_far < total_pages) {
-			while (vpn % PAGES_PER_VBLK == 0 && 
+			while (vpn % PAGES_PER_VBLK == 0 &&
 			       bb_is_bad(bank, vpn / PAGES_PER_VBLK)) {
 				vpn += PAGES_PER_VBLK;
 			}
 
 			// only read one sector
-			nand_page_ptread_to_host(bank, 
-						 vpn / PAGES_PER_VBLK, 
-						 vpn % PAGES_PER_VBLK, 
-						 0, 
+			nand_page_ptread_to_host(bank,
+						 vpn / PAGES_PER_VBLK,
+						 vpn % PAGES_PER_VBLK,
+						 0,
 						 sectors[i]);
 			// wait until the new command is accepted by the target bank
 			while ((GETREG(WR_STAT) & 0x00000001) != 0);
@@ -216,7 +219,7 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 			vpn ++;
 		}
 		time_us = timer_ellapsed_us();
-		uart_printf("Flash read latency = %uus (total time = %ums)\r\n", 
+		uart_printf("Flash read latency = %uus (total time = %ums)\r\n",
 			    time_us / total_pages, time_us / 1000);
 	}
 
@@ -227,10 +230,12 @@ static void flash_perf_test(UINT32 const total_mb_thr)
 #ifdef  FTL_REQ_UNALIGNED
 	#define LBA_BEGIN	3
 #else
-	#define LBA_BEGIN	0 
+	#define LBA_BEGIN	0
 #endif
 
 static UINT32 g_seq_total_mb = 0;
+
+static UINT32 const ONE_SESSION_KEY = 1234;
 
 static void ftl_finish_all()
 {
@@ -242,29 +247,37 @@ static void ftl_finish_all()
 
 static void ftl_read(UINT32 const lba, UINT32 const req_sectors)
 {
+#if OPTION_ACL
+	while(eventq_put(lba, req_sectors, ONE_SESSION_KEY, READ))
+#else
 	while(eventq_put(lba, req_sectors, READ))
+#endif
 		ftl_main();
 }
 
 static void ftl_write(UINT32 const lba, UINT32 const req_sectors)
 {
+#if OPTION_ACL
+	while(eventq_put(lba, req_sectors, ONE_SESSION_KEY, WRITE))
+#else
 	while(eventq_put(lba, req_sectors, WRITE))
+#endif
 		ftl_main();
 }
 
 static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 {
-	uart_printf("FTL **sequential** read/write test (unit = %u bytes) begins...\r\n", 
+	uart_printf("FTL **sequential** read/write test (unit = %u bytes) begins...\r\n",
 		    num_sectors * BYTES_PER_SECTOR);
 
 	UINT32 total_sectors 	= total_mb * 1024 * 1024 / BYTES_PER_SECTOR;
 
-	UINT32 lba, 
+	UINT32 lba,
 	       begin_lba = LBA_BEGIN + g_seq_total_mb * 1024 / 1024 / BYTES_PER_SECTOR,
 	       end_lba = total_sectors;
-	
+
 	begin_lba = begin_lba / num_sectors * num_sectors;
-	
+
 	g_seq_total_mb += total_mb;
 
 	// write
@@ -274,7 +287,7 @@ static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 	while (lba < end_lba) {
 		ftl_write(lba, num_sectors);
 		ftl_main();
-	
+
 		lba += num_sectors;
 	}
 	ftl_finish_all();
@@ -298,12 +311,12 @@ static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 
 static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 {
-	uart_printf("FTL **random** read/write test (unit = %u bytes) begins...\r\n", 
+	uart_printf("FTL **random** read/write test (unit = %u bytes) begins...\r\n",
 		    num_sectors * BYTES_PER_SECTOR);
 
-	UINT32 lba, end_lba = g_seq_total_mb * 1024 * 1024 / BYTES_PER_SECTOR; 
+	UINT32 lba, end_lba = g_seq_total_mb * 1024 * 1024 / BYTES_PER_SECTOR;
 	UINT32 num_sectors_so_far, total_num_sectors = total_mb * 1024 * 1024 / BYTES_PER_SECTOR;
-		
+
 	// write
 	uart_printf("Write randomly %uMB of data\r\n", total_mb);
 	perf_monitor_reset();
@@ -314,7 +327,7 @@ static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 
 		ftl_write(lba, num_sectors);
 		ftl_main();
-	
+
 		num_sectors_so_far += num_sectors;
 	}
 	ftl_finish_all();
@@ -356,7 +369,7 @@ void ftl_test()
 		ftl_perf_test_seq(64, total_mb_seq);	// req stride -- 32KB
 	uart_print("--------------------- FTL Rnd R/W -----------------------");
 		UINT32 total_mb_rnd = 128;
-		ftl_perf_test_rnd(8,  total_mb_rnd);	// req stride -- 4KB 
+		ftl_perf_test_rnd(8,  total_mb_rnd);	// req stride -- 4KB
 		ftl_perf_test_rnd(32, total_mb_rnd);	// req stride -- 16KB
 		ftl_perf_test_rnd(64, total_mb_rnd);	// req stride -- 32KB
 	uart_print("--------------------------------------------------------");
