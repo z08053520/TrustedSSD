@@ -77,6 +77,8 @@ UINT32	g_next_finishing_task_seq_id;
 #if OPTION_ACL
 
 #define FLAG_AUTHENTICATED	1
+// DEBUG
+#define FLAG_JUMP_TO_FINISH	2
 /* when uid equals NULL_ID, acl work has been done */
 #define NULL_UID		0xFFFFFFFF
 
@@ -130,6 +132,8 @@ static task_res_t preparation_state_handler(task_t* _task,
 	}
 	if (target_sectors == 0) {
 		task->state = STATE_FINISH;
+		// DEBUG
+		task->flags |= FLAG_JUMP_TO_FINISH;
 		return TASK_CONTINUED;
 	}
 next_state_mapping:
@@ -216,7 +220,8 @@ static task_res_t flash_state_handler	(task_t* _task,
 	debug("flash > seq_id = %u", task->seq_id);
 #if OPTION_ACL
 	task_res_t auth_res = do_authenticate(task);
-	if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED);
+	BUG_ON("unexpected block", auth_res == TASK_BLOCKED);
+	/* if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED); */
 #endif
 
 	ftl_task_swap_in(task);
@@ -320,6 +325,9 @@ static task_res_t finish_state_handler	(task_t* _task,
 
 #if OPTION_ACL
 	task_res_t auth_res = do_authenticate(task);
+	BUG_ON("unexpected block", auth_res == TASK_BLOCKED &&
+					(task->flags & FLAG_JUMP_TO_FINISH) == 0);
+	if (auth_res == TASK_PAUSED) task->flags &= ~FLAG_JUMP_TO_FINISH;
 	if (auth_res != TASK_CONTINUED) return auth_res;
 
 	BOOL8 access_denial = (task->flags & FLAG_AUTHENTICATED) == 0;
@@ -371,6 +379,8 @@ void ftl_read_task_register()
 	BOOL8 res = task_engine_register_task_type(
 			&ftl_read_task_type, handlers);
 	BUG_ON("failed to register FTL read task", res);
+
+	uart_printf("ftl_read_task_type == %u", ftl_read_task_type);
 }
 
 void ftl_read_task_init(task_t *task,

@@ -165,36 +165,47 @@ UINT32 counter = 0;
 
 BOOL8 	task_engine_run()
 {
+restart:
 	/* Wait for all flash commands are accepted */
 	while ((GETREG(WR_STAT) & 0x00000001) != 0);
 
 	debug("# free tasks = %u | ---------------------------------------",
 			slab_task_num_free);
-	/* counter++; */
-	/* if (counter % 3000000) { */
-	/* 	UINT32 us = timer_ellapsed_us(); */
-	/* 	if (us > 20 * 1000 * 1000) show_debug_msg = TRUE; */
-	/* } */
+	counter++;
+	if (counter % 3000000) {
+		UINT32 us = timer_ellapsed_us();
+		if (us > 5 * 1000 * 1000) show_debug_msg = TRUE;
+	}
 
 	/* Gather events */
 	banks_mask_t used_banks = ~context.idle_banks;
 	context.idle_banks	= probe_idle_banks();
-	banks_mask_t newly_completed_tasks = used_banks & context.idle_banks;
-	context.completed_banks |= newly_completed_tasks;
+	/* banks_mask_t newly_completed_tasks = used_banks & context.idle_banks; */
+	/* context.completed_banks |= newly_completed_tasks; */
+	context.completed_banks = used_banks & context.idle_banks;
 
 	/* Iterate each task */
 	pre_task = head, current_task = get_next_task(head);
 	while (current_task) {
+		debug("task type == %u, state == %u",
+			current_task->type, current_task->state);
+
 		// FIXME: uncommenting this two lines will cause a bug that
 		// makes task engine go dead loop
-		/* if ((current_task->waiting_banks & context.idle_banks) == 0) */
-		/* 	goto next_task; */
+		banks_mask_t interesting_banks = context.idle_banks
+						| context.completed_banks;
+		if ((current_task->waiting_banks & interesting_banks) == 0)
+			goto next_task;
 
 		task_res_t res = process_task(current_task);
 
 		if (res == TASK_BLOCKED) {
-			/* Start all over again */
-			return FALSE;
+			if (context.completed_banks) {
+				uart_print("task: type == %u, state == %u",
+						current_task->type, current_task->state);
+			}
+			BUG_ON("complete signals are not received", context.completed_banks);
+			goto restart;
 		}
 		else if (res == TASK_FINISHED) {
 			/* Remove task that is done */
@@ -208,8 +219,7 @@ next_task:
 		}
 		current_task = get_next_task(pre_task);
 	}
-	BUG_ON("warning: completion signal not received",
-		context.completed_banks);
+	BUG_ON("complete signals are not received", context.completed_banks);
 	pre_task = current_task = NULL;
 	return is_engine_idle();
 }

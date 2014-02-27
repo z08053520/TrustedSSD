@@ -494,7 +494,7 @@ static void sparse_rw_test_runner(rw_test_params_t *params)
 	/* check remaining requests that are not verified yet */
 	finish_all();
 	while (request_pop(&lba, &req_size)) {
-		if (req_buf_size % 500 == 0) {
+		if (req_buf_size % 250 == 0) {
 			uart_print("%u, %u] read lba = %u, req_size = %u",
 				req_buf_size, num_reqs, lba, req_size);
 		}
@@ -559,16 +559,16 @@ void ftl_test()
 			.min_req_size = 1,
 			.max_req_size = 256,
 			/* .max_req_size = 1, */
-			.max_num_reqs = MAX_UINT32,
-			/* .max_num_reqs = 512, */
+			/* .max_num_reqs = MAX_UINT32, */
+			.max_num_reqs = 1024,
 			.max_wr_bytes = 512 * MB
 		}
 	};
 
 	/* Run all tests */
 	rw_test_t* rw_tests[]	= {
-		&seq_rw_test,
-		&rnd_rw_test,
+		/* &seq_rw_test, */
+		/* &rnd_rw_test, */
 		&sparse_rw_test
 	};
 

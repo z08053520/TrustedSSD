@@ -22,6 +22,9 @@
 	#define debug(format, ...)
 #endif
 
+// DEBUG
+#define FLAG_JUMP_TO_FINISH	2
+
 typedef enum {
 	STATE_PREPARATION,
 	STATE_MAPPING,
@@ -160,6 +163,8 @@ static task_res_t preparation_state_handler(task_t* _task,
 	}
 
 	if (wr_buf->buf == NULL) {
+		// DEBUG
+		task->flags |= FLAG_JUMP_TO_FINISH;
 		task->state = STATE_FINISH;
 		return TASK_CONTINUED;
 	}
@@ -228,7 +233,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 	debug("write_task_handler>read", "task_id = %u", task->seq_id);
 #if OPTION_ACL
 	task_res_t auth_res = do_authorize(task);
-	if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED);
+	BUG_ON("unexpected block", auth_res == TASK_BLOCKED);
 #endif
 
 	ftl_task_swap_in(task);
@@ -334,7 +339,7 @@ static task_res_t flash_write_state_handler(task_t* _task,
 	debug("write_task_handler>write", "task_id = %u", task->seq_id);
 #if OPTION_ACL
 	task_res_t auth_res = do_authorize(task);
-	if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED);
+	BUG_ON("unexpected block", auth_res == TASK_BLOCKED);
 #endif
 
 	ftl_task_swap_in(task);
@@ -381,6 +386,10 @@ static task_res_t finish_state_handler	(task_t* _task,
 
 #if OPTION_ACL
 	task_res_t auth_res = do_authorize(task);
+	// DEBUG
+	BUG_ON("unexpected block", auth_res == TASK_BLOCKED &&
+					(task->flags & FLAG_JUMP_TO_FINISH) == 0);
+	if (auth_res == TASK_PAUSED) task->flags &= ~FLAG_JUMP_TO_FINISH;
 	if (auth_res != TASK_CONTINUED) ftl_task_swap_and_return(task, auth_res);
 #endif
 
@@ -463,6 +472,9 @@ void ftl_write_task_register()
 	BOOL8 res = task_engine_register_task_type(
 			&ftl_write_task_type, handlers);
 	BUG_ON("failed to register FTL write task", res);
+
+	// DEBUG
+	uart_printf("ftl_write_task_type == %u", ftl_write_task_type);
 }
 
 void ftl_write_task_init(task_t *task,
