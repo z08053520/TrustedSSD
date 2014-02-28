@@ -255,7 +255,7 @@ typedef union {
 
 void delay(UINT32 const count);
 
-typedef UINT32		user_id_t;
+typedef UINT16		user_id_t;
 
 #include "flash.h"
 #include "sata.h"

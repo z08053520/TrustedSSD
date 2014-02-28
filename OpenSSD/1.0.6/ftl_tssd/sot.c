@@ -50,6 +50,8 @@ task_res_t sot_load(UINT32 const lpn)
 	return page_cache_load(key);
 }
 
+#define align_even(num)		(num / 2 * 2)
+
 BOOL8	sot_authenticate(UINT32 const lpn, UINT8 const sect_offset,
 			 UINT8 const num_sectors, user_id_t const expected_uid)
 {
@@ -64,12 +66,20 @@ BOOL8	sot_authenticate(UINT32 const lpn, UINT8 const sect_offset,
 	page_key_t sot_key = {.type = PAGE_TYPE_SOT, .idx = index};
 	page_cache_get(sot_key, &sot_buf, FALSE);
 
-	UINT8	i;
-	for (i = 0; i < num_sectors; i++) {
-		user_id_t	actual_uid = read_uid(sot_buf, offset);
-		if (actual_uid != expected_uid) return FALSE;
-		offset++;
-	}
+	/* user_id_t actual_uids[SECTORS_PER_PAGE] = {0}; */
+	/* assume user_id_t is 16-bits */
+	/* address must be 4B align */
+	/* UINT32	target_buf = (UINT32) & actual_uids[align_even(sect_offset)], */
+	/* 	src_buf = sot_buf + align_even(offset) * sizeof(user_id_t); */
+	/* size must be 4B align*/
+	/* UINT32	size = (num_sectors + (num_sectors % 2 == 1) + */
+	/* 		(offset % 2 == 1 && num_sectors % 2 == 0)) */
+	/* 		* sizeof(user_id_t); */
+	/* mem_copy(target_buf, src_buf, size); */
+
+	/* for (UINT8 sect_i = sect_offset, sect_end = sect_offset + num_sectors; */
+	/* 	sect_i < sect_end; sect_i++) */
+	/* 	if (actual_uids[sect_i] != expected_uid) return FALSE; */
 	return TRUE;
 }
 
@@ -87,11 +97,23 @@ void	sot_authorize  (UINT32 const lpn, UINT8 const sect_offset,
 	page_key_t sot_key = {.type = PAGE_TYPE_SOT, .idx = index};
 	page_cache_get(sot_key, &sot_buf, TRUE);
 
-	user_id_t uids[SECTORS_PER_PAGE] =
-		{[0 ... (SECTORS_PER_PAGE-1)] = new_uid};
-	mem_copy(sot_buf + offset * sizeof(user_id_t),
-			&uids[sect_offset],
-			num_sectors * sizeof(user_id_t));
+	/* user_id_t uids[SECTORS_PER_PAGE] = */
+	/* 	{[0 ... (SECTORS_PER_PAGE-1)] = new_uid}; */
+	/* if (sect_offset % 2 == 1) */
+	/* 	uids[sect_offset-1] = read_uid(sot_buf, offset-1); */
+	/* if ((sect_offset + num_sectors) % 2 == 1) */
+	/* 	uids[sect_offset + num_sectors] = */
+	/* 		read_uid(sot_buf, offset + num_sectors); */
+
+	/* assume user_id_t is 16-bits */
+	/* address must be 4B align */
+	/* UINT32	target_buf = sot_buf + align_even(offset) * sizeof(user_id_t), */
+	/* 	src_buf = (UINT32) & uids[align_even(sect_offset)]; */
+	/* size must be 4B align*/
+	/* UINT32	size = (num_sectors + (num_sectors % 2 == 1) + */
+	/* 		(offset % 2 == 1 && num_sectors % 2 == 0)) */
+	/* 		* sizeof(user_id_t); */
+	/* mem_copy(target_buf, src_buf, size); */
 }
 
 #endif
