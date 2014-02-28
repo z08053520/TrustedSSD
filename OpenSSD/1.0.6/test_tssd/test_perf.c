@@ -85,23 +85,37 @@ static void dram_perf_test()
 	uart_printf("DRAM copy throughput = %uMB/s (latency = %uus)\r\n",
 		    num_bytes_to_copy / time_us, time_us / num_pages_copied);
 
-	uart_print("Next, test latency");
 	UINT32 total_mem_operations = 1024 * 1024;
-	UINT32 begin_addr = HIL_BUF_ADDR, end_addr = HIL_BUF_ADDR + BYTES_PER_PAGE;
-	UINT32 addr = begin_addr;
-	UINT32 num_mem_operations  = 0;
+	uart_print("Test read latency");
 	timer_reset();
-	while (num_mem_operations < total_mem_operations) {
-		write_dram_32(addr, addr);
-		read_dram_32(addr);
-
-		addr += sizeof(UINT32);
+	for (UINT32 num_mem_operations = 0,
+		begin_addr = HIL_BUF_ADDR,
+		end_addr = (UINT32) (HIL_BUF_ADDR + BYTES_PER_BANK),
+		addr = begin_addr;
+		num_mem_operations < total_mem_operations;
+		num_mem_operations++, addr += sizeof(UINT32)) {
 		if (addr >= end_addr) addr = begin_addr;
 
-		num_mem_operations += 2;	// read + write
+		read_dram_32(addr);
 	}
 	time_us = timer_ellapsed_us();
-	uart_printf("DRAM access latency = %uns\r\n",
+	uart_print("DRAM read latency = %uns",
+		    1000 * time_us / total_mem_operations);
+
+	uart_print("Test write latency");
+	timer_reset();
+	for (UINT32 num_mem_operations = 0,
+		begin_addr = HIL_BUF_ADDR,
+		end_addr = (UINT32)(HIL_BUF_ADDR + BYTES_PER_BANK),
+		addr = begin_addr;
+		num_mem_operations < total_mem_operations;
+		num_mem_operations++, addr += sizeof(UINT32)) {
+		if (addr >= end_addr) addr = begin_addr;
+
+		write_dram_32(addr, addr);
+	}
+	time_us = timer_ellapsed_us();
+	uart_print("DRAM write latency = %uns",
 		    1000 * time_us / total_mem_operations);
 
 	uart_print("Done");
@@ -358,7 +372,7 @@ void ftl_test()
 	uart_print("------------------------ SRAM ---------------------------");
 //		sram_perf_test();
 	uart_print("------------------------ DRAM ---------------------------");
-//		dram_perf_test();
+		/* dram_perf_test(); */
 	uart_print("---------------------- Raw Flash ------------------------");
 		//UINT32 total_mb_thr = 512;
 		//flash_perf_test(total_mb_thr);

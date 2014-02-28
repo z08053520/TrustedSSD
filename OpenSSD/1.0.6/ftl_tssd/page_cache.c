@@ -10,7 +10,7 @@
  * Macros, Data Structure and Gloal Variables
  * ========================================================================= */
 
-#define DEBUG_PAGE_CACHE
+/* #define DEBUG_PAGE_CACHE */
 #ifdef DEBUG_PAGE_CACHE
 	/* #define debug(format, ...)	uart_print(format, ##__VA_ARGS__) */
 	#define debug(format, ...)	\

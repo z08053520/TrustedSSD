@@ -171,11 +171,11 @@ restart:
 
 	debug("# free tasks = %u | ---------------------------------------",
 			slab_task_num_free);
-	counter++;
-	if (counter % 3000000) {
-		UINT32 us = timer_ellapsed_us();
-		if (us > 5 * 1000 * 1000) show_debug_msg = TRUE;
-	}
+	/* counter++; */
+	/* if (counter % 3000000) { */
+	/* 	UINT32 us = timer_ellapsed_us(); */
+	/* 	if (us > 5 * 1000 * 1000) show_debug_msg = TRUE; */
+	/* } */
 
 	/* Gather events */
 	banks_mask_t used_banks = ~context.idle_banks;

@@ -294,6 +294,10 @@ static task_res_t flash_read_state_handler(task_t* _task,
 			/* skip if the page is being written */
 			if (is_any_task_writing_page(vp)) continue;
 
+			// DEBUG
+			/* skip if read buf is occupied */
+			/* if (is_read_buf_occupied(bank)) continue; */
+
 			banks_del(context->idle_banks, bank);
 
 			vsp_t vsp = {

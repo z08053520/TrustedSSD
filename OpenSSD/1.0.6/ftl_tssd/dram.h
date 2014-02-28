@@ -12,8 +12,8 @@
 
 #define PC_ADDR			DRAM_BASE
 #define PC_END			(PC_ADDR + PC_BYTES)
-/* #define NUM_PC_BUFFERS		128 */
-#define NUM_PC_BUFFERS		1
+#define NUM_PC_BUFFERS		128
+/* #define NUM_PC_BUFFERS		3 */
 #define NUM_PC_SUB_PAGES	(NUM_PC_BUFFERS * SUB_PAGES_PER_PAGE)
 #define PC_BYTES		(NUM_PC_BUFFERS * BYTES_PER_PAGE)
 #define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * (i))

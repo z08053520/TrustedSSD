@@ -14,7 +14,7 @@
  *  Macros, types and global variables
  * =========================================================================*/
 
-#define DEBUG_READ_TASK
+/* #define DEBUG_READ_TASK */
 #ifdef DEBUG_READ_TASK
 	/* #define debug(format, ...)	uart_print(format, ##__VA_ARGS__) */
 	#define debug(format, ...)	\
@@ -74,28 +74,25 @@ UINT32	g_next_finishing_task_seq_id;
  *   Help Functions
  * =========================================================================*/
 
+#define FLAG_JUMP_TO_FINISH	2
 #if OPTION_ACL
 
 #define FLAG_AUTHENTICATED	1
 // DEBUG
-#define FLAG_JUMP_TO_FINISH	2
 /* when uid equals NULL_ID, acl work has been done */
 #define NULL_UID		0xFFFFFFFF
 
 static task_res_t do_authenticate(ftl_read_task_t *task)
 {
-	debug("\t> do_authenticate: task->uid = %u", task->uid);
 	if (task->uid == NULL_UID) return TASK_CONTINUED;
 
 	task_res_t res = sot_load(task->lpn);
 	if (res != TASK_CONTINUED) return res;
-	debug("\t\there2");
 
 	BOOL8 ok = sot_authenticate(task->lpn, task->offset,
 				    task->num_sectors, task->uid);
 	if (ok) task->flags |= FLAG_AUTHENTICATED;
 	task->uid = NULL_UID;
-	debug("\t\there3: ok = %u", ok);
 	return TASK_CONTINUED;
 }
 
