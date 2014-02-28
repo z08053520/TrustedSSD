@@ -18,13 +18,13 @@ static inline user_id_t read_uid(UINT32 const buff, UINT32 const offset)
 		return read_dram_16(buff + sizeof(user_id_t) * offset);
 }
 
-static inline void write_uid(UINT32 const buff, UINT32 const offset, user_id_t const uid)
-{
-	if (sizeof(UINT32) == sizeof(user_id_t))
-		return write_dram_32(buff + sizeof(user_id_t) * offset, uid);
-	else
-		return write_dram_16(buff + sizeof(user_id_t) * offset, uid);
-}
+/* static inline void write_uid(UINT32 const buff, UINT32 const offset, user_id_t const uid) */
+/* { */
+/* 	if (sizeof(UINT32) == sizeof(user_id_t)) */
+/* 		return write_dram_32(buff + sizeof(user_id_t) * offset, uid); */
+/* 	else */
+/* 		return write_dram_16(buff + sizeof(user_id_t) * offset, uid); */
+/* } */
 
 /* ===========================================================================
  * Public Functions
@@ -87,11 +87,11 @@ void	sot_authorize  (UINT32 const lpn, UINT8 const sect_offset,
 	page_key_t sot_key = {.type = PAGE_TYPE_SOT, .idx = index};
 	page_cache_get(sot_key, &sot_buf, TRUE);
 
-	UINT8	i;
-	for (i = 0; i < num_sectors; i++) {
-		write_uid(sot_buf, offset, new_uid);
-		offset++;
-	}
+	user_id_t uids[SECTORS_PER_PAGE] =
+		{[0 ... (SECTORS_PER_PAGE-1)] = new_uid};
+	mem_copy(sot_buf + offset * sizeof(user_id_t),
+			&uids[sect_offset],
+			num_sectors * sizeof(user_id_t));
 }
 
 #endif
