@@ -55,13 +55,17 @@ static UINT32 		last_page_idx;
 
 static void handle_timestamp_overflow()
 {
-	mem_set_sram(timestamps, 0, sizeof(UINT32) * NUM_PC_SUB_PAGES);
-
-	/* Restore the timestamps for to-be-merged pages */
+	/* find minimum timestamp */
+	UINT32	min_timestamp_idx = mem_search_min_max(timestamps,
+					sizeof(UINT32),
+					NUM_PC_SUB_PAGES,
+					MU_CMD_SEARCH_MIN_SRAM),
+		min_timestamp = timestamps[min_timestamp_idx];
+	/* update timestamps */
 	UINT8 sp_i;
-	for (sp_i = 0; sp_i < to_be_merged_pages; sp_i++) {
-		UINT8 merge_page_idx = to_be_merged_page_indexes[sp_i];
-		timestamps[merge_page_idx] = NULL_TIMESTAMP;
+	for (sp_i = 0; sp_i < NUM_PC_SUB_PAGES; sp_i++) {
+		if (timestamps[sp_i] == NULL_TIMESTAMP) continue;
+		timestamps[sp_i] -= min_timestamp;
 	}
 }
 
