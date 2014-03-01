@@ -66,20 +66,27 @@ BOOL8	sot_authenticate(UINT32 const lpn, UINT8 const sect_offset,
 	page_key_t sot_key = {.type = PAGE_TYPE_SOT, .idx = index};
 	page_cache_get(sot_key, &sot_buf, FALSE);
 
-	/* user_id_t actual_uids[SECTORS_PER_PAGE] = {0}; */
-	/* assume user_id_t is 16-bits */
-	/* address must be 4B align */
-	/* UINT32	target_buf = (UINT32) & actual_uids[align_even(sect_offset)], */
-	/* 	src_buf = sot_buf + align_even(offset) * sizeof(user_id_t); */
-	/* size must be 4B align*/
-	/* UINT32	size = (num_sectors + (num_sectors % 2 == 1) + */
-	/* 		(offset % 2 == 1 && num_sectors % 2 == 0)) */
-	/* 		* sizeof(user_id_t); */
-	/* mem_copy(target_buf, src_buf, size); */
+	if (num_sectors >= SECTORS_PER_PAGE / 2) {
+		user_id_t actual_uids[SECTORS_PER_PAGE] = {0};
+		/* assume user_id_t is 16-bits */
+		/* address must be 4B align */
+		UINT32	target_buf = (UINT32) & actual_uids[align_even(sect_offset)],
+			src_buf = sot_buf + align_even(offset) * sizeof(user_id_t);
+		/* size must be 4B align*/
+		UINT32	size = (num_sectors + (num_sectors % 2 == 1) +
+				(offset % 2 == 1 && num_sectors % 2 == 0))
+				* sizeof(user_id_t);
+		mem_copy(target_buf, src_buf, size);
 
-	/* for (UINT8 sect_i = sect_offset, sect_end = sect_offset + num_sectors; */
-	/* 	sect_i < sect_end; sect_i++) */
-	/* 	if (actual_uids[sect_i] != expected_uid) return FALSE; */
+		for (UINT8 sect_i = sect_offset, sect_end = sect_offset + num_sectors;
+			sect_i < sect_end; sect_i++)
+			if (actual_uids[sect_i] != expected_uid) return FALSE;
+	}
+	else {
+		for (UINT8 sect_i = sect_offset, sect_end = sect_offset + num_sectors;
+			sect_i < sect_end; sect_i++, offset++)
+			if (read_uid(sot_buf, offset) != expected_uid) return FALSE;
+	}
 	return TRUE;
 }
 
@@ -97,23 +104,23 @@ void	sot_authorize  (UINT32 const lpn, UINT8 const sect_offset,
 	page_key_t sot_key = {.type = PAGE_TYPE_SOT, .idx = index};
 	page_cache_get(sot_key, &sot_buf, TRUE);
 
-	/* user_id_t uids[SECTORS_PER_PAGE] = */
-	/* 	{[0 ... (SECTORS_PER_PAGE-1)] = new_uid}; */
-	/* if (sect_offset % 2 == 1) */
-	/* 	uids[sect_offset-1] = read_uid(sot_buf, offset-1); */
-	/* if ((sect_offset + num_sectors) % 2 == 1) */
-	/* 	uids[sect_offset + num_sectors] = */
-	/* 		read_uid(sot_buf, offset + num_sectors); */
+	user_id_t uids[SECTORS_PER_PAGE] =
+		{[0 ... (SECTORS_PER_PAGE-1)] = new_uid};
+	if (sect_offset % 2 == 1)
+		uids[sect_offset-1] = read_uid(sot_buf, offset-1);
+	if ((sect_offset + num_sectors) % 2 == 1)
+		uids[sect_offset + num_sectors] =
+			read_uid(sot_buf, offset + num_sectors);
 
 	/* assume user_id_t is 16-bits */
 	/* address must be 4B align */
-	/* UINT32	target_buf = sot_buf + align_even(offset) * sizeof(user_id_t), */
-	/* 	src_buf = (UINT32) & uids[align_even(sect_offset)]; */
+	UINT32	target_buf = sot_buf + align_even(offset) * sizeof(user_id_t),
+		src_buf = (UINT32) & uids[align_even(sect_offset)];
 	/* size must be 4B align*/
-	/* UINT32	size = (num_sectors + (num_sectors % 2 == 1) + */
-	/* 		(offset % 2 == 1 && num_sectors % 2 == 0)) */
-	/* 		* sizeof(user_id_t); */
-	/* mem_copy(target_buf, src_buf, size); */
+	UINT32	size = (num_sectors + (num_sectors % 2 == 1) +
+			(offset % 2 == 1 && num_sectors % 2 == 0))
+			* sizeof(user_id_t);
+	mem_copy(target_buf, src_buf, size);
 }
 
 #endif
