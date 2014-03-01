@@ -30,9 +30,9 @@ typedef enum {
 
 typedef struct {
 	TASK_PUBLIC_FIELDS
-	page_key_t	key;
-	UINT32		buf;
-	vsp_t		vsp;
+	UINT32	pmt_idx;
+	UINT32	buf;
+	vsp_t	vsp;
 } page_cache_load_task_t;
 
 static UINT8	  page_cache_load_task_type;
@@ -58,11 +58,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
-	debug("pc load task> preparation, type = %s, idx = %u",
-		task->key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
-		task->key.idx);
-
-	page_cache_put(task->key, &(task->buf), PC_FLAG_RESERVED);
+	page_cache_put(task->pmt_idx, &(task->buf), PC_FLAG_RESERVED);
 	task->state = STATE_MAPPING;
 	return TASK_CONTINUED;
 }
@@ -72,10 +68,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
-	debug("pc load task> mapping, type = %s, idx = %u",
-		task->key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
-		task->key.idx);
-	task->vsp = gtd_get_vsp(task->key);
+	task->vsp = gtd_get_vsp(task->pmt_idx);
 
 	/* need to load from flash */
 	if (task->vsp.vspn != 0) {
@@ -86,7 +79,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	/* uart_print("...set mem"); */
 	/* page has never been written to flash yet */
 	mem_set_dram(task->buf, 0, BYTES_PER_SUB_PAGE);
-	page_cache_set_flag(task->key, 0);
+	page_cache_set_flag(task->pmt_idx, 0);
 	return TASK_FINISHED;
 }
 
@@ -94,10 +87,6 @@ static task_res_t flash_state_handler	(task_t* _task,
 					 task_context_t* context)
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
-
-	debug("pc load task> flash, type = %s, idx = %u",
-		task->key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
-		task->key.idx);
 
 	UINT8	bank = task->vsp.bank;
 	if (!banks_has(context->idle_banks, bank)) return TASK_PAUSED;
@@ -118,10 +107,6 @@ static task_res_t finish_state_handler	(task_t* _task,
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
-	debug("pc load finish> flash, type = %s, idx = %u",
-		task->key.type == PAGE_TYPE_PMT ? "pmt" : "sot",
-		task->key.idx);
-
 	/* uart_print("finish1"); */
 	UINT8	bank = task->vsp.bank;
 	if (!banks_has(context->completed_banks, bank))
@@ -132,7 +117,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 	mem_copy(task->buf,
 		 FTL_RD_BUF(bank) + sp_offset * BYTES_PER_SUB_PAGE,
 		 BYTES_PER_SUB_PAGE);
-	page_cache_set_flag(task->key, 0);
+	page_cache_set_flag(task->pmt_idx, 0);
 	return TASK_FINISHED;
 }
 
@@ -150,11 +135,11 @@ void page_cache_load_task_register()
 	BUG_ON("failed to register page cache load task", res);
 }
 
-void page_cache_load_task_init(task_t *_task, page_key_t const key)
+void page_cache_load_task_init(task_t *_task, UINT32 const pmt_idx)
 {
 	page_cache_load_task_t *task = (page_cache_load_task_t*)_task;
 
 	task->type	= page_cache_load_task_type;
 	task->state	= STATE_PREPARATION;
-	task->key	= key;
+	task->pmt_idx	= pmt_idx;
 }

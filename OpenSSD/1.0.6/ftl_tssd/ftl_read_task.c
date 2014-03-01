@@ -151,14 +151,14 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	task_res_t auth_res = do_authenticate(task);
 	if (auth_res == TASK_BLOCKED) ftl_task_swap_and_return(task, TASK_BLOCKED);
 #endif
-	task_res_t res = pmt_load(task->lpn * SUB_PAGES_PER_PAGE);
+	UINT32 lpn = task->lpn;
+	task_res_t res = pmt_load(lpn);
 	if (res != TASK_CONTINUED) ftl_task_swap_and_return(task, res);
 
 	ftl_task_swap_in(task);
 
 	UINT8	num_segments = 0;
 	/* Iterate each sub-page */
-	UINT32	lspn_base = lpn2lspn(task->lpn);
 	UINT8	begin_sp  = begin_subpage(segments->task_target_sectors),
 		end_sp	  = end_subpage(segments->task_target_sectors);
 	UINT8 	sp_i;
@@ -171,9 +171,8 @@ static task_res_t mapping_state_handler	(task_t* _task,
 			continue;
 		}
 
-		UINT32	lspn	 = lspn_base + sp_i;
 		vp_t	vp;
-		pmt_get(lspn, &vp);
+		pmt_get_vp(lpn, sp_i, &vp);
 
 		/* uart_printf("pmt fetch: lspn %u --> bank %u, vpn %u\r\n", */
 		/* 	    lspn, vp.bank, vp.vpn); */

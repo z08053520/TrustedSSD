@@ -28,19 +28,19 @@ typedef enum {
 
 void	page_cache_init(void);
 
-BOOL8	page_cache_has (page_key_t const key);
-BOOL8 	page_cache_get (page_key_t const key,
+BOOL8	page_cache_has (UINT32 const pmt_idx);
+BOOL8 	page_cache_get (UINT32 const pmt_idx,
 			UINT32 *buf, BOOL8 const will_modify);
-void	page_cache_put (page_key_t const key,
+void	page_cache_put (UINT32 const pmt_idx,
 			UINT32 *buf, UINT8 const flag);
 
-BOOL8	page_cache_get_flag(page_key_t const key, UINT8 *flag);
-BOOL8	page_cache_set_flag(page_key_t const key, UINT8 const flag);
+BOOL8	page_cache_get_flag(UINT32 const pmt_idx, UINT8 *flag);
+BOOL8	page_cache_set_flag(UINT32 const pmt_idx, UINT8 const flag);
 
 BOOL8	page_cache_is_full(void);
 BOOL8	page_cache_evict();
-void	page_cache_flush(UINT32 const merge_buf, 
-			 page_key_t merged_keys[SUB_PAGES_PER_PAGE]);
+void	page_cache_flush(UINT32 const merge_buf,
+			 UINT32 merged_pmt_idxes[SUB_PAGES_PER_PAGE]);
 
-task_res_t	page_cache_load(page_key_t const key);
+task_res_t	page_cache_load(UINT32 const pmt_idx);
 #endif

@@ -71,7 +71,7 @@
  * access control--- of TrustedSSD, which makes the latter unique to all SSD.
  * Use macro OPTION_ACL to enable ACL.
  * */
-#define OPTION_ACL			1
+#define OPTION_ACL			0
 
 #define CHN_WIDTH			2 	// 2 = 16bit IO
 #define NUM_CHNLS_MAX		4
@@ -252,6 +252,8 @@ typedef union {
 
 #define MIN(X, Y)				((X) > (Y) ? (Y) : (X))
 #define MAX(X, Y)				((X) > (Y) ? (X) : (Y))
+
+#define align_to(num, align)	((num) / (align) * (align))
 
 void delay(UINT32 const count);
 

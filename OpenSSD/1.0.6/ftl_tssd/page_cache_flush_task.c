@@ -35,8 +35,8 @@ typedef struct {
 } page_cache_flush_task_t;
 
 typedef struct {
-	page_key_t	keys[SUB_PAGES_PER_PAGE];
-	UINT32		buf;
+	UINT32	pmt_idxes[SUB_PAGES_PER_PAGE];
+	UINT32	buf;
 } merge_buf_t;
 merge_buf_t	_merge_buf;
 merge_buf_t* const merge_buf = &_merge_buf;
@@ -72,7 +72,7 @@ static task_res_t preparation_state_handler(task_t* _task,
 	merge_buf->buf = PC_FLUSH_BUF(flush_buf_id);
 	flush_buf_id = (flush_buf_id + 1) % PC_FLUSH_BUFFERS;
 
-	page_cache_flush(merge_buf->buf, merge_buf->keys);
+	page_cache_flush(merge_buf->buf, merge_buf->pmt_idxes);
 
 	task->state = STATE_MAPPING;
 	return TASK_CONTINUED;
@@ -106,8 +106,8 @@ static task_res_t mapping_state_handler	(task_t* _task,
 	vsp_t	vsp	= {.bank = bank, .vspn = vpn * SUB_PAGES_PER_PAGE};
 	UINT8	sp_i;
 	for (sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
-		page_key_t key = merge_buf->keys[sp_i];
-		gtd_set_vsp(key, vsp);
+		UINT32 pmt_idx = merge_buf->pmt_idxes[sp_i];
+		gtd_set_vsp(pmt_idx, vsp);
 		vsp.vspn++;
 	}
 	task->state = STATE_FLASH;

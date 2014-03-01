@@ -4,6 +4,6 @@
 #include "gtd.h"
 
 void page_cache_load_task_register();
-void page_cache_load_task_init(task_t *task, page_key_t const key);
+void page_cache_load_task_init(task_t *task, UINT32 const pmt_idx);
 
 #endif

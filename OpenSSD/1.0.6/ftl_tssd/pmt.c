@@ -11,48 +11,32 @@ void pmt_init(void)
 			PMT_ENTRIES, PMT_PAGES);
 }
 
-task_res_t pmt_load(UINT32 const lspn)
+task_res_t pmt_load(UINT32 const lpn)
 {
-	//DEBUG
-	/* uart_print("pmt_load: lspn = %u", lspn); */
-
-	UINT32 	pmt_index  = pmt_get_index(lspn);
-	page_key_t key	   = {.type = PAGE_TYPE_PMT, .idx = pmt_index};
-	return page_cache_load(key);
+	UINT32 	pmt_idx  = pmt_get_index(lpn);
+	return page_cache_load(pmt_idx);
 }
 
-void pmt_get(UINT32 const lspn, vp_t *vp)
+void pmt_get_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t *vp)
 {
-	//DEBUG
-	/* uart_print("pmt_get: lspn = %u", lspn); */
-
 	UINT32	pmt_buff;
-	UINT32	pmt_index  = pmt_get_index(lspn);
-	UINT32	pmt_offset = pmt_get_offset(lspn);
-	page_key_t pmt_key = {.type = PAGE_TYPE_PMT, .idx = pmt_index};
-	page_cache_get(pmt_key, &pmt_buff, FALSE);
+	UINT32	pmt_idx  = pmt_get_index(lpn);
+	page_cache_get(pmt_idx, &pmt_buff, FALSE);
 	BUG_ON("buffer is empty", pmt_buff == NULL);
 
-	vp->as_uint = read_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset);
-
-	/* uart_printf("pmt get: lspn = %u, bank = %u, vpn = %u\r\n", */
-	/* 		lspn, vp->bank, vp->vpn); */
+	UINT32	pmt_offset = pmt_get_offset(lpn) * sizeof(pmt_entry_t)
+				+ (UINT32)(&((pmt_entry_t*)0)->vps[sp_offset]);
+	vp->as_uint = read_dram_32(pmt_buff + pmt_offset);
 }
 
-void pmt_update(UINT32 const lspn, vp_t const vp)
+void pmt_update_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t const vp)
 {
-	//DEBUG
-	/* uart_print("pmt_update: lspn = %u", lspn); */
-
-	UINT32 pmt_buff;
-	UINT32 pmt_index  = pmt_get_index(lspn);
-	UINT32 pmt_offset = pmt_get_offset(lspn);
-	page_key_t pmt_key = {.type = PAGE_TYPE_PMT, .idx = pmt_index};
-	page_cache_get(pmt_key, &pmt_buff, TRUE);
+	UINT32	pmt_buff;
+	UINT32	pmt_idx  = pmt_get_index(lpn);
+	page_cache_get(pmt_idx, &pmt_buff, TRUE);
 	BUG_ON("buffer is empty", pmt_buff == NULL);
 
-	write_dram_32(pmt_buff + sizeof(UINT32) * pmt_offset, vp.as_uint);
-
-	/* uart_printf("pmt set: lspn = %u, bank = %u, vpn = %u\r\n", */
-	/* 		lspn, vp.bank, vp.vpn); */
+	UINT32	pmt_offset = pmt_get_offset(lpn) * sizeof(pmt_entry_t)
+				+ (UINT32)(&((pmt_entry_t*)0)->vps[sp_offset]);
+	write_dram_32(pmt_buff + pmt_offset, vp.as_uint);
 }

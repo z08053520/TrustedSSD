@@ -202,15 +202,17 @@ static task_res_t mapping_state_handler	(task_t* _task,
 
 		if (mask_is_set(wr_buf->pmt_done, sp_i)) continue;
 
-		task_res_t sp_res = pmt_load(lspn);
+		UINT32 lpn = lspn / SUB_PAGES_PER_PAGE;
+		task_res_t sp_res = pmt_load(lpn);
 		/* TASK_BLOCKED > TASK_PAUSED > TASK_CONTINUED */
 		if (sp_res > res)  res = sp_res;
 
 		if (sp_res == TASK_BLOCKED) break;
 		else if (sp_res == TASK_PAUSED) continue;
 
-		pmt_get(lspn, & wr_buf->old_vp[sp_i]);
-		pmt_update(lspn, wr_buf->vp);
+		UINT8  sp_offset = lspn % SUB_PAGES_PER_PAGE;
+		pmt_get_vp(lpn, sp_offset, & wr_buf->old_vp[sp_i]);
+		pmt_update_vp(lpn, sp_offset, wr_buf->vp);
 		mask_set(wr_buf->pmt_done, sp_i);
 		/* uart_printf("pmt update: lspn %u --> bank %u, vpn %u\r\n", */
 		/* 	    lspn, wr_buf->vp.bank, wr_buf->vp.vpn); */

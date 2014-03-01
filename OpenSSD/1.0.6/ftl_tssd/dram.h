@@ -40,12 +40,13 @@
 /* ========================================================================= *
  * GTD
  * ========================================================================= */
-#include "gtd.h"
-#define GTD_SIZE		sizeof(gtd_zones_t)
+#include "pmt.h"
+#define GTD_ENTRIES		PMT_SUB_PAGES
+#define GTD_BYTES		(GTD_ENTRIES * sizeof(UINT32))
 /* GTD must occupy whole pages */
-#define GTD_BYTES		(COUNT_BUCKETS(GTD_SIZE, BYTES_PER_PAGE) * BYTES_PER_PAGE)
+#define GTD_BYTES_ALIGN		(COUNT_BUCKETS(GTD_BYTES, BYTES_PER_PAGE) * BYTES_PER_PAGE)
 #define GTD_ADDR		BAD_BLK_BMP_END
-#define GTD_END			(GTD_ADDR + GTD_BYTES)
+#define GTD_END			(GTD_ADDR + GTD_BYTES_ALIGN)
 
 /* ========================================================================= *
  *  Task Engine
@@ -128,7 +129,7 @@
 				 NUM_READ_BUFFERS + NUM_WRITE_BUFFERS)
 #define NON_SATA_BUF_BYTES	(NUM_NON_SATA_BUFFERS * BYTES_PER_PAGE)
 #define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + PC_BYTES + \
-				 BAD_BLK_BMP_BYTES + GTD_BYTES + \
+				 BAD_BLK_BMP_BYTES + GTD_BYTES_ALIGN + \
 				 TASK_SWAP_BYTES + PC_FLUSH_BYTES)
 
 #define NUM_SATA_RW_BUFFERS	((DRAM_SIZE - DRAM_BYTES_OTHER) / BYTES_PER_PAGE - 1)
