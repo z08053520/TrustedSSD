@@ -103,7 +103,7 @@ static void eventq_get(CMD_T* cmd)
 	cmd->cmd_type		= EQReadData1 >> 31;
 #if OPTION_ACL
 	// FIXME: read real session_key from queue
-	cmd->session_key	= cmd->lba;
+	cmd->session_key	= 0;
 #endif
 
 	if(cmd->sector_count == 0)

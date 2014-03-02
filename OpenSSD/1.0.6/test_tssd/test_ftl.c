@@ -13,8 +13,8 @@
 #include "ftl_write_task.h"
 #include <stdlib.h>
 
-extern UINT32	g_num_ftl_write_tasks_submitted;
-extern UINT32	g_num_ftl_read_tasks_submitted;
+UINT32	num_ftl_write_tasks_submitted = 0;
+UINT32	num_ftl_read_tasks_submitted = 0;
 
 extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 #if OPTION_ACL
@@ -182,7 +182,7 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 	UINT32 sect_offset  = lba % SECTORS_PER_PAGE;
 	UINT32 num_sectors;
 	UINT32 remain_sects = req_sectors;
-	UINT32 sata_buf_id  = g_num_ftl_write_tasks_submitted % NUM_SATA_WR_BUFFERS;
+	UINT32 sata_buf_id  = num_ftl_write_tasks_submitted % NUM_SATA_WR_BUFFERS;
 	UINT32 sata_buf     = SATA_WR_BUF_PTR(sata_buf_id);
 
 #if OPTION_ACL
@@ -235,6 +235,7 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 		remain_sects -= num_sectors;
 		sata_buf_id   = (sata_buf_id + 1) % NUM_SATA_WR_BUFFERS;
 		sata_buf      = SATA_WR_BUF_PTR(sata_buf_id);
+		num_ftl_write_tasks_submitted++;
 	}
 
 	// write to flash
@@ -248,8 +249,23 @@ static void do_flash_write(UINT32 const lba, UINT32 const req_sectors,
 	while(eventq_put(lba, req_sectors, WRITE))
 #endif
 		ftl_main();
-	accept_all();
+	/* accept_all(); */
 	/* finish_all(); */
+}
+
+static void do_flash_read(UINT32 lba, UINT32 const req_sectors
+#if OPTION_ACL
+				,UINT32 const session_key
+#endif
+		)
+{
+	// read from flash
+#if OPTION_ACL
+	while(eventq_put(lba, req_sectors, session_key, READ))
+#else
+	while(eventq_put(lba, req_sectors, READ))
+#endif
+		ftl_main();
 }
 
 static void _do_flash_verify(UINT32 lba, UINT32 const req_sectors,
@@ -277,8 +293,7 @@ static void _do_flash_verify(UINT32 lba, UINT32 const req_sectors,
 	UINT32 sect_offset  = lba % SECTORS_PER_PAGE;
 	UINT32 remain_sects = req_sectors;
 	UINT32 num_sectors;
-	UINT32 num_bufs_rd  = COUNT_BUCKETS(req_sectors + sect_offset, SECTORS_PER_PAGE);
-	UINT32 sata_buf_id  = (g_num_ftl_read_tasks_submitted - num_bufs_rd) % NUM_SATA_RD_BUFFERS;
+	UINT32 sata_buf_id  = num_ftl_read_tasks_submitted % NUM_SATA_RD_BUFFERS;
 	UINT32 sata_buf     = SATA_RD_BUF_PTR(sata_buf_id);
 	UINT32 val = 0;
 	BOOL8 wrong;
@@ -320,6 +335,7 @@ static void _do_flash_verify(UINT32 lba, UINT32 const req_sectors,
 		remain_sects -= num_sectors;
 		sata_buf_id   = (sata_buf_id + 1) % NUM_SATA_RD_BUFFERS;
 		sata_buf      = SATA_RD_BUF_PTR(sata_buf_id);
+		num_ftl_read_tasks_submitted++;
 	}
 }
 
