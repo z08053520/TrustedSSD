@@ -181,7 +181,6 @@ void disable_interrupt(void);
 	/* 	if (!(X))\ */
 	/* 	{\ */
 	/* 		uart_print("error: %u, %s", __LINE__, __FILE__);\ */
-            		/* led_blink();\ */
 	/* 		while (1);\ */
 	/* 	}\ */
 	/* } */
@@ -190,7 +189,6 @@ void disable_interrupt(void);
 		if (!(X))\
 		{\
 			uart_printf("assert error\r\n");\
-            		led_blink();\
 			while (1);\
 		}\
 	}
