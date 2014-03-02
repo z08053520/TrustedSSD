@@ -188,7 +188,7 @@ void disable_interrupt(void);
 	{\
 		if (!(X))\
 		{\
-			uart_printf("assert error\r\n");\
+			uart_print("assert error");\
 			while (1);\
 		}\
 	}

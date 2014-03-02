@@ -52,6 +52,7 @@ static void print_info(void)
 	uart_print("TrustedSSD FTL");
 
 	uart_print("=== Memory Configuration ===");
+	uart_print("max LBA == %u", MAX_LBA);
 	PRINT_SIZE("DRAM", 		DRAM_SIZE);
 	PRINT_SIZE("page cache", 	PC_BYTES);
 	PRINT_SIZE("bad block bitmap",	BAD_BLK_BMP_BYTES);
@@ -62,6 +63,10 @@ static void print_info(void)
 	PRINT_SIZE("SATA write buffers",		SATA_WR_BUF_BYTES);
 	PRINT_SIZE("page",	BYTES_PER_PAGE);
 	PRINT_SIZE("sub-page",	BYTES_PER_SUB_PAGE);
+	uart_print("# of GTD entries = %u, size of GTD = %uKB, # of GTD pages = %u",
+			GTD_ENTRIES, GTD_BYTES, GTD_PAGES);
+	uart_print("# of PMT entries == %u, # of PMT pages == %u, # of PMT sub-pages == %u",
+			PMT_ENTRIES, PMT_PAGES, PMT_SUB_PAGES);
 	uart_print("");
 }
 
@@ -132,7 +137,7 @@ BOOL8 ftl_main(void)
 			if (!sata_has_next_rw_cmd()) break;
 			sata_get_next_rw_cmd(&sata_cmd);
 
-			/* uart_printf("> new %s cmd: lba = %u, sector_count = %u\r\n", */
+			/* uart_print("> new %s cmd: lba = %u, sector_count = %u", */
 			/* 	    sata_cmd.cmd_type == READ ? "READ" : "WRITE", */
 			/* 	    sata_cmd.lba, sata_cmd.sector_count); */
 		}

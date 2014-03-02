@@ -508,6 +508,7 @@ static void sparse_rw_test_runner(rw_test_params_t *params)
 #define	MAX_UINT32	0xFFFFFFFF
 #define KB		1024
 #define MB		(KB * KB)
+#define GB		(MB * KB)
 #define RAND_SEED	1234567
 
 void ftl_test()
@@ -523,7 +524,7 @@ void ftl_test()
 		.name = "sequential r/w test",
 		.type = SEQ_RW_TEST,
 		.params = {
-			.min_lba = 0,
+			.min_lba = 64 * (GB / 512),
 			.max_lba = MAX_UINT32,
 			.min_req_size = 1,
 			.max_req_size = 256,
