@@ -77,7 +77,7 @@ UINT32	g_next_finishing_task_seq_id;
 #define FLAG_AUTHENTICATED	1
 // DEBUG
 /* when uid equals NULL_ID, acl work has been done */
-#define NULL_UID		0xFFFFFFFF
+#define NULL_UID		0xFFFF
 
 static task_res_t do_authenticate(ftl_read_task_t *task)
 {

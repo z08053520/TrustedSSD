@@ -29,6 +29,7 @@ typedef struct {
 						PMT_BYTES_PER_ENTRY)
 #define PMT_SUB_PAGES			COUNT_BUCKETS(PMT_ENTRIES, \
 						PMT_ENTRIES_PER_SUB_PAGE)
+#define PMT_PAGES			(PMT_SUB_PAGES / SUB_PAGES_PER_PAGE)
 
 #define pmt_get_index(lpn)		((lpn) / PMT_ENTRIES_PER_SUB_PAGE)
 #define pmt_get_offset(lpn)		((lpn) % PMT_ENTRIES_PER_SUB_PAGE)

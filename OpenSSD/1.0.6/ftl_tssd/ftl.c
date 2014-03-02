@@ -26,12 +26,12 @@
 #define _KB 	1024
 #define _MB 	(_KB * _KB)
 #define PRINT_SIZE(name, size)	do {\
-	if (size < _KB)\
-		uart_printf("Size of %s == %dbytes\r\n", name, size);\
-	else if (size < _MB)\
-		uart_printf("Size of %s == %dKB\r\n", name, size / _KB);\
+	if ((size) < _KB)\
+		uart_print("Size of %s == %ubytes", (name), (size));\
+	else if ((size) < _MB)\
+		uart_print("Size of %s == %uKB", (name), (size) / _KB);\
 	else\
-		uart_printf("Size of %s == %dMB\r\n", name, size / _MB);\
+		uart_print("Size of %s == %uMB", (name), (size) / _MB);\
 } while(0);
 
 /* ========================================================================= *
@@ -49,19 +49,19 @@ static void sanity_check(void)
 
 static void print_info(void)
 {
-	uart_printf("TrustedSSD FTL (compiled at %s %s)\r\n", __TIME__, __DATE__);
+	uart_print("TrustedSSD FTL");
 
 	uart_print("=== Memory Configuration ===");
 	PRINT_SIZE("DRAM", 		DRAM_SIZE);
 	PRINT_SIZE("page cache", 	PC_BYTES);
 	PRINT_SIZE("bad block bitmap",	BAD_BLK_BMP_BYTES);
 	PRINT_SIZE("non SATA buffer size",		NON_SATA_BUF_BYTES);
-	uart_printf("# of SATA read buffers == %d\r\n", NUM_SATA_RD_BUFFERS);
+	uart_print("# of SATA read buffers == %u",	NUM_SATA_RD_BUFFERS);
 	PRINT_SIZE("SATA read buffers", 		SATA_RD_BUF_BYTES);
-	uart_printf("# of SATA write buffers == %d\r\n",NUM_SATA_WR_BUFFERS);
+	uart_print("# of SATA write buffers == %n",	NUM_SATA_WR_BUFFERS);
 	PRINT_SIZE("SATA write buffers",		SATA_WR_BUF_BYTES);
-	PRINT_SIZE("page size",		BYTES_PER_PAGE);
-	PRINT_SIZE("sub-page size",	BYTES_PER_SUB_PAGE);
+	PRINT_SIZE("page",	BYTES_PER_PAGE);
+	PRINT_SIZE("sub-page",	BYTES_PER_SUB_PAGE);
 	uart_print("");
 }
 
@@ -91,9 +91,6 @@ void ftl_open(void) {
 	write_buffer_init();
 
 	pmt_init();
-#if OPTION_ACL
-	sot_init();
-#endif
 #if OPTION_FDE
 	fde_init();
 #endif
