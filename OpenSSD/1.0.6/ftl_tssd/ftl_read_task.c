@@ -86,10 +86,10 @@ static task_res_t do_authenticate(ftl_read_task_t *task)
 {
 	if (task->uid == NULL_UID) return TASK_CONTINUED;
 
-	task_res_t res = sot_load(task->lpn);
+	task_res_t res = pmt_load(task->lpn);
 	if (res != TASK_CONTINUED) return res;
 
-	BOOL8 ok = sot_authenticate(task->lpn, task->offset,
+	BOOL8 ok = pmt_authenticate(task->lpn, task->offset,
 				    task->num_sectors, task->uid);
 	if (ok) task->flags |= FLAG_AUTHENTICATED;
 	task->uid = NULL_UID;
