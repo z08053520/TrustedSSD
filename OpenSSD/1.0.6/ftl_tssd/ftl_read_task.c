@@ -6,9 +6,6 @@
 #include "flash_util.h"
 #include "ftl_task.h"
 #include "fde.h"
-#if OPTION_ACL
-	#include "sot.h"
-#endif
 
 /* ===========================================================================
  *  Macros, types and global variables
