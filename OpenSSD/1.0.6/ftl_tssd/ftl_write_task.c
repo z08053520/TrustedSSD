@@ -204,8 +204,7 @@ static task_res_t mapping_state_handler	(task_t* _task,
 		/* TASK_BLOCKED > TASK_PAUSED > TASK_CONTINUED */
 		if (sp_res > res)  res = sp_res;
 
-		if (sp_res == TASK_BLOCKED) break;
-		else if (sp_res == TASK_PAUSED) continue;
+		if (sp_res != TASK_CONTINUED) continue;
 
 		UINT8  sp_offset = lspn % SUB_PAGES_PER_PAGE;
 		pmt_get_vp(lpn, sp_offset, & wr_buf->old_vp[sp_i]);
@@ -293,10 +292,14 @@ static task_res_t flash_read_state_handler(task_t* _task,
 			/* skip if the page is being written */
 			if (is_any_task_writing_page(vp)) continue;
 
+			/* skip if the read buf is being used by other task */
+			if (is_any_task_using_read_buf(bank)) continue;
+
 			// DEBUG
 			/* skip if read buf is occupied */
 			/* if (is_read_buf_occupied(bank)) continue; */
 
+			task_starts_using_read_buf(task, bank);
 			banks_del(context->idle_banks, bank);
 
 			vsp_t vsp = {
@@ -321,6 +324,7 @@ static task_res_t flash_read_state_handler(task_t* _task,
 			FOR_EACH_MISSING_SEGMENTS_IN_SUB_PAGE(segment_handler, sp_mask);
 
 			banks_del(task->waiting_banks, bank);
+			task_ends_using_read_buf(task, bank);
 			mask_set(wr_buf->cmd_done, sp_i);
 		}
 	}

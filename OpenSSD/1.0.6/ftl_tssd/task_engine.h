@@ -82,4 +82,12 @@ void 	_task_ends_writing_page(vp_t const vp, task_t *task);
 /*  Prevent pages with greater vpn is written earlier than one with less vpn
 in the same bank */
 BOOL8	is_there_any_earlier_writing(vp_t const vp);
+
+banks_mask_t read_bufs_used;
+#define task_starts_using_read_buf(task, bank)	\
+		(read_bufs_used |= (1 << bank))
+#define task_ends_writing_page(task, bank)	\
+		(read_bufs_used &= ~(1 << bank))
+#define is_any_task_using_read_buf(bank)	\
+		((read_bufs_used & (1 << bank)) != 0)
 #endif

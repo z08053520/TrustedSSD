@@ -117,6 +117,8 @@ void 	task_engine_init()
 	context.idle_banks = ALL_BANKS;
 	context.completed_banks = 0;
 
+	read_bufs_used = 0;
+
 	UINT8	vp_i;
 	for (vp_i = 0; vp_i < MAX_NUM_TASKS; vp_i++) {
 		tasks_writing_vps[vp_i].bank = NUM_BANKS;

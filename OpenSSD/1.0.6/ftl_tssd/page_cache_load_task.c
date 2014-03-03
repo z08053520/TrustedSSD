@@ -93,9 +93,11 @@ static task_res_t flash_state_handler	(task_t* _task,
 
 	vp_t	vp = {.bank = bank, .vpn = task->vsp.vspn / SUB_PAGES_PER_PAGE};
 	if (is_any_task_writing_page(vp)) return TASK_PAUSED;
+	if (is_any_task_reading_buf(bank)) return TASK_PAUSED;
 
 	fu_read_sub_page(task->vsp, FTL_RD_BUF(bank), FU_ASYNC);
 	banks_del(context->idle_banks, bank);
+	task_starts_using_read_buf(task, bank);
 
 	task->state = STATE_FINISH;
 	task->waiting_banks = (1 << bank);
@@ -118,6 +120,7 @@ static task_res_t finish_state_handler	(task_t* _task,
 		 FTL_RD_BUF(bank) + sp_offset * BYTES_PER_SUB_PAGE,
 		 BYTES_PER_SUB_PAGE);
 	page_cache_set_flag(task->pmt_idx, 0);
+	task_ends_using_read_buf(task, bank);
 	return TASK_FINISHED;
 }
 

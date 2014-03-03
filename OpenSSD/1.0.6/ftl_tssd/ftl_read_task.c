@@ -227,7 +227,8 @@ static task_res_t flash_state_handler	(task_t* _task,
 		if (is_cmd_done(seg_i, segments)) continue;
 
 		vp_t		vp  	  = segments->vp[seg_i];
-		banks_mask_t 	this_bank = (1 << vp.bank);
+		UINT8		bank	  = vp.bank;
+		banks_mask_t 	this_bank = (1 << bank);
 
 		/* uart_printf("seg_i = %u, bank = %u, vpn = %u\r\n", */
 		/* 	   seg_i, vp.bank, vp.vpn); */
@@ -245,7 +246,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 						  segments->num_sectors[seg_i]);
 				segment_target_sectors &= segments->task_target_sectors;
 
-				fu_copy_buffer(sata_buf, FTL_RD_BUF(vp.bank),
+				fu_copy_buffer(sata_buf, FTL_RD_BUF(bank),
 					       segment_target_sectors);
 
 				/* uart_printf("has holes, copy data from FTL_RD_BUF to SATA_RD_BUF\r\n"); */
@@ -253,6 +254,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 
 			task->waiting_banks &= ~this_bank;
 			set_cmd_done(seg_i, segments);
+			task_ends_using_read_buf(task, bank);
 			continue;
 		}
 
@@ -281,8 +283,13 @@ static task_res_t flash_state_handler	(task_t* _task,
 		/* skip if the page is being written */
 		if (is_any_task_writing_page(vp)) continue;
 
-		read_buf = has_holes(seg_i, segments) ? FTL_RD_BUF(vp.bank) : sata_buf;
-		nand_page_ptread(vp.bank,
+		/* skip if the read buf is being used by other task */
+		if (is_any_task_using_read_buf(bank)) continue;
+
+		task_starts_using_read_buf(task, bank);
+
+		read_buf = has_holes(seg_i, segments) ? FTL_RD_BUF(bank) : sata_buf;
+		nand_page_ptread(bank,
 				 vp.vpn / PAGES_PER_VBLK,
 				 vp.vpn % PAGES_PER_VBLK,
 				 segments->offset[seg_i],
@@ -291,7 +298,7 @@ static task_res_t flash_state_handler	(task_t* _task,
 				 RETURN_ON_ISSUE);
 
 		/* uart_printf("issue flash read to bank %u, vpn %u, offset %u, num_sectors %u\r\n", */
-		/* 	    vp.bank, vp.vpn, segments->offset[seg_i], segments->num_sectors[seg_i]); */
+		/* 	    bank, vp.vpn, segments->offset[seg_i], segments->num_sectors[seg_i]); */
 
 		set_cmd_issued(seg_i, segments);
 		context->idle_banks &= ~this_bank;
