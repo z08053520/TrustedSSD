@@ -48,10 +48,10 @@ void pmt_update_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t const vp)
 BOOL8	pmt_authenticate(UINT32 const lpn, UINT8 const sect_offset,
 			 UINT8 const num_sectors, user_id_t const expected_uid)
 {
-	UINT32	pmt_buf;
+	UINT32	pmt_buf = NULL;
 	UINT32	pmt_idx = pmt_get_index(lpn);
 	page_cache_get(pmt_idx, &pmt_buf, FALSE);
-	BUG_ON("buffer is empty", pmt_buff == NULL);
+	BUG_ON("buffer is empty", pmt_buf == NULL);
 
 	UINT32	uids_addr = pmt_buf +
 				pmt_get_offset(lpn) * sizeof(pmt_entry_t) +
@@ -72,7 +72,9 @@ BOOL8	pmt_authenticate(UINT32 const lpn, UINT8 const sect_offset,
 			if (actual_uids[sect_i] != expected_uid) return FALSE;
 	}
 	else {
-		for (UINT8 sect_i = sect_offset,
+		UINT32 uid_addr;
+		UINT8 sect_i, sect_end;
+		for (sect_i = sect_offset,
 			sect_end = sect_offset + num_sectors,
 			uid_addr = uids_addr + sect_offset * sizeof(user_id_t);
 			sect_i < sect_end;
@@ -86,10 +88,10 @@ BOOL8	pmt_authenticate(UINT32 const lpn, UINT8 const sect_offset,
 void	pmt_authorize  (UINT32 const lpn, UINT8 const sect_offset,
 			UINT8 const num_sectors, user_id_t const new_uid)
 {
-	UINT32	pmt_buf;
+	UINT32	pmt_buf = NULL;
 	UINT32	pmt_idx	= pmt_get_index(lpn);
 	page_cache_get(pmt_idx, &pmt_buf, TRUE);
-	BUG_ON("buffer is empty", pmt_buff == NULL);
+	BUG_ON("buffer is empty", pmt_buf == NULL);
 
 	UINT32	uid_addr_begin = pmt_buf +
 				pmt_get_offset(lpn) * sizeof(pmt_entry_t) +
@@ -107,7 +109,7 @@ void	pmt_authorize  (UINT32 const lpn, UINT8 const sect_offset,
 	/* assume user_id_t is 16-bits */
 	/* address must be 4B align */
 	UINT32	target_buf = uid_addr_begin -
-				(sect_offset % 2 == 1) * sizeof(user_idt_t),
+				(sect_offset % 2 == 1) * sizeof(user_id_t),
 		src_buf = (UINT32) & uids[align_even(sect_offset)];
 	/* size must be 4B align*/
 	UINT32	size = (num_sectors + (num_sectors % 2 == 1 ? 1 :

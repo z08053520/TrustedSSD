@@ -70,14 +70,10 @@ void uart_init(void)
 
 static void _uart_print(char* string)
 {
-	while (1)
+	while (*string != '\0')
 	{
 		uart_txbyte(*string);
-
 		string++;
-
-		if (*string == '\0')
-			break;
 	}
 }
 

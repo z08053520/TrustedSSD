@@ -6,16 +6,11 @@
 
 void gtd_init(void)
 {
-	// TODO: load GTD from flash
-	INFO("gtd>init", "# of GTD entries = %d, size of GTD = %dKB, # of GTD pages = %d",
-		GTD_SIZE / sizeof(UINT32), GTD_SIZE / 1024, GTD_PAGES);
-
 	mem_set_dram(GTD_ADDR, 0, GTD_BYTES);
 }
 
 void gtd_flush(void)
 {
-	// TODO: flush GTD to flash
 }
 
 vsp_t gtd_get_vsp(UINT32 const pmt_idx)

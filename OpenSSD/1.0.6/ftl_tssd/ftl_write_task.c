@@ -79,7 +79,7 @@ UINT32	g_next_finishing_task_seq_id;
 #if OPTION_ACL
 
 /* when uid equals NULL_ID, acl work has been done */
-#define NULL_UID		0xFFFFFFFF
+#define NULL_UID		0xFFFF
 
 static task_res_t do_authorize(ftl_write_task_t *task)
 {

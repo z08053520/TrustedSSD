@@ -160,7 +160,7 @@ void _mem_set_sram(UINT32 addr, UINT32 const val, UINT32 num_bytes)
 	ASSERT(busy == 0);
 	busy = 1;
 	#endif
-	
+
 	if (num_bytes == 0) return;
 
 	SETREG(MU_VALUE, val);
