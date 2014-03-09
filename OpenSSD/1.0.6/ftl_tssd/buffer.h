@@ -6,14 +6,16 @@
  * */
 #include "jasmine.h"
 
+#define NULL_BUF_ID	0xFF
+
 /*
  * Allocate a buffer and return the address.
  * Return NULL if no buffer available
  * */
-UINT32 buffer_allocate();
+UINT8 buffer_allocate();
 /*
  * Free a buffer allocated before
  * */
-void buffer_free(UINT32 buf);
+void buffer_free(UINT8 buf_id);
 
 #endif

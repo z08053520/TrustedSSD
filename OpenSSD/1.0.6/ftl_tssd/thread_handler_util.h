@@ -20,12 +20,12 @@
  * Thread variables
  * */
 #define begin_thread_stack		\
-	struct thread_stack_t {
+	struct thread_stack_t
 
 #define end_thread_stack		\
-	};
+	;
 
-#define THREAD_STACK_SIZE		128
+#define THREAD_STACK_SIZE		256
 UINT8 __thread_stack[THREAD_STACK_SIZE];
 
 #define var(name)	(((thread_stack_t*)__thread_stack)->name)
@@ -33,32 +33,29 @@ UINT8 __thread_stack[THREAD_STACK_SIZE];
 /*
  * Thread handler
  * */
-#define get_thread_handler(name)	(name##_thread_handler)
-
-#define declare_thread_handler(name)				\
-		void get_thread_handler(name)(thread_t *__t)
-
-#define begin_thread_handler(name)				\
-		declare_thread_handler(name)	{		\
-	__begin:						\
+#define begin_thread_handler					\
+		static void __thread_handler(thread_t *__t) {	\
 			restore_thread_variables(__t);		\
-			restore_thread_postion(__t);
+			jump_to_last_postion(__t);		\
+		__begin:
 
-#define end_thread_handler()					\
-			__t->state = THREAD_STOPPED;		\
+#define end_thread_handler					\
+			end();					\
 		}
+
+#define get_thread_handler()	__thread_handler
 
 /*
  * Thread phase
  * */
-#define begin_phase(name)					\
-	__##name:{						\
-		save_thread_position(__t, name)
+#define phase(name)						\
+		save_position(__t, name);			\
+	__##name
 
-#define end_phase(name)						\
-		}
-
-#define goto_phase(name)		goto __##name
+#define goto_phase(new_name)	do {				\
+		save_position(__t, new_name);			\
+		goto __##new_name;				\
+	} while(0)
 
 #define phase2offset(name)		(&&(__##name) - &&(__begin))
 #define offset2phase(offset)		(*(&&(__begin) + offset))
@@ -66,24 +63,32 @@ UINT8 __thread_stack[THREAD_STACK_SIZE];
 /*
  * Context switch
  * */
-#define sleep(signals)						\
-			__t->wakeup_signals = (signals);		\
-			schedule(THREAD_SLEEPING);
+#define sleep(signals)	do {					\
+		__t->wakeup_signals = (signals);		\
+		schedule(THREAD_SLEEPING);			\
+	} while(0)
 
-#define run_later()						\
-			__t->wakeup_signals = 0;		\
-			schedule(THREAD_RUNNABLE);
+#define run_later()	do {					\
+		__t->wakeup_signals = 0;			\
+		schedule(THREAD_RUNNABLE);			\
+	} while(0)
 
-#define schedule(new_state)					\
-			__t-->state = (new_state);		\
-			save_thread_variables(__t);		\
-			return;
+#define end()		do {					\
+		__t-->state = THREAD_STOPPED;			\
+		return;						\
+	} while(0)
+
+#define schedule(new_state)	do {				\
+		__t-->state = (new_state);			\
+		save_thread_variables(__t);			\
+		return;						\
+	} while(0)
 /*
  * Save and restore thread information
  * */
-#define restore_thread_position(t)	\
+#define jump_to_last_position(t)	\
 		goto offset2phase((t)->handler_last_offset)
-#define save_thread_position(t, name)	\
+#define save_position(t, name)	\
 		(t)->handler_last_offset = phase2offset(name)
 
 void restore_thread_variables(thread_t *t);

@@ -6,10 +6,6 @@
 define_slab_interface(thread, thread_t);
 define_slab_implementation(thread, thread_t, MAX_NUM_THREADS);
 
-/* thread_id_t is 6-bits */
-#define NULL_THREAD_ID		0x3F;
-#define NULL_THREAD_HANDLER_ID	0xFF;
-
 #define thread2id(t)						\
 		((t) ? (slab_thread_obj_t*)(t) - slab_thread_buf	\
 			: NULL_THREAD_ID)

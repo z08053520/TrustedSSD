@@ -12,6 +12,8 @@
 #include "signal.h"
 
 typedef UINT8 thread_id_t;
+/* thread_id_t is 6-bits */
+#define NULL_THREAD_ID		0x3F;
 
 typedef enum {
 	THREAD_RUNNABLE,
@@ -21,6 +23,7 @@ typedef enum {
 
 typedef void (*thread_handler_t)(thread_t *__t);
 typedef UINT8 thread_handler_id_t;
+#define NULL_THREAD_HANDLER_ID	0xFF;
 
 typedef struct {
 	thread_state_t		state:2;
