@@ -91,21 +91,20 @@
  * ========================================================================= */
 
 #define NUM_COPY_BUFFERS	NUM_BANKS_MAX
-#define NUM_FTL_RD_BUFFERS	NUM_BANKS
-#define NUM_FTL_WR_BUFFERS	NUM_BANKS
+#define NUM_MANAGED_BUFFERS	(2 * NUM_BANKS)
 #define NUM_HIL_BUFFERS		1
 #define NUM_TEMP_BUFFERS	1
 
 #define COPY_BUF_ADDR          	WRITE_BUF_END
 #define COPY_BUF_BYTES          (NUM_COPY_BUFFERS * BYTES_PER_PAGE)
+#define _COPY_BUF(RBANK)	(COPY_BUF_ADDR + (RBANK) * BYTES_PER_PAGE)
+#define COPY_BUF(BANK)		_COPY_BUF(REAL_BANK(BANK))
 
-#define FTL_RD_BUF_ADDR		(COPY_BUF_ADDR + COPY_BUF_BYTES)
-#define FTL_RD_BUF_BYTES       	(NUM_FTL_RD_BUFFERS * BYTES_PER_PAGE)
+#define MANAGED_BUF_ADDR	(COPY_BUF_ADDR + COPY_BUF_BYTES)
+#define MANAGED_BUF_BYTES       (NUM_MANAGED_BUFFERS * BYTES_PER_PAGE)
+#define MANAGED_BUF(i)       	(MANAGED_BUF_ADDR + ((i) * BYTES_PER_PAGE))
 
-#define FTL_WR_BUF_ADDR         (FTL_RD_BUF_ADDR + FTL_RD_BUF_BYTES)
-#define FTL_WR_BUF_BYTES        (NUM_FTL_WR_BUFFERS * BYTES_PER_PAGE)
-
-#define HIL_BUF_ADDR            (FTL_WR_BUF_ADDR + FTL_WR_BUF_BYTES)
+#define HIL_BUF_ADDR            (MANAGED_BUF_ADDR + MANAGED_BUF_BYTES)
 #define HIL_BUF_BYTES           (NUM_HIL_BUFFERS * BYTES_PER_PAGE)
 
 #define TEMP_BUF_ADDR           (HIL_BUF_ADDR + HIL_BUF_BYTES)
@@ -113,19 +112,11 @@
 
 #define NON_SATA_BUF_END	(TEMP_BUF_ADDR + TEMP_BUF_BYTES)
 
-#define _COPY_BUF(RBANK)	(COPY_BUF_ADDR + (RBANK) * BYTES_PER_PAGE)
-#define COPY_BUF(BANK)		_COPY_BUF(REAL_BANK(BANK))
-#define FTL_WR_BUF(BANK)       	(FTL_WR_BUF_ADDR + ((BANK) * BYTES_PER_PAGE))
-#define FTL_RD_BUF(BANK)       	(FTL_RD_BUF_ADDR + ((BANK) * BYTES_PER_PAGE))
-
-#define NUM_FTL_BUFFERS		(NUM_FTL_RD_BUFFERS + NUM_FTL_WR_BUFFERS)
-#define	FTL_BUF_BYTES		(FTL_RD_BUF_BYTES   + FTL_WR_BUF_BYTES)
-
 /* ========================================================================= *
  * SATA Buffers
  * ========================================================================= */
 
-#define NUM_NON_SATA_BUFFERS	(NUM_COPY_BUFFERS + NUM_FTL_BUFFERS + \
+#define NUM_NON_SATA_BUFFERS	(NUM_COPY_BUFFERS + NUM_MANAGED_BUFFERS + \
 				 NUM_HIL_BUFFERS + NUM_TEMP_BUFFERS + \
 				 NUM_READ_BUFFERS + NUM_WRITE_BUFFERS)
 #define NON_SATA_BUF_BYTES	(NUM_NON_SATA_BUFFERS * BYTES_PER_PAGE)
