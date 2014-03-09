@@ -6,14 +6,14 @@
  * */
 #include "jasmine.h"
 
-typedef UINT32 signal_t;
+typedef UINT32 signals_t;
 
 #define SIG_BANK(i)		(1 << (i))
 #define SIG_PMT_LOAD		(1 << 16)
 #define SIG_PMT_FLUSHED		(1 << 17)
 
-#define signal_clear(signal)			((signal) = 0)
-#define signal_set(signal, more_signal)		((signal) |= (more_signal))
-#define signal_reset(signal, less_signal)	((signal) &= ~(less_signal))
+#define signals_clear(signals)			((signals) = 0)
+#define signals_set(signals, more_signals)	((signals) |= (more_signals))
+#define signals_reset(signals, less_signals)	((signals) &= ~(less_signals))
 
 #endif
