@@ -4,6 +4,7 @@
 #include "pmt.h"
 #include "fla.h"
 #include "buffer.h"
+#include "page_rw_lock.h"
 
 /*
  * SATA
