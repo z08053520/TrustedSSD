@@ -9,6 +9,12 @@
 #define NULL_BUF_ID	0xFF
 
 /*
+ * Return the id of a managed buffer.
+ *
+ * If the buffer is not a managed buffer, return NULL_BUF_ID.
+ * */
+UINT8 buffer_id(UINT32 const buf);
+/*
  * Allocate a buffer and return the address.
  * Return NULL if no buffer available
  * */

@@ -343,7 +343,7 @@ void write_buffer_drop(UINT32 const lpn)
 #define begin_subpage(mask)	(begin_sector(mask) / SECTORS_PER_SUB_PAGE)
 #define end_subpage(mask)	COUNT_BUCKETS(end_sector(mask), SECTORS_PER_SUB_PAGE)
 
-void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
+void write_buffer_flush(UINT32 const buf, UINT32 sp_lpn[],
 			sectors_mask_t *valid_sectors)
 {
 	/* find a vicitim buffer */
@@ -352,7 +352,7 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 						  buf_id >= NUM_WRITE_BUFFERS);
 	*valid_sectors 	= 0;
 
-	mem_set_sram(lspns, NULL_LSPN, sizeof(UINT32) * SUB_PAGES_PER_PAGE);
+	mem_set_sram(sp_lpn, NULL_LPN, sizeof(UINT32) * SUB_PAGES_PER_PAGE);
 
 	UINT32  lpn_i   = 0;
 	// Iterate each lpn in the victim buffer
@@ -370,17 +370,10 @@ void write_buffer_flush(UINT32 const buf, UINT32 *lspns,
 		UINT8  begin_sp	   = begin_subpage(lp_mask),
 		       end_sp	   = end_subpage(lp_mask);
 		BUG_ON("empty sub page", begin_sp == end_sp);
-		UINT8  sp_offset   = begin_sp;
-		UINT32 lspn_base   = lpn * SUB_PAGES_PER_PAGE;
-		UINT32 lspn	   = lspn_base + begin_sp,
-		       end_lspn	   = lspn_base + end_sp;
-		while (lspn < end_lspn) {
-			UINT8	lsp_mask = (lp_mask >> (SECTORS_PER_SUB_PAGE * sp_offset));
-
-			if (lsp_mask) lspns[sp_offset] = lspn;
-
-			lspn++;
-			sp_offset++;
+		for (UINT8 sp_i = begin_sp; sp_i < end_sp; sp_i++) {
+			UINT8	lsp_mask = (lp_mask >>
+						(SECTORS_PER_SUB_PAGE * sp_i));
+			if (lsp_mask) sp_lpn[sp_i] = lpn;
 		}
 
 		// remove the lpn from buffer

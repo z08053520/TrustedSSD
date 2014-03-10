@@ -12,7 +12,7 @@
 
 UINT32	g_num_ftl_read_tasks_submitted = 0;
 UINT32 	g_num_ftl_read_tasks_finished = 0;
-UINT32	g_next_finishing_task_seq_id = 0;
+UINT32	g_next_finishing_read_task_seq_id = 0;
 
 #define sata_rd_buf	(SATA_RD_BUF_PTR(var(seq_id) % NUM_SATA_RD_BUFFERS))
 
@@ -54,6 +54,7 @@ begin_thread_stack
 {
 	UINT32		seq_id;
 	UINT32		lpn;
+	sectors_mask_t	target_sectors;
 	UINT8		sect_offset;
 	UINT8		num_sectors;
 	UINT8		num_segments;
@@ -164,6 +165,16 @@ phase(FLASH_READ_PHASE) {
 				continue;
 			}
 
+			/* try to reader buffer */
+			UINT32 read_buf = NULL;
+			read_buffer_get(seg->vp, &read_buf);
+			if (read_buf) {
+				fla_copy_buffer(sata_rd_buf, read_buf,
+						seg->target_sectors);
+				seg->is_done = TRUE;
+				continue;
+			}
+
 			/* need idle bank */
 			signals_set(interesting_signals, SIG_BANK(bank));
 			if (!fla_is_bank_idle(bank)) continue;
@@ -174,8 +185,6 @@ phase(FLASH_READ_PHASE) {
 				seg->has_holes = TRUE;
 
 				UINT8 buf_id = buffer_allocate();
-				if (buf_id == NULL_BUF_ID) continue;
-
 				seg->managed_buf_id = buf_id;
 				rd_buf = MANAGED_BUF(buf_id);
 			}
@@ -199,15 +208,16 @@ phase(FLASH_READ_PHASE) {
 phase(SATA_PHASE) {
 	g_num_ftl_read_tasks_finished++;
 
-	if (g_next_finishing_task_seq_id == var(seq_id))
-		g_next_finishing_task_seq_id++;
+	if (g_next_finishing_read_task_seq_id == var(seq_id))
+		g_next_finishing_read_task_seq_id++;
 	else if (g_num_ftl_read_tasks_finished == g_num_ftl_read_tasks_submitted)
-		g_next_finishing_task_seq_id = g_num_ftl_read_tasks_finished;
+		g_next_finishing_read_task_seq_id = g_num_ftl_read_tasks_finished;
 	else
 		end();
 
 	/* safely inform SATA buffer manager to update pointer */
-	UINT32 next_read_buf_id = g_next_finishing_task_seq_id % NUM_SATA_RD_BUFFERS;
+	UINT32 next_read_buf_id = g_next_finishing_read_task_seq_id
+				% NUM_SATA_RD_BUFFERS;
 	SETREG(BM_STACK_RDSET, next_read_buf_id);
 	SETREG(BM_STACK_RESET, 0x02);
 

@@ -245,7 +245,7 @@ typedef union {
 #define vsp_is_equal(vsp0, vsp1)	((vsp0).as_uint == (vsp1).as_uint)
 #define vsp_not_equal(vsp0, vsp1)	((vsp0).as_uint != (vsp1).as_uint)
 
-#define NULL_LSPN			0xFFFFFFFF
+#define NULL_LPN			0xFFFFFFFF
 
 #define COUNT_BUCKETS(TOTAL, BUCKET_SIZE) \
 	( ((TOTAL) + (BUCKET_SIZE) - 1) / (BUCKET_SIZE) )

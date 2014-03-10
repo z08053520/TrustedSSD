@@ -9,9 +9,19 @@ static UINT32 buffer_usage = 0xFFFFFFFF;
 #define mark_buf_free(id)		(buffer_usage |= (1 << (id)))
 #define is_buf_occupied(id)		((buffer_usage & (1 << (id))) == 0)
 
+UINT8 buffer_id(UINT32 const buf)
+{
+	if (buf < MANAGED_BUF_ADDR ||
+		buf >= MANAGED_BUF_ADDR + MANAGED_BUF_BYTES)
+		return NULL_BUF_ID;
+	UINT8 buf_id = (buf - MANAGED_BUF_ADDR) / BYTES_PER_PAGE;
+	return buf_id;
+}
+
 UINT8 buffer_allocate()
 {
-	if (buffer_usage == 0) return NULL;
+	/* FIXME: can buffer run out? if there is no bug */
+	ASSERT(buffer_usage > 0);
 
 	UINT8 buf_id = first_available_buf_id();
 	mark_buf_occupied(buf_id);
