@@ -184,8 +184,10 @@ phase(FLASH_READ_PHASE) {
 			}
 
 			/* issue flash read cmd */
-			fla_read_page_with_mask(vp, rd_buf,
-						seg->target_sectors);
+			UINT8 sect_offset = begin_sector(seg->target_sectors),
+			      num_sectors = end_sector(seg->target_sectors)
+						- sect_offset;
+			fla_read_page(vp, sect_offset, num_sectors, rd_buf);
 			seg->is_issued = TRUE;
 		}
 
