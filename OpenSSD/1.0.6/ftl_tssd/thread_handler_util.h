@@ -15,6 +15,7 @@
  * */
 
 #include "thread.h"
+#include "page_lock.h"
 
 /*
  * Thread variables
@@ -50,7 +51,7 @@ UINT8 __thread_stack[THREAD_STACK_SIZE];
  * */
 #define phase(name)						\
 		save_position(__t, name);			\
-	__##name
+	__##name:
 
 #define goto_phase(new_name)	do {				\
 		save_position(__t, new_name);			\
@@ -93,4 +94,13 @@ UINT8 __thread_stack[THREAD_STACK_SIZE];
 
 void restore_thread_variables(thread_t *t);
 void save_thread_variables(thread_t *t);
+
+/*
+ * Page lock
+ * */
+#define lock_page(lpn, lock_type)	\
+		page_lock(thread_id(__t), (lpn), (lock_type))
+#define unlock_page(lpn)		\
+		page_unlock(thread_id(__t), (lpn))
+#endif
 #endif

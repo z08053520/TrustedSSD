@@ -4,7 +4,6 @@
 #include "pmt.h"
 #include "fla.h"
 #include "buffer.h"
-#include "page_rw_lock.h"
 
 /*
  * SATA
@@ -66,7 +65,8 @@ begin_thread_handler
 {
 /* Try write buffer first */
 phase(BUFFER_PHASE) {
-	if (page_read_lock(var(lpn))) run_later();
+	if (lock_page(var(lpn), PAGE_LOCK_READ) != PAGE_LOCK_READ)
+		run_later();
 
 	sectors_mask_t	target_sectors = init_mask(
 						var(sect_offset),
@@ -83,7 +83,7 @@ phase(BUFFER_PHASE) {
 		target_sectors &= ~common_sectors;
 	}
 	if (target_sectors == 0) {
-		page_unlock(var(lpn));
+		unlock_page(var(lpn));
 		goto_phase(SATA_PHASE);
 	}
 next_phase_mapping:
@@ -129,7 +129,7 @@ phase(MAPPING_PHASE) {
 
 	var(num_segments) = num_segments;
 
-	page_unlock(var(lpn));
+	unlock_page(var(lpn));
 }
 /* Do flash read */
 phase(FLASH_READ_PHASE) {

@@ -8,8 +8,8 @@
  * SATA
  * */
 
-UINT32	g_num_ftl_read_tasks_submitted = 0;
-UINT32 	g_num_ftl_read_tasks_finished = 0;
+UINT32	g_num_ftl_write_tasks_submitted = 0;
+UINT32 	g_num_ftl_write_tasks_finished = 0;
 UINT32	g_next_finishing_write_task_seq_id = 0;
 
 #define sata_wr_buf	(SATA_WR_BUF_PTR(var(seq_id) % NUM_SATA_WR_BUFFERS))
@@ -40,12 +40,24 @@ begin_thread_stack
 }
 end_thread_stack
 
+static void copy_subpage_miss_sectors(UINT32 const target_buf, UINT32 const src_buf,
+				UINT8 const sp_i,
+				sectors_mask_t const valid_sectors)
+{
+	sectors_mask_t sp_sectors =
+		init_mask(sp_i * SECTORS_PER_SUB_PAGE,
+				SECTORS_PER_SUB_PAGE);
+	sectors_mask_t sp_missing_sectors =
+		sp_sectors & ~var(valid_sectors);
+	fla_copy_buffer(var(buf), rd_buf, sp_missing_sectors);
+}
+
 begin_thread_handler
 {
 /* Write buffer if possible */
 phase(BUFFER_PHASE) {
 	/* put partial page to write buffer */
-	if (num_sectors < SECTORS_PER_PAGE) {
+	if (var(num_sectors)< SECTORS_PER_PAGE) {
 		/* don't need to flush write buffer if it is not full*/
 		if (!write_buffer_is_full()) {
 			write_buffer_put(var(lpn), var(sect_offset),
@@ -58,7 +70,7 @@ phase(BUFFER_PHASE) {
 		write_buffer_flush(var(buf), var(sp_lpn),
 					&var(valid_sectors));
 	}
-	/* write to flash directly for a whole page */
+	/* write whole page to flash directly */
 	else {
 		var(buf) = sata_wr_buf;
 		var(valid_sectors) = FULL_MASK;
@@ -68,15 +80,26 @@ phase(BUFFER_PHASE) {
 
 		write_buffer_drop(var(lpn));
 	}
-
-	/* TODO: page write lock LPNs */
-
+}
+/* lock pages to write */
+phase(LOCK_PHASE)
+{
+	lock_type_t lowest_lock = PAGE_LOCK_WRITE;
+	UINT32 last_lpn = NULL_LPN;
+	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
+		UINT32 lpn = var(sp_lpn)[sp_i];
+		if (last_lpn == lpn || lpn == NULL_LPN) continue;
+		lock_type_t lock = page_lock(lpn, PAGE_LOCK_WRITE);
+		last_lpn = lpn;
+		if (lock < lowest_lock) lowest_lock = lock;
+	}
+	if (lowest_lock != PAGE_LOCK_WRITE) run_later();
 }
 phase(BANK_PHASE)
 	UINT8 idle_bank  = fla_get_idle_bank();
 	if (idle_bank >= NUM_BANKS) sleep(SIG_ALL_BANKS);
 
-	var(vp).banks	= idle_bank;
+	var(vp).bank	= idle_bank;
 	var(vp).vpn	= gc_allocate_new_vpn(idle_bank, FALSE);
 
 	/* prepare for next phase */
@@ -110,8 +133,14 @@ phase(MAPPING_PHASE) {
 	}
 	if (interesting_signals) sleep(interesting_signals);
 
-	/* TODO: page write unlock LPNs */
-
+	/* unlock pages */
+	UINT32 last_lpn = NULL_LPN;
+	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
+		UINT32 lpn = var(sp_lpn)[sp_i];
+		if (last_lpn == lpn || lpn == NULL_LPN) continue;
+		page_unlock(lpn);
+		last_lpn = lpn;
+	}
 
 	/* prepare for next phase */
 	var(cmd_done) = 0;
@@ -143,16 +172,9 @@ phase(FLASH_READ_PHASE) {
 				continue;
 			}
 
-			sectors_mask_t sp_sectors =
-				init_mask(sp_i * SECTORS_PER_SUB_PAGE,
-						SECTORS_PER_SUB_PAGE);
-			sectors_mask_t sp_missing_sectors =
-				sp_sectors & ~var(valid_sectors);
 			UINT8 buf_id = var(sp_rd_buf_id)[sp_i];
-			fla_copy_buffer(var(buf),
-					MANAGED_BUF(buf_id),
-					sp_missing_sectors);
-
+			copy_subpage_miss_sectors(var(buf), MANAGED_BUF(buf_id),
+							sp_i, var(valid_sectors));
 			buffer_free(buf_id);
 			mask_set(var(cmd_done), sp_i);
 			continue;
@@ -163,13 +185,8 @@ phase(FLASH_READ_PHASE) {
 		UINT32 rd_buf = NULL;
 		read_buffer_get(old_vp, &rd_buf);
 		if (rd_buf) {
-			sectors_mask_t sp_sectors =
-				init_mask(sp_i * SECTORS_PER_SUB_PAGE,
-						SECTORS_PER_SUB_PAGE);
-			sectors_mask_t sp_missing_sectors =
-				sp_sectors & ~var(valid_sectors);
-			fla_copy_buffer(var(buf), rd_buf, sp_missing_sectors);
-
+			copy_subpage_miss_sectors(var(buf), rd_buf, sp_i,
+							var(valid_sectors));
 			mask_set(var(cmd_done), sp_i);
 			continue;
 		}
@@ -179,17 +196,16 @@ phase(FLASH_READ_PHASE) {
 
 		if (!fla_is_bank_idle(old_vp.bank)) continue;
 
-		UINT8 buf_id = buffer_allocate();
+		UINT8 buf_id = var(sp_rd_buf_id)[sp_i] = buffer_allocate();
 		rd_buf = MANAGED_BUF(buf_id);
 		fla_read_page(old_vp, sp_i * SECTORS_PER_SUB_PAGE,
 				SECTORS_PER_SUB_PAGE, rd_buf);
-
 		mask_set(var(cmd_issued), sp_i);
 	}
 
 	if (interesting_signals) sleep(interesting_signals);
 
-	/* prepare for flash write */
+	/* prepare for next phase */
 	var(cmd_issued) = FALSE;
 }
 /* Write the buffer to flash */
@@ -219,9 +235,8 @@ phase(FLASH_WRITE_PHASE) {
 }
 phase(SATA_PHASE) {
 	g_num_ftl_write_tasks_finished++;
-	if (wr_buf->buf) task_ends_writing_page(wr_buf->vp, task);
 
-	if (g_next_finishing_write_task_seq_id == task->seq_id)
+	if (g_next_finishing_write_task_seq_id == var(seq_id))
 		g_next_finishing_write_task_seq_id++;
 	else if (g_num_ftl_write_tasks_finished == g_num_ftl_write_tasks_submitted)
 		g_next_finishing_write_task_seq_id = g_num_ftl_write_tasks_finished;

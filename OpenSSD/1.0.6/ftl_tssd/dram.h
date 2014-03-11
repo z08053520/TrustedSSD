@@ -19,11 +19,19 @@
 #define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * (i))
 
 /* ========================================================================= *
+ * Page Lock
+ * ========================================================================= */
+
+#define PL_ADDR			PC_END
+#define PL_BYTES		BYTES_PER_PAGE
+#define PL_END			(PL_ADDR + PL_BYTES)
+
+/* ========================================================================= *
  * Bad Block
  * ========================================================================= */
 
 /* bitmap of bad blocks */
-#define BAD_BLK_BMP_ADDR        	PC_END
+#define BAD_BLK_BMP_ADDR        	PL_END
 #define BAD_BLK_BMP_END			(BAD_BLK_BMP_ADDR + BAD_BLK_BMP_BYTES)
 #define BAD_BLK_BMP_BYTES_PER_BANK	COUNT_BUCKETS(VBLKS_PER_BANK, 8)
 #define BAD_BLK_BMP_REAL_BYTES		(BAD_BLK_BMP_BYTES_PER_BANK * NUM_BANKS)
@@ -58,6 +66,8 @@
 #define MAX_NUM_TASKS		16
 #define SWAP_BYTES_PER_TASK	(TASK_SWAP_BYTES / MAX_NUM_TASKS)
 #define TASK_SWAP_BUF(task_id)	(TASK_SWAP_ADDR + (task_id) * SWAP_BYTES_PER_TASK)
+
+#define MAX_NUM_THREADS		16
 
 /* ========================================================================= *
  *  Page Cache Flush Task
@@ -126,6 +136,7 @@
 				 NUM_READ_BUFFERS + NUM_WRITE_BUFFERS)
 #define NON_SATA_BUF_BYTES	(NUM_NON_SATA_BUFFERS * BYTES_PER_PAGE)
 #define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + PC_BYTES + \
+				 PL_BYTES + \
 				 BAD_BLK_BMP_BYTES + GTD_BYTES + \
 				 TASK_SWAP_BYTES + PC_FLUSH_BYTES)
 
