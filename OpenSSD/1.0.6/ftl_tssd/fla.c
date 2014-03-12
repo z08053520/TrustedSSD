@@ -1,8 +1,23 @@
 #include "fla.h"
 #include "bad_blocks.h"
 #include "mem_util.h"
+#include "schduler.h"
 
-#define use_bank(bank_i)	(idle_banks &= ~(1 << (bank_i)))
+typedef banks_mask_t UINT16;
+static banks_mask_t idle_banks = 0xFFFF;
+static banks_mask_t complete_banks = 0;
+
+/* notify scheduler for any banks state changes by signals */
+#define update_scheduler_signals()	do {				\
+		signals_reset(g_scheduler_signals, SIG_ALL_BANKS);	\
+		signals_set(g_scheduler_signals,			\
+			SIG_BANKS(idle_banks | complete_banks));	\
+	} while(0)
+
+#define use_bank(bank_i)	do {			\
+		idle_banks &= ~(1 << (bank_i));		\
+		update_scheduler_signals();		\
+	} while(0)
 
 void fla_format_all(UINT32 const from_vblk)
 {
@@ -19,11 +34,7 @@ void fla_format_all(UINT32 const from_vblk)
         }
 }
 
-typedef banks_mask_t UINT16;
-static banks_mask_t idle_banks = 0xFFFF;
-static banks_mask_t complete_banks = 0;
-
-void fla_udpate_bank_state()
+void fla_update_bank_state()
 {
 	/* Wait for all flash commands accepted */
 	while ((GETREG(WR_STAT) & 0x00000001) != 0);
@@ -37,6 +48,8 @@ void fla_udpate_bank_state()
 	}
 	/* update complete banks */
 	complete_banks = used_banks & idle_banks;
+
+	update_scheduler_signals();
 }
 
 BOOL8 fla_is_bank_idle(UINT8 const bank)

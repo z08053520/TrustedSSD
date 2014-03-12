@@ -41,5 +41,5 @@ thread_t*	thread_get_next(thread_t *t);
 void		thread_set_next(thread_t *t, thread_t *n);
 
 thread_handler_id_t	thread_handler_register(thread_handler_t handler);
-thread_handler		thread_handler_get(thread_handler_id_t handler_id);
+thread_handler		thread_handler_get(thread_handler_id_t const handler_id);
 #endif

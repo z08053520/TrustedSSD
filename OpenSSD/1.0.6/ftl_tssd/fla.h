@@ -10,7 +10,7 @@
 
 void fla_format_all(UINT32 const from_vblk);
 
-void fla_udpate_bank_state();
+void fla_update_bank_state();
 
 BOOL8 fla_is_bank_idle(UINT8 const bank);
 BOOL8 fla_is_bank_complete(UINT8 const bank);
