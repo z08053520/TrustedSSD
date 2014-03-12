@@ -6,6 +6,8 @@
 #include "buffer.h"
 #include "fla.h"
 #include "pmt.h"
+#include "signal.t"
+#include "page_lock.h"
 
 /*
  * SATA
