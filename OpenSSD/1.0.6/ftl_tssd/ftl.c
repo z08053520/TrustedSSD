@@ -7,11 +7,10 @@
 #include "flash_util.h"
 #include "read_buffer.h"
 #include "write_buffer.h"
-#include "task_engine.h"
-#include "ftl_read_task.h"
-#include "ftl_write_task.h"
-#include "page_cache_load_task.h"
-#include "page_cache_flush_task.h"
+#include "thread.h"
+#include "ftl_read_thread.h"
+#include "ftl_write_thread.h"
+#include "scheduler.h"
 #if OPTION_ACL
 	#include "acl.h"
 #endif
@@ -128,10 +127,7 @@ extern UINT32	g_num_ftl_write_tasks_submitted;
 
 BOOL8 ftl_main(void)
 {
-	/* Accept new SATA read/write requests if we can */
-	/* TODO: keep an extra free task for page cache load/flush task may
-	 * not be the best way to prevent task from "dead lock" each other */
-	while (task_can_allocate(2)) {
+	while (thread_can_allocate(1)) {
 		/* Make sure we have a SATA request to process */
 		if (sata_cmd.sector_count == 0) {
 			if (!sata_has_next_rw_cmd()) break;
@@ -171,28 +167,31 @@ BOOL8 ftl_main(void)
 
 
 		/* Submit a new task */
-		task_t *task = task_allocate();
-		BUG_ON("allocation task failed", task == NULL);
+		thread_t *thread = thread_allocate();
+		ASSERT(thread != NULL);
 #if	OPTION_ACL
 		UINT32	uid = acl_skey2uid(sata_cmd.session_key);
 		if (sata_cmd.cmd_type == READ)
-			ftl_read_task_init(task, uid, lpn, offset, num_sectors);
+			ftl_read_thread_init(thread, uid, lpn, offset, num_sectors);
 		else
-			ftl_write_task_init(task, uid, lpn, offset, num_sectors);
+			ftl_write_thread_init(thread, uid, lpn, offset, num_sectors);
 #else
 		if (sata_cmd.cmd_type == READ)
-			ftl_read_task_init(task, lpn, offset, num_sectors);
+			ftl_read_thread_init(thread, lpn, offset, num_sectors);
 		else
-			ftl_write_task_init(task, lpn, offset, num_sectors);
+			ftl_write_thread_init(thread, lpn, offset, num_sectors);
 #endif
-		task_engine_submit(task);
+		enqueue(thread);
 
 		sata_cmd.lba += num_sectors;
 		sata_cmd.sector_count -= num_sectors;
 	}
 
-	BOOL8 is_idle = task_engine_run();
-	return is_idle && ftl_all_sata_cmd_accepted();
+	/* scheduler runs all threads enqueud */
+	schedule();
+
+	BOOL8 idle = ftl_all_sata_cmd_accepted();
+	return idle;
 }
 
 void ftl_flush(void) {

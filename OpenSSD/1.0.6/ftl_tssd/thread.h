@@ -33,6 +33,7 @@ typedef struct {
 	signals_t		wakeup_signals;
 } thread_t;
 
+BOOL8		thread_can_allocate();
 thread_t*	thread_allocate();
 void		thread_deallocate(thread_t *t);
 

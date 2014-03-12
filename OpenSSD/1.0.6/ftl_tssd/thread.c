@@ -17,6 +17,11 @@ define_slab_implementation(thread, thread_t, MAX_NUM_THREADS);
 thread_handler_t handlers[MAX_NUM_THREAD_HANDLERS] = {NULL};
 UINT8 num_handlers = 0;
 
+BOOL8 thread_can_allocate()
+{
+	return slab_thread_num_free > 0;
+}
+
 thread_t* thread_allocate()
 {
 	thread* t = slab_allocate_task();
