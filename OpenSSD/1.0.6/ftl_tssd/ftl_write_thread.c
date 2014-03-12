@@ -1,8 +1,11 @@
 #include "ftl_write_thread.h"
-#include "fla.h"
-#include "gc.h"
-#include "write_buffer.h"
+#include "thread_handler_util.h"
 #include "read_buffer.h"
+#include "write_buffer.h"
+#include "gc.h"
+#include "buffer.h"
+#include "fla.h"
+#include "pmt.h"
 
 /*
  * SATA
@@ -133,15 +136,6 @@ phase(MAPPING_PHASE) {
 	}
 	if (interesting_signals) sleep(interesting_signals);
 
-	/* unlock pages */
-	UINT32 last_lpn = NULL_LPN;
-	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
-		UINT32 lpn = var(sp_lpn)[sp_i];
-		if (last_lpn == lpn || lpn == NULL_LPN) continue;
-		page_unlock(lpn);
-		last_lpn = lpn;
-	}
-
 	/* prepare for next phase */
 	var(cmd_done) = 0;
 	var(cmd_issued) = 0;
@@ -232,6 +226,15 @@ phase(FLASH_WRITE_PHASE) {
 	/* free managed buffer if used */
 	UINT8 buf_id = buffer_id(var(buf));
 	if (buf_id != NULL_BUF_ID) buffer_free(buf_id);
+
+	/* unlock pages */
+	UINT32 last_lpn = NULL_LPN;
+	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
+		UINT32 lpn = var(sp_lpn)[sp_i];
+		if (last_lpn == lpn || lpn == NULL_LPN) continue;
+		page_unlock(lpn);
+		last_lpn = lpn;
+	}
 }
 phase(SATA_PHASE) {
 	g_num_ftl_write_tasks_finished++;
