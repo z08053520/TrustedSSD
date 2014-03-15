@@ -1,5 +1,6 @@
 #include "page_lock.h"
 #include "mem_util.h"
+#include "dram.h"
 
 #define MAX_NUM_LOCKS_PER_OWNER		SUB_PAGES_PER_PAGE
 #define MAX_NUM_LOCKS			(MAX_NUM_LOCKS_PER_OWNER * \
@@ -57,7 +58,7 @@ void page_lock_init() {
 	ASSERT(MAX_NUM_PAGE_LOCK_OWNERS <= 16);
 
 	mem_set_dram(PL_LPNS_ADDR, NULL_LPN, sizeof(UINT32) * MAX_NUM_LOCKS);
-	mem_set_dram(PL_OWNERS_ADDR, 0, sizeof(UINT32) * MAX_NUM_LOCKS);
+	mem_set_dram(PL_OWNERS_INFO_ADDR, 0, sizeof(UINT32) * MAX_NUM_LOCKS);
 }
 
 /*
@@ -75,7 +76,7 @@ void page_lock_init() {
 /* write lock is the highest, while null lock is the lowest */
 static inline page_lock_type_t get_highest_lock_except_owner(
 					owners_info_t const owners_info,
-					owner_id_t const except_owner_id)
+					page_lock_owner_id_t const except_owner_id)
 {
 	page_lock_type_t highest_lock = PAGE_LOCK_NULL;
 	UINT8 owner_id;
@@ -99,18 +100,18 @@ page_lock_type_t page_lock(page_lock_owner_id_t const owner_id,
 
 	/* determine appropriate lock */
 	owners_info_t owners_info = get_owners_info(lock_idx);
-	lock_type_t old_lock = get_owner_lock_type(owners_info, owner_id);
-	lock_type_t highest_lock_except_owner =
+	page_lock_type_t old_lock = get_owner_lock_type(owners_info, owner_id);
+	page_lock_type_t highest_lock_except_owner =
 			get_highest_lock_except_owner(owners_info, owner_id);
-	lock_type_t highest_compatible_lock =
+	page_lock_type_t highest_compatible_lock =
 			get_highest_compatible_lock(highest_lock_except_owner);
-	lock_type_t final_lock = MIN(highest_compatible_lock,
+	page_lock_type_t final_lock = MIN(highest_compatible_lock,
 					MAX(new_lock, old_lock));
 
 	/* lock granted and need to update DRAM */
 	if (final_lock != PAGE_LOCK_NULL && final_lock != old_lock) {
 		set_owner_lock_type(owners_info, owner_id, final_lock);
-		set_owners_info(lock_idx, owners_info_t);
+		set_owners_info(lock_idx, owners_info);
 	}
 	return final_lock;
 }
@@ -122,7 +123,7 @@ void page_unlock(page_lock_owner_id_t const owner_id, UINT32 const lpn)
 	if (lock_idx >= MAX_NUM_LOCKS) return;
 
 	owners_info_t owners_info = get_owners_info(lock_idx);
-	lock_type_t old_lock = get_owner_lock_type(owners_info, owner_id);
+	page_lock_type_t old_lock = get_owner_lock_type(owners_info, owner_id);
 	if (old_lock == PAGE_LOCK_NULL) return;
 
 	set_owner_lock_type(owners_info, owner_id, PAGE_LOCK_NULL);

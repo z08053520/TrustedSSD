@@ -23,7 +23,7 @@ BOOL8 thread_can_allocate()
 
 thread_t* thread_allocate()
 {
-	thread* t = slab_allocate_task();
+	thread_t* t = slab_allocate_thread();
 	t->state	= THREAD_RUNNABLE;
 	t->next_id	= NULL_THREAD_ID;
 	t->handler_id	= NULL_THREAD_HANDLER_ID;
@@ -34,7 +34,7 @@ thread_t* thread_allocate()
 
 void thread_deallocate(thread_t *t)
 {
-	slab_deallocate_task(t);
+	slab_deallocate_thread(t);
 }
 
 thread_id_t	thread_id(thread_t *t)
@@ -61,7 +61,7 @@ thread_handler_id_t thread_handler_register(thread_handler_t handler)
 	return num_handlers++;
 }
 
-thread_handler thread_handler_get(thread_handler_id_t const handler_id)
+thread_handler_t thread_handler_get(thread_handler_id_t const handler_id)
 {
 	ASSERT(handler_id < num_handlers);
 	return handlers[handler_id];

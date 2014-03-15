@@ -6,8 +6,9 @@
 #include "buffer.h"
 #include "fla.h"
 #include "pmt.h"
-#include "signal.t"
+#include "signal.h"
 #include "page_lock.h"
+#include "dram.h"
 
 /*
  * SATA
@@ -45,16 +46,15 @@ begin_thread_variables
 }
 end_thread_variables
 
-static void copy_subpage_miss_sectors(UINT32 const target_buf, UINT32 const src_buf,
+static void copy_subpage_miss_sectors(UINT32 const target_buf,
+				UINT32 const src_buf,
 				UINT8 const sp_i,
 				sectors_mask_t const valid_sectors)
 {
 	sectors_mask_t sp_sectors =
-		init_mask(sp_i * SECTORS_PER_SUB_PAGE,
-				SECTORS_PER_SUB_PAGE);
-	sectors_mask_t sp_missing_sectors =
-		sp_sectors & ~var(valid_sectors);
-	fla_copy_buffer(var(buf), rd_buf, sp_missing_sectors);
+		init_mask(sp_i * SECTORS_PER_SUB_PAGE, SECTORS_PER_SUB_PAGE);
+	sectors_mask_t sp_missing_sectors = sp_sectors & ~valid_sectors;
+	fla_copy_buffer(target_buf, src_buf, sp_missing_sectors);
 }
 
 begin_thread_handler
@@ -87,20 +87,19 @@ phase(BUFFER_PHASE) {
 	}
 }
 /* lock pages to write */
-phase(LOCK_PHASE)
-{
-	lock_type_t lowest_lock = PAGE_LOCK_WRITE;
+phase(LOCK_PHASE) {
+	page_lock_type_t lowest_lock = PAGE_LOCK_WRITE;
 	UINT32 last_lpn = NULL_LPN;
 	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
 		UINT32 lpn = var(sp_lpn)[sp_i];
 		if (last_lpn == lpn || lpn == NULL_LPN) continue;
-		lock_type_t lock = page_lock(lpn, PAGE_LOCK_WRITE);
+		page_lock_type_t lock = lock_page(lpn, PAGE_LOCK_WRITE);
 		last_lpn = lpn;
 		if (lock < lowest_lock) lowest_lock = lock;
 	}
 	if (lowest_lock != PAGE_LOCK_WRITE) run_later();
 }
-phase(BANK_PHASE)
+phase(BANK_PHASE) {
 	UINT8 idle_bank  = fla_get_idle_bank();
 	if (idle_bank >= NUM_BANKS) sleep(SIG_ALL_BANKS);
 
@@ -234,7 +233,7 @@ phase(FLASH_WRITE_PHASE) {
 	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
 		UINT32 lpn = var(sp_lpn)[sp_i];
 		if (last_lpn == lpn || lpn == NULL_LPN) continue;
-		page_unlock(lpn);
+		unlock_page(lpn);
 		last_lpn = lpn;
 	}
 }
@@ -254,6 +253,7 @@ phase(SATA_PHASE) {
 	SETREG(BM_STACK_WRSET, next_write_buf_id);
 	SETREG(BM_STACK_RESET, 0x01);
 }
+}
 end_thread_handler
 
 /*
@@ -270,11 +270,11 @@ void ftl_write_thread_init(thread_t *t, UINT32 lpn, UINT8 sect_offset,
 			thread_handler_register(get_thread_handler());
 	}
 
-	t->handler = registered_handler_id;
+	t->handler_id = registered_handler_id;
 
 	var(seq_id) = g_num_ftl_write_tasks_submitted++;
 	var(lpn) = lpn;
 	var(sect_offset) = sect_offset;
 	var(num_sectors) = num_sectors;
-	save_thread_variables(t);
+	save_thread_variables(thread_id(t));
 }

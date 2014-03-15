@@ -47,7 +47,7 @@ BOOL8	pmt_cache_evict();
  *	indexes of these pages are stored in merge_pmt_idxes.
  *	Return 0 if succeed; 1 if fails.
  * */
-BOOL8	pmt_flush(UINT32 const target_buf,
+BOOL8	pmt_cache_flush(UINT32 const target_buf,
 		UINT32 merged_pmt_idxes[SUB_PAGES_PER_PAGE]);
 
 #endif

@@ -75,7 +75,7 @@ static UINT32 get_page(UINT32 const pmt_idx)
 	last_pmt_idx = pmt_idx;
 	last_page_idx = page_idx;
 
-	if (pmt_cached_timestamps[page_idx] < NULL_TIMESTAMP)
+	if (cached_pmt_timestamps[page_idx] < NULL_TIMESTAMP)
 		update_timestamp(page_idx);
 
 	return page_idx;
@@ -212,13 +212,13 @@ BOOL8	pmt_cache_evict()
 		}
 
 		cached_pmt_timestamps[lru_page_idx] = RESERVED_TIMESTAMP;
-		merged_pmt_idxes[merge_buf_size] = lru_page_idx;
+		merged_page_idxes[merge_buf_size] = lru_page_idx;
 		merge_buf_size++;
 	}
 	return 1;
 }
 
-BOOL8	pmt_flush(UINT32 const target_buf,
+BOOL8	pmt_cache_flush(UINT32 const target_buf,
 		UINT32 merged_pmt_idxes[SUB_PAGES_PER_PAGE])
 {
 	if (merge_buf_size != SUB_PAGES_PER_PAGE) return 1;

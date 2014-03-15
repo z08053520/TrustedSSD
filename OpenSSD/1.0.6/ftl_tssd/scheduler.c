@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include "fla.h"
 
 signals_t g_scheduler_signals = 0;
 
@@ -9,10 +10,10 @@ static thread_t _head = {
 	.handler_last_offset = 0,
 	.wakeup_signals = 0
 };
-static thread_t *head = &_head;
-static thread_t *tail = head;
+static thread_t * const head = &_head;
+static thread_t * tail = &_head;
 
-static inline remove(thread_t *this, thread_t *pre)
+static inline void remove(thread_t *this, thread_t *pre)
 {
 	thread_set_next(pre, thread_get_next(this));
 	if (this == tail) tail = pre;
@@ -26,7 +27,7 @@ void schedule()
 	 * changes by signals (g_scheduler_signals) */
 	fla_update_bank_state();
 
-	thread_handler handler = NULL;
+	thread_handler_t handler = NULL;
 	thread_t *thread = thread_get_next(head), *pre = head;
 	while (thread) {
 		/* wake up sleep thread */

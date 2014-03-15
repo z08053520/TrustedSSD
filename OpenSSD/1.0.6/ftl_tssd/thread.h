@@ -13,7 +13,7 @@
 
 typedef UINT8 thread_id_t;
 /* thread_id_t is 6-bits */
-#define NULL_THREAD_ID		0x3F;
+#define NULL_THREAD_ID		0x3F
 
 typedef enum {
 	THREAD_RUNNABLE,
@@ -21,9 +21,8 @@ typedef enum {
 	THREAD_STOPPED
 } thread_state_t;
 
-typedef void (*thread_handler_t)(thread_t *__t);
 typedef UINT8 thread_handler_id_t;
-#define NULL_THREAD_HANDLER_ID	0xFF;
+#define NULL_THREAD_HANDLER_ID	0xFF
 
 typedef struct {
 	thread_state_t		state:2;
@@ -32,6 +31,8 @@ typedef struct {
 	UINT16			handler_last_offset;
 	signals_t		wakeup_signals;
 } thread_t;
+
+typedef void (*thread_handler_t)(thread_t *__t);
 
 BOOL8		thread_can_allocate();
 thread_t*	thread_allocate();
@@ -42,5 +43,6 @@ thread_t*	thread_get_next(thread_t *t);
 void		thread_set_next(thread_t *t, thread_t *n);
 
 thread_handler_id_t	thread_handler_register(thread_handler_t handler);
-thread_handler		thread_handler_get(thread_handler_id_t const handler_id);
+thread_handler_t	thread_handler_get(thread_handler_id_t const handler_id);
+
 #endif

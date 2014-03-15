@@ -7,6 +7,7 @@
 #include "gc.h"
 #include "scheduler.h"
 #include "gtd.h"
+#include "dram.h"
 
 static thread_t *singleton_thread = NULL;
 
@@ -38,7 +39,7 @@ BOOL8 pmt_thread_request_enqueue(UINT32 const pmt_idx)
 		signals_set(singleton_thread->wakeup_signals, SIG_ALL_BANKS);
 
 	pmt_req_queue[pmt_req_tail] = pmt_idx;
-	pmt_req_tail = (pmt_req_tail + 1) % PMT_REQ_QUEUE_SIZE;
+	pmt_req_tail = (pmt_req_tail + 1) % MAX_PMT_REQ_QUEUE_SIZE;
 	pmt_req_queue_size++;
 	return 0;
 }
@@ -111,15 +112,13 @@ phase(ONE_PHASE) {
 	}
 
 	/* Restore the last request or retrieve a new request */
-	if (var(next_pmt_idx) != NULL_PMT_IDX) {
-		pmt_idx = var(next_pmt_idx);
-		var(next_pmt_idx) = NULL_PMT_IDX;
-	}
-	else {
-		pmt_idx = pop_pmt_req();
-	}
+	if (var(next_pmt_idx) == NULL_PMT_IDX)
+		var(next_pmt_idx) = pop_pmt_req();
 	/* Process request */
-	while (pmt_idx != NULL_PMT_IDX) {
+	while (var(next_pmt_idx) != NULL_PMT_IDX) {
+		vsp_t	load_vsp;
+		UINT32	load_bank;
+
 		/* if cache is full, need to evict, even flush */
 		if (pmt_cache_is_full()) {
 			res = pmt_cache_evict();
@@ -155,44 +154,42 @@ phase(ONE_PHASE) {
 			vsp_t flush_vsp = {
 				.bank = flush_bank,
 				.vspn = flush_vpn * SUB_PAGES_PER_PAGE
-			}
+			};
 			for_each_subpage(sp_i) {
 				UINT32 pmt_idx = flush_pmt_idxes[sp_i];
 				gtd_set_vsp(pmt_idx, flush_vsp);
-				flush_vsp.vspn++
+				flush_vsp.vspn++;
 			}
 		}
 pmt_load:
-		vsp_t	load_vsp = gtd_get_vsp(pmt_idx);
-		UINT32	load_bank = load_vsp.bank;
+		load_vsp = gtd_get_vsp(var(next_pmt_idx));
+		load_bank = load_vsp.bank;
 		signals_set(interesting_signals, SIG_BANK(load_bank));
 		if (!fla_is_bank_idle(load_bank)) break;
 
 		/* reserve a place for the PMT page in cache */
-		res = pmt_cache_put(pmt_idx);
+		res = pmt_cache_put(var(next_pmt_idx));
 		ASSERT(res == 0);
 
 		/* do flash read */
 		UINT8	load_buf_id = buffer_allocate();
 		UINT32	load_buf = MANAGED_BUF(load_buf_id);
 		UINT32	load_vpn = load_vsp.vspn / SUB_PAGES_PER_PAGE;
-		vp_t	load_vp = {.bank = load_bank, .vp = load_vpn};
+		vp_t	load_vp = {.bank = load_bank, .vpn = load_vpn};
 		UINT8	sp_offset = load_vsp.vspn % SUB_PAGES_PER_PAGE;
 		UINT8	sect_offset = sp_offset * SECTORS_PER_SUB_PAGE;
 		fla_read_page(load_vp, sect_offset, SECTORS_PER_SUB_PAGE,
 				load_buf);
 
-		var(loading_pmt_idxes)[load_bank] = pmt_idx;
+		var(loading_pmt_idxes)[load_bank] = var(next_pmt_idx);
 		var(loading_pmt_vsps)[load_bank] = load_vsp;
 		var(loading_buf_ids)[load_bank] = load_buf_id;
 
 		signals_set(g_scheduler_signals, SIG_PMT_READY);
 
 		/* get next PMT request */
-		pmt_idx = pop_pmt_req();
+		var(next_pmt_idx) = pop_pmt_req();
 	}
-	/* remember this PMT request to try again next time */
-	if (pmt_idx != NULL_PMT_IDX) var(next_pmt_idx) = pmt_idx;
 
 	if (interesting_signals)
 		sleep(interesting_signals);
@@ -217,7 +214,7 @@ void pmt_thread_init(thread_t *t)
 
 	singleton_thread = t;
 
-	t->handler = registered_handler_id;
+	t->handler_id = registered_handler_id;
 
 	/* init PMT loading info */
 	for_each_bank(bank_i) {
@@ -230,5 +227,5 @@ void pmt_thread_init(thread_t *t)
 	/* init next outstanding PMT request */
 	var(next_pmt_idx) = NULL_PMT_IDX;
 
-	save_thread_variables(t);
+	save_thread_variables(thread_id(t));
 }

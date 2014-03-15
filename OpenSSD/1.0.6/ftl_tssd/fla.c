@@ -1,8 +1,9 @@
 #include "fla.h"
 #include "bad_blocks.h"
 #include "mem_util.h"
+#include "signal.h"
 
-typedef banks_mask_t UINT16;
+typedef UINT16 banks_mask_t;
 /* 1 - idle; 0 - used */
 static banks_mask_t idle_banks = 0xFFFF;
 /* 1 - complete; 0 - not complete */
@@ -75,6 +76,7 @@ UINT8 fla_get_idle_bank()
 		bank_i = (bank_i + 1) % NUM_BANKS;
 		if (fla_is_bank_idle(bank_i)) return bank_i;
 	}
+	return NUM_BANKS;
 }
 
 void fla_read_page(vp_t const vp, UINT8 const sect_offset,

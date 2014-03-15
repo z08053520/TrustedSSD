@@ -24,10 +24,10 @@
 UINT8 __thread_stack[THREAD_STACK_SIZE];
 
 #define begin_thread_variables		\
-	struct thread_variables_t
+	typedef struct
 
 #define end_thread_variables		\
-	;
+	thread_variables_t;
 
 #define var(name)	(((thread_variables_t*)__thread_stack)->name)
 
@@ -38,7 +38,7 @@ UINT8 __thread_stack[THREAD_STACK_SIZE];
 		static void __thread_handler(thread_t *__t) {	\
 			thread_id_t __tid = thread_id(__t);	\
 			restore_thread_variables(__tid);	\
-			jump_to_last_postion(__t);		\
+			jump_to_last_position(__t);		\
 		__begin:
 
 #define end_thread_handler					\
@@ -59,29 +59,29 @@ UINT8 __thread_stack[THREAD_STACK_SIZE];
 		goto __##new_name;				\
 	} while(0)
 
-#define phase2offset(name)		(&&(__##name) - &&(__begin))
-#define offset2phase(offset)		(*(&&(__begin) + (offset)))
+#define phase2offset(name)		(&&__##name - &&__begin)
+#define offset2phase(offset)		*(&&__begin + (offset))
 
 /*
  * Context switch
  * */
 #define sleep(signals)	do {					\
 		__t->wakeup_signals = (signals);		\
-		schedule(THREAD_SLEEPING);			\
+		context_switch(THREAD_SLEEPING);			\
 	} while(0)
 
 #define run_later()	do {					\
 		__t->wakeup_signals = 0;			\
-		schedule(THREAD_RUNNABLE);			\
+		context_switch(THREAD_RUNNABLE);			\
 	} while(0)
 
 #define end()		do {					\
-		__t-->state = THREAD_STOPPED;			\
+		__t->state = THREAD_STOPPED;			\
 		return;						\
 	} while(0)
 
-#define schedule(new_state)	do {				\
-		__t-->state = (new_state);			\
+#define context_switch(new_state)	do {				\
+		__t->state = (new_state);			\
 		save_thread_variables(__tid);			\
 		return;						\
 	} while(0)
@@ -103,5 +103,4 @@ void save_thread_variables(thread_id_t const tid);
 		page_lock(__tid, (lpn), (lock_type))
 #define unlock_page(lpn)		\
 		page_unlock(__tid, (lpn))
-#endif
 #endif

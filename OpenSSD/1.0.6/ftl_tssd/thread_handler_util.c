@@ -1,4 +1,5 @@
 #include "thread_handler_util.h"
+#include "dram.h"
 
 #define THREAD_STACK(i)		(THREAD_SWAP_BUF_ADDR + THREAD_STACK_SIZE * (i))
 

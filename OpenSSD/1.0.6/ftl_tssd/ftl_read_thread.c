@@ -5,8 +5,9 @@
 #include "buffer.h"
 #include "fla.h"
 #include "pmt.h"
-#include "signal.t"
+#include "signal.h"
 #include "page_lock.h"
+#include "dram.h"
 
 /*
  * SATA
@@ -42,7 +43,7 @@ typedef struct {
 
 static BOOL8 check_segment_has_holes(segment_t *seg)
 {
-	sector_mask_t sectors = seg->target_sectors;
+	sectors_mask_t sectors = seg->target_sectors;
 	ASSERT(sectors != 0);
 	UINT8 middle_sectors = end_sector(sectors) - begin_sector(sectors);
 	return count_sectors(sectors) < middle_sectors;
@@ -95,9 +96,9 @@ next_phase_mapping:
 /* Load PMT page and determine the segments */
 phase(MAPPING_PHASE) {
 	/* Make sure lpn-->vpn mapping is in PMT */
-	if (!pmt_is_loaded(lpn)) {
+	if (!pmt_is_loaded(var(lpn))) {
 		/* if can't load PMT, then we should wait for PMT to flush */
-		if (pmt_load(lpn)) sleep(SIG_PMT_READY);
+		if (pmt_load(var(lpn))) sleep(SIG_PMT_READY);
 		/* wait for LPN to be loaded */
 		else sleep(SIG_PMT_LOADED);
 	}
@@ -108,16 +109,16 @@ phase(MAPPING_PHASE) {
 	UINT8	begin_sp  = begin_subpage(var(target_sectors)),
 		end_sp	  = end_subpage(var(target_sectors));
 	for (UINT8 sp_i = begin_sp; sp_i < end_sp; sp_i++) {
-		sector_mask_t sp_sectors = init_mask(
+		sectors_mask_t sp_sectors = init_mask(
 						sp_i * SECTORS_PER_SUB_PAGE,
 						SECTORS_PER_SUB_PAGE);
-		sector_mask_t sp_target_sectors = var(target_sectors) & sp_sectors;
+		sectors_mask_t sp_target_sectors = var(target_sectors) & sp_sectors;
 		if (sp_target_sectors == 0) continue;
 
 		vp_t	vp;
 		pmt_get_vp(var(lpn), sp_i, &vp);
 
-		segment *seg; UINT8 seg_i;
+		segment_t *seg; UINT8 seg_i;
 		for (seg_i = 0; seg_i < num_segments; seg_i++) {
 			seg = &segments[seg_i];
 			if (vp_equal(seg->vp, vp)) break;
@@ -139,8 +140,8 @@ phase(FLASH_READ_PHASE) {
 	while (1) {
 		signals_t interesting_signals = 0;
 
-		segment *seg; UINT8 bank, seg_i;
-		for (seg_i = 0; seg_i < num_segments; seg_i++) {
+		segment_t *seg; UINT8 bank, seg_i;
+		for (seg_i = 0; seg_i < var(num_segments); seg_i++) {
 			seg = & var(segments)[seg_i];
 
 			if (seg->is_done) continue;
@@ -161,7 +162,7 @@ phase(FLASH_READ_PHASE) {
 					fla_copy_buffer(sata_rd_buf,
 							rd_buf,
 							seg->target_sectors);
-					free_buffer(buf_id);
+					buffer_free(buf_id);
 				}
 
 				seg->is_done = TRUE;
@@ -199,7 +200,7 @@ phase(FLASH_READ_PHASE) {
 			UINT8 sect_offset = begin_sector(seg->target_sectors),
 			      num_sectors = end_sector(seg->target_sectors)
 						- sect_offset;
-			fla_read_page(vp, sect_offset, num_sectors, rd_buf);
+			fla_read_page(seg->vp, sect_offset, num_sectors, rd_buf);
 			seg->is_issued = TRUE;
 		}
 
@@ -243,11 +244,11 @@ void ftl_read_thread_init(thread_t *t, UINT32 lpn, UINT8 sect_offset,
 						get_thread_handler());
 	}
 
-	t->handler = registered_handler_id;
+	t->handler_id = registered_handler_id;
 
 	var(seq_id) = g_num_ftl_read_tasks_submitted++;
 	var(lpn) = lpn;
 	var(sect_offset) = sect_offset;
 	var(num_sectors) = num_sectors;
-	save_thread_variables(t);
+	save_thread_variables(thread_id(t));
 }
