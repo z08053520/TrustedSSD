@@ -47,7 +47,7 @@ BOOL8 pmt_thread_request_enqueue(UINT32 const pmt_idx)
  * Handler
  * */
 
-begin_thread_stack
+begin_thread_variables
 {
 	/* PMT loading info */
 	UINT32	loading_pmt_idxes[NUM_BANKS];
@@ -58,7 +58,7 @@ begin_thread_stack
 	/* PMT next request */
 	UINT32	next_pmt_idx;
 }
-end_thread_stack
+end_thread_variables
 
 begin_thread_handler
 {
@@ -213,8 +213,8 @@ void pmt_thread_init(thread_t *t)
 {
 	/* pmt thread is a singleton; thus init can be only called once */
 	ASSERT(registered_handler_id == NULL_THREAD_HANDLER_ID);
-	registered_handler_id = thread_handler_register(thread_handler);
-	ASSERT(registered_handler_id != NULL_THREAD_HANDLER_ID);
+	registered_handler_id = thread_handler_register(get_thread_handler());
+
 	singleton_thread = t;
 
 	t->handler = registered_handler_id;

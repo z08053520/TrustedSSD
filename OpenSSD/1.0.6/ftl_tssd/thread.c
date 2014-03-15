@@ -2,7 +2,6 @@
 #include "slab.h"
 
 /* Allocate thread objects statically */
-#define MAX_NUM_THREADS		16
 define_slab_interface(thread, thread_t);
 define_slab_implementation(thread, thread_t, MAX_NUM_THREADS);
 
@@ -13,7 +12,7 @@ define_slab_implementation(thread, thread_t, MAX_NUM_THREADS);
 		((id) >= NULL_THREAD_ID ? NULL :		\
 			(thread_t*)(& slab_thread_buf[id]))
 
-#define MAX_NUM_THREAD_HANDLERS	8
+#define MAX_NUM_THREAD_HANDLERS	4
 thread_handler_t handlers[MAX_NUM_THREAD_HANDLERS] = {NULL};
 UINT8 num_handlers = 0;
 
@@ -56,8 +55,7 @@ void thread_set_next(thread_t *t, thread_t *n)
 thread_handler_id_t thread_handler_register(thread_handler_t handler)
 {
 	ASSERT(handler != NULL);
-	if (num_handlers >= MAX_NUM_THREAD_HANDLERS)
-		return NULL_THREAD_HANDLER_ID;
+	ASSERT(num_handlers == MAX_NUM_THREAD_HANDLERS);
 
 	handlers[num_handlers] = handler;
 	return num_handlers++;

@@ -7,7 +7,7 @@
 static UINT32 num_locks = 0;
 
 #define PL_LPNS_ADDR			PL_ADDR
-#define PL_LPNS(i)			(PL_ADDR + sizeof(UINT32) * (i))
+#define PL_LPN(i)			(PL_LPNS_ADDR + sizeof(UINT32) * (i))
 #define PL_OWNERS_INFO_ADDR		(PL_LPNS_ADDR + sizeof(UINT32) * MAX_NUM_LOCKS)
 #define PL_OWNERS_INFO(i)		(PL_OWNERS_INFO_ADDR + sizeof(UINT32) * (i))
 
@@ -15,8 +15,18 @@ static UINT32 num_locks = 0;
 		mem_search_equ_dram(PL_LPNS_ADDR,			\
 			sizeof(UINT32), MAX_NUM_LOCKS, (lpn))
 
-/* owners info of a locked page */
+/* owners info of a locked page
+ *
+ *	i-th bit:	31 30 | 29 28 | 27 26 | ... | 3 2 | 1 0
+ *	----------------------|-------|-------|-----|-----|----
+ *	(i/2)-th owner:	15-th | 14-th | 13-th | ... |1-th |0-th
+ *			owner | owner | owner | ... |owner|owner
+ *			lock  | lock  | lock  | ... |lock |lock
+ *
+ * There are at most 16 owners (threads).
+ * */
 typedef UINT32 owners_info_t;
+
 #define get_owners_info(lock_idx)			\
 		read_dram_32(PL_OWNERS_INFO(lock_idx))
 #define set_owners_info(lock_idx, owners_info)		\
@@ -25,11 +35,11 @@ typedef UINT32 owners_info_t;
 		(((owners_info) >> ((owner_id)* 2)) & 0x03)
 #define set_owner_lock_type(owners_info, owner_id, lock_type)	do {	\
 		(owners_info) &= ~(0x03 << ((owner_id) * 2));		\
-		(owners_info) |= (0x03 & (lock_type)) << ((owner_id) * 2);\
+		(owners_info) |= ((0x03 & (lock_type)) << ((owner_id) * 2));\
 	} while (0)
 
 #define release_lock_at(lock_idx)	do {				\
-		write_dram_32(PL_LPNS_ADDR(lock_idx), NULL_LPN);	\
+		write_dram_32(PL_LPN(lock_idx), NULL_LPN);	\
 		num_locks--;						\
 	} while(0)
 
@@ -37,7 +47,7 @@ static UINT8 assign_lock_for(UINT32 const lpn) {
 	ASSERT(num_locks < MAX_NUM_LOCKS);
 	UINT8 free_lock_idx = mem_search_equ_dram(PL_LPNS_ADDR, sizeof(UINT32),
 						MAX_NUM_LOCKS, NULL_LPN);
-	write_dram_32(PL_LPNS(free_lock_idx), lpn);
+	write_dram_32(PL_LPN(free_lock_idx), lpn);
 	num_locks++;
 	return free_lock_idx;
 }
@@ -50,16 +60,19 @@ void page_lock_init() {
 	mem_set_dram(PL_OWNERS_ADDR, 0, sizeof(UINT32) * MAX_NUM_LOCKS);
 }
 
-static lock_type_t highest_compatible_locks[NUM_PAGE_LOCK_TYPES] = {
-	PAGE_LOCK_WRITE,
-	PAGE_LOCK_INTENT,
-	PAGE_LOCK_NULL,
-	PAGE_LOCK_NULL
-};
+/*
+ * According to the compatibility matrix, we have
+ *	null -> write,
+ *	read -> intent,
+ *	intent -> read,
+ *	write -> null.
+ * Thus
+ *	x -> (write - x).
+ * */
+#define get_highest_compatible_lock(lock_type)	\
+		(PAGE_LOCK_WRITE - (lock_type))
 
-#define get_highest_compatible_lock(lock)	\
-		(highest_compatible_locks[lock])
-
+/* write lock is the highest, while null lock is the lowest */
 static inline page_lock_type_t get_highest_lock_except_owner(
 					owners_info_t const owners_info,
 					owner_id_t const except_owner_id)
@@ -82,8 +95,7 @@ page_lock_type_t page_lock(page_lock_owner_id_t const owner_id,
 	ASSERT(owner_id < MAX_NUM_PAGE_LOCK_OWNERS);
 	UINT8 lock_idx = find_lpn(lpn);
 	/* if the page has never been locked */
-	if (lock_idx >= MAX_NUM_LOCKS)
-		lock_idx = assign_lock_for(lpn);
+	if (lock_idx >= MAX_NUM_LOCKS) lock_idx = assign_lock_for(lpn);
 
 	/* determine appropriate lock */
 	owners_info_t owners_info = get_owners_info(lock_idx);

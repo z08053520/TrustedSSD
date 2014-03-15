@@ -2,7 +2,7 @@
 #include "dram.h"
 #include "gc.h"
 #include "mem_util.h"
-#include "flash_util.h"
+#include "fla.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables
@@ -264,7 +264,7 @@ void write_buffer_put(UINT32 const lpn,
 
 			// move useful part of old data to new buffer
 			sectors_mask_t old_useful_mask = lp_old_mask & rvs_common_mask;
-			fu_copy_buffer(WRITE_BUF(new_buf_id),
+			fla_copy_buffer(WRITE_BUF(new_buf_id),
 				       WRITE_BUF(old_buf_id),
 				       old_useful_mask);
 
@@ -293,9 +293,7 @@ void write_buffer_put(UINT32 const lpn,
 	}
 
 	// Do insertion
-	fu_copy_buffer(WRITE_BUF(new_buf_id),
-		       buf,
-		       lp_new_mask);
+	fla_copy_buffer(WRITE_BUF(new_buf_id), buf, lp_new_mask);
 	buf_mask_add(new_buf_id, lp_new_mask);
 	/* buf_masks[new_buf_id] |= lp_new_mask; */
 	/* buf_sizes[new_buf_id]  = count_sectors(buf_masks[new_buf_id]); */
@@ -340,7 +338,7 @@ void write_buffer_drop(UINT32 const lpn)
 	if (buf_sizes[buf_id] == 0) num_clean_buffers++;
 }
 
-void write_buffer_flush(UINT32 const buf, UINT32 sp_lpn[],
+void write_buffer_flush(UINT32 const buf, UINT32 sp_lpn[SUB_PAGES_PER_PAGE],
 			sectors_mask_t *valid_sectors)
 {
 	/* find a vicitim buffer */

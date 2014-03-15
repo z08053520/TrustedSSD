@@ -20,23 +20,24 @@
 /*
  * Thread variables
  * */
-#define begin_thread_stack		\
-	struct thread_stack_t
-
-#define end_thread_stack		\
-	;
-
 #define THREAD_STACK_SIZE		256
 UINT8 __thread_stack[THREAD_STACK_SIZE];
 
-#define var(name)	(((thread_stack_t*)__thread_stack)->name)
+#define begin_thread_variables		\
+	struct thread_variables_t
+
+#define end_thread_variables		\
+	;
+
+#define var(name)	(((thread_variables_t*)__thread_stack)->name)
 
 /*
  * Thread handler
  * */
 #define begin_thread_handler					\
 		static void __thread_handler(thread_t *__t) {	\
-			restore_thread_variables(__t);		\
+			thread_id_t __tid = thread_id(__t);	\
+			restore_thread_variables(__tid);	\
 			jump_to_last_postion(__t);		\
 		__begin:
 
@@ -59,7 +60,7 @@ UINT8 __thread_stack[THREAD_STACK_SIZE];
 	} while(0)
 
 #define phase2offset(name)		(&&(__##name) - &&(__begin))
-#define offset2phase(offset)		(*(&&(__begin) + offset))
+#define offset2phase(offset)		(*(&&(__begin) + (offset)))
 
 /*
  * Context switch
@@ -81,7 +82,7 @@ UINT8 __thread_stack[THREAD_STACK_SIZE];
 
 #define schedule(new_state)	do {				\
 		__t-->state = (new_state);			\
-		save_thread_variables(__t);			\
+		save_thread_variables(__tid);			\
 		return;						\
 	} while(0)
 /*
@@ -92,15 +93,15 @@ UINT8 __thread_stack[THREAD_STACK_SIZE];
 #define save_position(t, name)	\
 		(t)->handler_last_offset = phase2offset(name)
 
-void restore_thread_variables(thread_t *t);
-void save_thread_variables(thread_t *t);
+void restore_thread_variables(thread_id_t const tid);
+void save_thread_variables(thread_id_t const tid);
 
 /*
  * Page lock
  * */
 #define lock_page(lpn, lock_type)	\
-		page_lock(thread_id(__t), (lpn), (lock_type))
+		page_lock(__tid, (lpn), (lock_type))
 #define unlock_page(lpn)		\
-		page_unlock(thread_id(__t), (lpn))
+		page_unlock(__tid, (lpn))
 #endif
 #endif

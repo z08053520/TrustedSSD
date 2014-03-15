@@ -22,15 +22,19 @@ BOOL8	pmt_is_loaded(UINT32 const lpn)
 BOOL8	pmt_load(UINT32 const lpn)
 {
 	UINT32	pmt_idx  = pmt_get_index(lpn);
+
+	UINT32 buf = pmt_cache_get(pmt_idx);
+	/* the PMT page is loaded or being loaded */
+	if (buf != NULL) return FALSE;
+
 	return pmt_thread_request_enqueue(pmt_idx);
 }
 
 void pmt_get_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t *vp)
 {
-	UINT32	pmt_buff;
 	UINT32	pmt_idx  = pmt_get_index(lpn);
-	page_cache_get(pmt_idx, &pmt_buff, FALSE);
-	BUG_ON("buffer is empty", pmt_buff == NULL);
+	UINT32	pmt_buff = pmt_cache_get(pmt_idx);
+	ASSERT(pmt_buf != NULL);
 
 	UINT32	pmt_offset = pmt_get_offset(lpn) * sizeof(pmt_entry_t)
 				+ (UINT32)(&((pmt_entry_t*)0)->vps[sp_offset]);
@@ -39,10 +43,10 @@ void pmt_get_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t *vp)
 
 void pmt_update_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t const vp)
 {
-	UINT32	pmt_buff;
 	UINT32	pmt_idx  = pmt_get_index(lpn);
-	page_cache_get(pmt_idx, &pmt_buff, TRUE);
-	BUG_ON("buffer is empty", pmt_buff == NULL);
+	UINT32	pmt_buff = pmt_cache_get(pmt_idx);
+	ASSERT(pmt_buf != NULL);
+	pmt_cache_set_dirty(pmt_idx, TRUE);
 
 	UINT32	pmt_offset = pmt_get_offset(lpn) * sizeof(pmt_entry_t)
 				+ (UINT32)(&((pmt_entry_t*)0)->vps[sp_offset]);

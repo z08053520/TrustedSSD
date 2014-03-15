@@ -52,7 +52,7 @@ static BOOL8 check_segment_has_holes(segment_t *seg)
  * Handler
  * */
 
-begin_thread_stack
+begin_thread_variables
 {
 	UINT32		seq_id;
 	UINT32		lpn;
@@ -62,7 +62,7 @@ begin_thread_stack
 	UINT8		num_segments;
 	segment_t	segments[SUB_PAGES_PER_PAGE];
 }
-end_thread_stack
+end_thread_variables
 
 begin_thread_handler
 {
@@ -239,8 +239,8 @@ void ftl_read_thread_init(thread_t *t, UINT32 lpn, UINT8 sect_offset,
 				UINT8 num_sectors)
 {
 	if (registered_handler_id == NULL_THREAD_HANDLER_ID) {
-		registered_handler_id = thread_handler_register(thread_handler);
-		ASSERT(registered_handler_id != NULL_THREAD_HANDLER_ID);
+		registered_handler_id = thread_handler_register(
+						get_thread_handler());
 	}
 
 	t->handler = registered_handler_id;

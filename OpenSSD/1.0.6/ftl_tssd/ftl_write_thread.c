@@ -23,7 +23,7 @@ UINT32	g_next_finishing_write_task_seq_id = 0;
  * Handler
  * */
 
-begin_thread_stack
+begin_thread_variables
 {
 	UINT32		seq_id;
 	UINT32		lpn;
@@ -43,7 +43,7 @@ begin_thread_stack
 	vp_t		sp_old_vp[SUB_PAGES_PER_PAGE];
 	UINT8		sp_rd_buf_id[SUB_PAGES_PER_PAGE];
 }
-end_thread_stack
+end_thread_variables
 
 static void copy_subpage_miss_sectors(UINT32 const target_buf, UINT32 const src_buf,
 				UINT8 const sp_i,
@@ -266,8 +266,8 @@ void ftl_write_thread_init(thread_t *t, UINT32 lpn, UINT8 sect_offset,
 				UINT8 num_sectors)
 {
 	if (registered_handler_id == NULL_THREAD_HANDLER_ID) {
-		registered_handler_id = thread_handler_register(thread_handler);
-		ASSERT(registered_handler_id != NULL_THREAD_HANDLER_ID);
+		registered_handler_id =
+			thread_handler_register(get_thread_handler());
 	}
 
 	t->handler = registered_handler_id;

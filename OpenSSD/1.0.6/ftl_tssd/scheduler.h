@@ -1,7 +1,6 @@
 #ifndef __SCHEDULER_H
 #define __SCHEDULER_H
 
-#include "jasmine.h"
 #include "thread.h"
 
 /* Send signals to scheduler by modifying this global variable */

@@ -17,6 +17,6 @@ void write_buffer_drop(UINT32 const lpn);
 
 BOOL8 write_buffer_is_full();
 void write_buffer_flush(UINT32 const buf,
-			UINT32 sp_lpn[],
+			UINT32 sp_lpn[SUB_PAGES_PER_PAGE],
 			sectors_mask_t *valid_sectors);
 #endif
