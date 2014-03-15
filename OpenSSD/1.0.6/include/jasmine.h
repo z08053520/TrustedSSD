@@ -290,6 +290,8 @@ scan_list_t;
 #endif
 
 #define FOR_EACH_BANK(i)	for(i=0;i<NUM_BANKS;i++)
+#define for_each_bank(i)	for(UINT8 i = 0; i < NUM_BANKS; i++)
+#define for_each_subpage(i)	for(UINT8 i = 0; i < SUB_PAGES_PER_PAGE; i++)
 
 // page-level striping technique (I/O parallelism)
 #define lpn2bank(lpn)             ((lpn) % NUM_BANKS)

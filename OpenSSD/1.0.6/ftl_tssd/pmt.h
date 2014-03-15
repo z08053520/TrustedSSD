@@ -1,7 +1,6 @@
 #ifndef __PMT_H
 #define __PMT_H
 #include "jasmine.h"
-#include "task_engine.h"
 
 /* *
  * PMT = page metadata table
@@ -39,9 +38,8 @@ typedef struct {
  * Public Interface
  * =========================================================================*/
 
-void	pmt_init(void);
-
-task_res_t pmt_load(UINT32 const lpn);
+BOOL8	pmt_is_loaded(UINT32 const lpn);
+BOOL8	pmt_load(UINT32 const lpn);
 
 void 	pmt_update_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t const vp);
 void 	pmt_get_vp(UINT32 const lpn,  UINT8 const sp_offset, vp_t* vp);

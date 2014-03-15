@@ -34,9 +34,20 @@ BOOL8	pmt_cache_is_dirty(UINT32 const pmt_idx, BOOL8 *is_dirty);
  *	If cache is full, no more page can be put into cache. */
 BOOL8	pmt_cache_is_full(void);
 /* Evict a PMT page in cache
- *	If not page is evicted, returns 0 and pmd_idx is set to NULL_PMT_IDX.
- *	The eviction policy is LRU(Least Recently Used). */
-BOOL8	pmt_cache_evict(UINT32 *pmt_idx, BOOL8 *is_dirty,
-			UINT32 const target_buf);
+ *	The eviction policy is LRU(Least Recently Used). If the LRU page is
+ *	clean, then we are done; if it is dirty, we put the page into a merge
+ *	buffer and then find next LRU page to evict.
+ *
+ *	Return 0 if at least one buffer page is free;
+ *	Return 1 if merge buffer for dirty, evicted page is full.
+ * */
+BOOL8	pmt_cache_evict();
+/* Flush the merge buffer for evicted, dirty pages
+ *	Copy SUB_PAGES_PER_PAGE dirty PMT sub-pages into target_buf. The PMT
+ *	indexes of these pages are stored in merge_pmt_idxes.
+ *	Return 0 if succeed; 1 if fails.
+ * */
+BOOL8	pmt_flush(UINT32 const target_buf,
+		UINT32 merged_pmt_idxes[SUB_PAGES_PER_PAGE]);
 
 #endif

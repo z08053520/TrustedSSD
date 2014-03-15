@@ -6,37 +6,40 @@
 #include "buffer.h"
 #include "gc.h"
 #include "scheduler.h"
+#include "gtd.h"
 
 static thread_t *singleton_thread = NULL;
 
 /*
  * Request queue
  * */
-#define PMT_REQ_QUEUE_SIZE	32
-static UINT32 pmt_req_queue[PMT_REQ_QUEUE_SIZE] = {0};
+#define MAX_PMT_REQ_QUEUE_SIZE	32
+static UINT32 pmt_req_queue[MAX_PMT_REQ_QUEUE_SIZE] = {0};
 static UINT32 pmt_req_head = 0, pmt_req_tail = 0;
-static UINT32 pmt_req_size = 0;
+static UINT32 pmt_req_queue_size = 0;
 
 static UINT32 pop_pmt_req()
 {
-	if (pmt_req_size == 0) return NULL_PMT_IDX;
+	if (pmt_req_queue_size == 0) return NULL_PMT_IDX;
 
 	UINT32 req_pmt_idx = pmt_req_queue[pmt_req_head];
-	pmt_req_head = (pmt_req_head + 1) % PMT_REQ_QUEUE_SIZE;
-	pmt_req_size--;
+	pmt_req_head = (pmt_req_head + 1) % MAX_PMT_REQ_QUEUE_SIZE;
+	pmt_req_queue_size--;
 	return req_pmt_idx;
 }
 
 BOOL8 pmt_thread_request_enqueue(UINT32 const pmt_idx)
 {
-	if (pmt_req_size == PMT_REQ_QUEUE_SIZE) return 1;
+	BUG_ON("pmt req queue is full",
+		pmt_req_queue_size == MAX_PMT_REQ_QUEUE_SIZE);
+	if (pmt_req_queue_size == MAX_PMT_REQ_QUEUE_SIZE) return 1;
 
 	if (singleton_thread->wakeup_signals == 0)
 		signals_set(singleton_thread->wakeup_signals, SIG_ALL_BANKS);
 
 	pmt_req_queue[pmt_req_tail] = pmt_idx;
 	pmt_req_tail = (pmt_req_tail + 1) % PMT_REQ_QUEUE_SIZE;
-	pmt_req_size++;
+	pmt_req_queue_size++;
 	return 0;
 }
 
@@ -51,10 +54,7 @@ begin_thread_stack
 	vsp_t	loading_pmt_vsps[NUM_BANKS];
 	UINT8	loading_buf_ids[NUM_BANKS];
 	/* PMT merge buffer */
-	UINT32	merged_pmt_idxes[SUB_PAGES_PER_PAGE];
-	UINT8	num_merged_pmts;
-	UINT8	merge_buf_ids[NUM_BANKS];
-	UINT8	curr_merge_buf_id;
+	UINT8	flush_buf_ids[NUM_BANKS];
 	/* PMT next request */
 	UINT32	next_pmt_idx;
 }
@@ -64,6 +64,7 @@ begin_thread_handler
 {
 /* PMT thread is designed as a event loop */
 phase(ONE_PHASE) {
+	BOOL8 res;
 	signals_t interesting_signals = 0;
 
 	/* Check whether issued flash read cmds are complete */
@@ -87,7 +88,7 @@ phase(ONE_PHASE) {
 		mem_copy(pmt_buf, load_buf + bytes_offset, BYTES_PER_SUB_PAGE);
 
 		/* finishing */
-		var(loading_pmt_idexs)[bank_i] = NULL_PMT_IDX;
+		var(loading_pmt_idxes)[bank_i] = NULL_PMT_IDX;
 		buffer_free(load_buf_id);
 		pmt_cache_set_reserved(pmt_idx, FALSE);
 
@@ -96,8 +97,8 @@ phase(ONE_PHASE) {
 
 	/* Check whether issued flash write cmds (flush) are complete */
 	for_each_bank(bank_i) {
-		UINT8 merge_buf_id = var(merge_buf_ids)[bank_i];
-		if (merge_buf_id == NULL_BUF_ID) continue;
+		UINT8 flush_buf_id = var(flush_buf_ids)[bank_i];
+		if (flush_buf_id == NULL_BUF_ID) continue;
 
 		if (!fla_is_bank_complete(bank_i)) {
 			signals_set(interesting_signals, SIG_BANK(bank_i));
@@ -105,21 +106,25 @@ phase(ONE_PHASE) {
 		}
 
 		/* finishing */
-		buffer_free(merge_buf_id);
-		var(merge_buf_ids)[bank_i] = NULL_BUF_ID;
+		buffer_free(flush_buf_id);
+		var(flush_buf_ids)[bank_i] = NULL_BUF_ID;
 	}
 
-	/* Handle new PMT requests */
-	UINT32 pmt_idx = var(next_pmt_idx);
-	if (pmt_idx == NULL_PMT_IDX) pmt_idx = pop_pmt_req();
+	/* Restore the last request or retrieve a new request */
+	if (var(next_pmt_idx) != NULL_PMT_IDX) {
+		pmt_idx = var(next_pmt_idx);
+		var(next_pmt_idx) = NULL_PMT_IDX;
+	}
+	else {
+		pmt_idx = pop_pmt_req();
+	}
+	/* Process request */
 	while (pmt_idx != NULL_PMT_IDX) {
-		/* if cache is full, need to evict */
+		/* if cache is full, need to evict, even flush */
 		if (pmt_cache_is_full()) {
-			UINT32	merge_buf = MANAGED_BUF(var(curr_merge_buf_id));
-
-			/* merge buffer not full yet, don't need to flush */
-			if (var(num_merged_pmts) < SUB_PAGES_PER_PAGE)
-				goto evict_a_page;
+			res = pmt_cache_evict();
+			/* evict a clean page */
+			if (res == 0) goto pmt_load;
 
 			/* try to find a idle bank to flush */
 			UINT8 flush_bank = fla_get_idle_bank();
@@ -130,13 +135,21 @@ phase(ONE_PHASE) {
 			}
 			signals_set(interesting_signals, SIG_BANK(flush_bank));
 
+			/* need flush merge buffer for dirty pages */
+			UINT8	flush_buf_id = buffer_allocate();
+			var(flush_buf_ids)[flush_bank] = flush_buf_id;
+			UINT32	flush_buf = MANAGED_BUF(flush_buf_id);
+			UINT32	flush_pmt_idxes[SUB_PAGES_PER_PAGE];
+			res = pmt_cache_flush(flush_buf, flush_pmt_idxes);
+			ASSERT(res == 0);
+
 			/* issue flash write cmd */
 			UINT32 flush_vpn = gc_allocate_new_vpn(flush_bank, TRUE);
 			vp_t flush_vp = {
 				.bank = flush_bank,
 				.vpn = flush_vpn
 			};
-			fla_write_page(flush_vp, 0, SECTORS_PER_PAGE, merge_buf);
+			fla_write_page(flush_vp, 0, SECTORS_PER_PAGE, flush_buf);
 
 			/* update GTD */
 			vsp_t flush_vsp = {
@@ -144,36 +157,20 @@ phase(ONE_PHASE) {
 				.vspn = flush_vpn * SUB_PAGES_PER_PAGE
 			}
 			for_each_subpage(sp_i) {
-				UINT32 pmt_idx = var(merged_pmt_idxes)[sp_i];
+				UINT32 pmt_idx = flush_pmt_idxes[sp_i];
 				gtd_set_vsp(pmt_idx, flush_vsp);
 				flush_vsp.vspn++
 			}
-
-			var(merge_buf_ids)[flush_bank] = var(curr_merge_buf_id);
-			var(num_merged_pmts) = 0;
-			var(curr_merge_buf_id) = buffer_allocate();
-evict_a_page:
-			UINT32	evicted_pmt_idx;
-			BOOL8	is_dirty;
-			UINT32	evict_buf = merge_buf + var(num_merged_pmts)
-							* BYTES_PER_SUB_PAGE;
-			BOOL8	res = pmt_cache_evict(&evicted_pmt_idx, &is_dirty,
-							evict_buf);
-			/* FIXME: is this right? */
-			ASSERT(res == 0);
-			/* evict a clean entry, we are done */
-			if (*is_dirty == FALSE) goto pmt_load;
-
-			/* fill merge buffer with the newly evicted PMT page */
-			var(merged_pmt_idxes)[var(num_merged_pmts)]
-				= evicted_pmt_idx;
-			var(num_merged_pmts)++;
 		}
 pmt_load:
 		vsp_t	load_vsp = gtd_get_vsp(pmt_idx);
 		UINT32	load_bank = load_vsp.bank;
 		signals_set(interesting_signals, SIG_BANK(load_bank));
 		if (!fla_is_bank_idle(load_bank)) break;
+
+		/* reserve a place for the PMT page in cache */
+		res = pmt_cache_put(pmt_idx);
+		ASSERT(res == 0);
 
 		/* do flash read */
 		UINT8	load_buf_id = buffer_allocate();
@@ -227,10 +224,8 @@ void pmt_thread_init(thread_t *t)
 		var(loading_pmt_idxes)[bank_i] = NULL_PMT_IDX;
 	}
 	/* init PMT merge buffer */
-	var(num_merged_pmts) = 0;
-	var(current_merge_buf_id) = buffer_allocate();
 	for_each_bank(bank_i) {
-		var(merge_buf_ids)[bank_i] = NULL_BUF_ID;
+		var(flush_buf_ids)[bank_i] = NULL_BUF_ID;
 	}
 	/* init next outstanding PMT request */
 	var(next_pmt_idx) = NULL_PMT_IDX;

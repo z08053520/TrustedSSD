@@ -1,20 +1,28 @@
 #include "pmt.h"
-#include "page_cache.h"
+#include "pmt_cache.h"
+#include "pmt_thread.h"
 
 /* ========================================================================= *
  * Public API
  * ========================================================================= */
 
-void pmt_init(void)
+BOOL8	pmt_is_loaded(UINT32 const lpn)
 {
-	INFO("pmt>init", "# of PMT entries = %d, # of PMT pages = %d",
-			PMT_ENTRIES, PMT_PAGES);
+	UINT32 pmt_idx  = pmt_get_index(lpn);
+
+	UINT32 buf = pmt_cache_get(pmt_idx);
+	if (buf == NULL) return FALSE;
+
+	BOOL8 is_reserved = pmt_cache_is_reserved(pmt_idx);
+	if (is_reserved) return FALSE;
+
+	return TRUE;
 }
 
-task_res_t pmt_load(UINT32 const lpn)
+BOOL8	pmt_load(UINT32 const lpn)
 {
-	UINT32 	pmt_idx  = pmt_get_index(lpn);
-	return page_cache_load(pmt_idx);
+	UINT32	pmt_idx  = pmt_get_index(lpn);
+	return pmt_thread_request_enqueue(pmt_idx);
 }
 
 void pmt_get_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t *vp)

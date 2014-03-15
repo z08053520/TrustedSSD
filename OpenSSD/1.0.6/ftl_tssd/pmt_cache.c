@@ -3,8 +3,9 @@
 #include "dram.h"
 #include "bit_array.h"
 
-#define RESERVED_TIMESTAMP	0xFFFFFFFF
-#define NULL_TIMESTAMP		0xFFFFFFFE
+#define EVICTED_TIMESTAMP	0xFFFFFFFF
+#define RESERVED_TIMESTAMP	0xFFFFFFFE
+#define NULL_TIMESTAMP		0xFFFFFFFD
 #define NULL_PAGE_IDX		NUM_PC_SUB_PAGES
 
 /* For each cached sub page, we record **pmt_idx**, and **timestamp**.
@@ -14,6 +15,7 @@
  *	Free entries (timestamp == NULL_TIMESTAMP, index = NULL_PMT_IDX),
  *	Normal entries (timestamp < NULL_TIMESTAMP, index < NULL_PMT_IDX),
  *	Reserved entries (timestamp == RESERVED_TIMESTAMP, index < NULL_PMT_IDX).
+ *	Evicted entries (timestamp == EVICTED_TIMESTAMP, index < NULL_PMT_IDX).
  *
  * */
 static UINT32	cached_pmt_idxes[NUM_PC_SUB_PAGES] = {
@@ -141,7 +143,7 @@ BOOL8	pmt_cache_put(UINT32 const pmt_idx)
 BOOL8	pmt_cache_set_reserved(UINT32 const pmt_idx, BOOL8 const is_reserved)
 {
 	UINT32	page_idx = get_page(pmt_idx);
-	/* if the entry exists, then fails */
+	/* if the entry doesn't exist, then fails */
 	if (page_idx == NULL_PAGE_IDX) return 1;
 
 	if (is_reserved)
@@ -189,22 +191,53 @@ BOOL8	pmt_cache_is_full(void)
 	return num_free_sub_pages == 0;
 }
 
-BOOL8	pmt_cache_evict(UINT32 *pmt_idx, BOOL8 *is_dirty,
-			UINT32 const target_buf)
+static UINT8 merge_buf_size = 0;
+static UINT32 merged_page_idxes[SUB_PAGES_PER_PAGE];
+
+BOOL8	pmt_cache_evict()
 {
-	UINT32 lru_page_idx = mem_search_min_max(
-					 cached_pmt_timestamps,
-					 sizeof(UINT32),
-					 NUM_PC_SUB_PAGES,
-					 MU_CMD_SEARCH_MIN_SRAM);
-	UINT32 lru_page_timestamp = cached_pmt_timestamps[lru_page_idx];
-	if (lru_page_timestamp >= NULL_TIMESTAMP) {
-		*pmt_idx = NULL_PMT_IDX;
-		return 1;
+	while (merge_buf_size < SUB_PAGES_PER_PAGE) {
+		UINT32 lru_page_idx = mem_search_min_max(
+						 cached_pmt_timestamps,
+						 sizeof(UINT32),
+						 NUM_PC_SUB_PAGES,
+						 MU_CMD_SEARCH_MIN_SRAM);
+		UINT32 lru_page_timestamp = cached_pmt_timestamps[lru_page_idx];
+		ASSERT(lru_page_timestamp < NULL_TIMESTAMP);
+
+		BOOL8 is_dirty = bit_array_test(cached_pmt_is_dirty, lru_page_idx);
+		if (!is_dirty) {
+			free_page(lru_page_idx);
+			return 0;
+		}
+
+		cached_pmt_timestamps[lru_page_idx] = RESERVED_TIMESTAMP;
+		merged_pmt_idxes[merge_buf_size] = lru_page_idx;
+		merge_buf_size++;
 	}
-	*pmt_idx = cached_pmt_idxes[lru_page_idx];
-	*is_dirty = bit_array_test(cached_pmt_is_dirty, lru_page_idx);
-	mem_copy(target_buf, PC_SUB_PAGE(lru_page_idx), BYTES_PER_SUB_PAGE);
-	free_page(lru_page_idx);
+	return 1;
+}
+
+BOOL8	pmt_flush(UINT32 const target_buf,
+		UINT32 merged_pmt_idxes[SUB_PAGES_PER_PAGE])
+{
+	if (merge_buf_size != SUB_PAGES_PER_PAGE) return 1;
+
+	UINT32 target_buf_offset = 0;
+	for_each_subpage(sp_i) {
+		UINT8 merge_page_idx = merged_page_idxes[sp_i];
+
+		UINT32 merge_pmt_idx = cached_pmt_idxes[merge_page_idx];
+		merged_pmt_idxes[sp_i] = merge_pmt_idx;
+
+		mem_copy(target_buf + target_buf_offset,
+			PC_SUB_PAGE(merge_page_idx),
+			BYTES_PER_SUB_PAGE);
+
+		free_page(merge_page_idx);
+		target_buf_offset += BYTES_PER_SUB_PAGE;
+	}
+
+	merge_buf_size = 0;
 	return 0;
 }
