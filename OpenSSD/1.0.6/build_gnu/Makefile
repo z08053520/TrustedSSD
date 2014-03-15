@@ -12,7 +12,7 @@ RM	= rm
 # withour any SATA communication; otherwise, a normal firmware that can handle 
 # SATA request will be generated.
 #TEST = flash_uti
-TEST = ftl
+#TEST = ftl
 #TEST = gc
 #TEST = gtd
 #TEST = pmt
