@@ -7,7 +7,6 @@
 
 #include "jasmine.h"
 
-
 void fla_format_all(UINT32 const from_vblk);
 
 void fla_update_bank_state();

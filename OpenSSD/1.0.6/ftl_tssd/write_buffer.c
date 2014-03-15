@@ -340,9 +340,6 @@ void write_buffer_drop(UINT32 const lpn)
 	if (buf_sizes[buf_id] == 0) num_clean_buffers++;
 }
 
-#define begin_subpage(mask)	(begin_sector(mask) / SECTORS_PER_SUB_PAGE)
-#define end_subpage(mask)	COUNT_BUCKETS(end_sector(mask), SECTORS_PER_SUB_PAGE)
-
 void write_buffer_flush(UINT32 const buf, UINT32 sp_lpn[],
 			sectors_mask_t *valid_sectors)
 {

@@ -1,13 +1,10 @@
 #include "ftl.h"
 #include "dram.h"
 #include "bad_blocks.h"
-#include "pmt.h"
 #include "gc.h"
-#include "page_cache.h"
 #include "flash_util.h"
 #include "read_buffer.h"
 #include "write_buffer.h"
-#include "thread.h"
 #include "ftl_read_thread.h"
 #include "ftl_write_thread.h"
 #include "scheduler.h"
@@ -85,24 +82,12 @@ void ftl_open(void) {
 	/* the initialization order indicates the dependencies between modules */
 	gtd_init();
 
+	page_lock_init();
 	bb_init();
 	gc_init();
 
-	task_engine_init();
-
-	page_cache_init();
 	read_buffer_init();
 	write_buffer_init();
-
-	pmt_init();
-#if OPTION_FDE
-	fde_init();
-#endif
-
-	ftl_read_task_register();
-	ftl_write_task_register();
-	page_cache_load_task_register();
-	page_cache_flush_task_register();
 
 	flash_clear_irq();
 	// This example FTL can handle runtime bad block interrupts and read fail (uncorrectable bit errors) interrupts

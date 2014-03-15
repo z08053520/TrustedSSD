@@ -51,12 +51,6 @@
  * by major compoents/functions. This macro is defined in Makefile.
  * */
 
-/* About macro OPTION_FDE
- *
- * If this marco is defined, full disk encryption (FDE) will be enabled.
- * This macro is defined in Makefile.
- * */
-
 /* About macro OPTION_2_PLANE
  *
  * Flash performance profiling result shows that flash throughput is
@@ -215,11 +209,17 @@ typedef unsigned long long	UINT64;
 	#define _begin_sector(mask)		__builtin_ctz(mask)
 	#define _end_sector(mask)		((sizeof(sectors_mask_t) * 8) - __builtin_clz(mask))
 #endif
-// DEBUG
-BOOL8 show_debug_msg;
 
 UINT8 begin_sector(sectors_mask_t const mask);
 UINT8 end_sector(sectors_mask_t const mask);
+#define begin_subpage(mask)	(begin_sector(mask) / SECTORS_PER_SUB_PAGE)
+#define end_subpage(mask)	COUNT_BUCKETS(end_sector(mask), SECTORS_PER_SUB_PAGE)
+
+// DEBUG
+BOOL8 show_debug_msg;
+
+
+#define MAX_NUM_THREADS		16
 
 /* virtual page */
 typedef union {
@@ -254,6 +254,10 @@ typedef union {
 #define MAX(X, Y)				((X) > (Y) ? (X) : (Y))
 
 #define align_to(num, align)	((num) / (align) * (align))
+
+#define mask_is_set(mask, i)		(((mask) >> (i)) & 1)
+#define mask_set(mask, i)		((mask) |= (1 << (i)))
+#define mask_clear(mask, i)		((mask) &= ~(1 << (i)))
 
 void delay(UINT32 const count);
 

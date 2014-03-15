@@ -66,13 +66,12 @@ void page_lock_init();
  * */
 page_lock_type_t page_lock(page_lock_owner_id_t const owner_id,
 				UINT32 const lpn,
-				page_lock_type_t const lock);
+				page_lock_type_t const lock_type);
 /*
  * Release the lock of a page acquired by a owner
  *
  * It is OK to unlock a page that is not locked by a owner or any owner.
  * */
-void page_unlock(page_lock_owner_id_t const owner_id,
-			UINT32 const lpn);
+void page_unlock(page_lock_owner_id_t const owner_id, UINT32 const lpn);
 
 #endif

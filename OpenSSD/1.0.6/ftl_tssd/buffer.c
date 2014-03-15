@@ -20,7 +20,7 @@ UINT8 buffer_id(UINT32 const buf)
 
 UINT8 buffer_allocate()
 {
-	/* FIXME: can buffer run out? if there is no bug */
+	/* 32 buffers should be enough */
 	ASSERT(buffer_usage > 0);
 
 	UINT8 buf_id = first_available_buf_id();

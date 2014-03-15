@@ -4,7 +4,7 @@
 #define MAX_NUM_LOCKS_PER_OWNER		SUB_PAGES_PER_PAGE
 #define MAX_NUM_LOCKS			(MAX_NUM_LOCKS_PER_OWNER * \
 					MAX_NUM_PAGE_LOCK_OWNERS)
-static UINT32 num_locks;
+static UINT32 num_locks = 0;
 
 #define PL_LPNS_ADDR			PL_ADDR
 #define PL_LPNS(i)			(PL_ADDR + sizeof(UINT32) * (i))
@@ -46,7 +46,6 @@ void page_lock_init() {
 	/* one page can be locked by at most 16 different lock owners */
 	ASSERT(MAX_NUM_PAGE_LOCK_OWNERS <= 16);
 
-	num_locks = 0;
 	mem_set_dram(PL_LPNS_ADDR, NULL_LPN, sizeof(UINT32) * MAX_NUM_LOCKS);
 	mem_set_dram(PL_OWNERS_ADDR, 0, sizeof(UINT32) * MAX_NUM_LOCKS);
 }

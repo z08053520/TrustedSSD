@@ -1,30 +1,32 @@
 #include "fla.h"
 #include "bad_blocks.h"
 #include "mem_util.h"
-#include "schduler.h"
 
 typedef banks_mask_t UINT16;
+/* 1 - idle; 0 - used */
 static banks_mask_t idle_banks = 0xFFFF;
+/* 1 - complete; 0 - not complete */
 static banks_mask_t complete_banks = 0;
 
 /* notify scheduler for any banks state changes by signals */
-#define update_scheduler_signals()	do {				\
-		signals_reset(g_scheduler_signals, SIG_ALL_BANKS);	\
-		signals_set(g_scheduler_signals,			\
-			SIG_BANKS(idle_banks | complete_banks));	\
-	} while(0)
+extern signals_t g_scheduler_signals;
+static inline void  update_scheduler_signals()
+{
+	signals_reset(g_scheduler_signals, SIG_ALL_BANKS);
+	signals_set(g_scheduler_signals,
+			SIG_BANKS(idle_banks | complete_banks));
+}
 
-#define use_bank(bank_i)	do {			\
-		idle_banks &= ~(1 << (bank_i));		\
-		update_scheduler_signals();		\
-	} while(0)
+static void use_bank(UINT8 const bank_i) {
+	idle_banks &= ~(1 << bank_i);
+	update_scheduler_signals();
+}
 
 void fla_format_all(UINT32 const from_vblk)
 {
 	for (UINT32 vblk = from_vblk; vblk < VBLKS_PER_BANK; vblk++)
 	{
-		UINT8 bank;
-		FOR_EACH_BANK(bank)
+		for_each_bank(bank)
 		{
             		if (bb_is_bad(bank, vblk))
 				continue;
@@ -42,7 +44,7 @@ void fla_update_bank_state()
 	banks_mask_t used_banks = ~idle_banks;
 	/* update idle banks */
 	idle_banks = 0;
-	for (UINT8 bank_i = 0; bank_i < NUM_BANKS; bank_i++) {
+	for_each_bank(bank_i) {
 		if (BSP_FSM(bank_i) == BANK_IDLE)
 			idle_banks |= (1 << bank_i);
 	}
@@ -66,12 +68,13 @@ UINT8 fla_get_idle_bank()
 {
 	static UINT8 bank_i = NUM_BANKS - 1;
 
+	if (idle_banks == 0) return NUM_BANKS;
+
 	UINT8 i;
 	for (i = 0; i < NUM_BANKS; i++) {
 		bank_i = (bank_i + 1) % NUM_BANKS;
 		if (fla_is_bank_idle(bank_i)) return bank_i;
 	}
-	return NUM_BANKS;
 }
 
 void fla_read_page(vp_t const vp, UINT8 const sect_offset,
@@ -95,7 +98,8 @@ void fla_write_page(vp_t const vp, UINT8 const sect_offset,
 	nand_page_ptprogram(vp.bank,
 			    vp.vpn / PAGES_PER_VBLK,
 			    vp.vpn % PAGES_PER_VBLK,
-			    sect_offset, num_sectors,
+			    sect_offset,
+			    num_sectors,
 			    wr_buf);
 	use_bank(vp.bank);
 }

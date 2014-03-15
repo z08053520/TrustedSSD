@@ -56,13 +56,6 @@ CFLAGS += -D OPTION_PROFILING
 SRCS   += profiler.c
 endif
 
-# FDE = Full Disk Encryption
-FDE =
-ifdef FDE 
-CFLAGS += -D OPTION_FDE
-SRCS   += fde.c
-endif
-
 $(TARGETBIN): $(TARGETELF)
 	$(OBJCOPY) -O binary --strip-all --strip-debug $< $@
 

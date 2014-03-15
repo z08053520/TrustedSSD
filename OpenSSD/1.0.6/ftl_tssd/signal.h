@@ -9,7 +9,7 @@
 typedef UINT32 signals_t;
 
 #define SIG_BANK(i)		(1 << (i))
-#define SIG_ALL_BANKS		0xFFFF
+#define SIG_ALL_BANKS		0x0000FFFF
 #define SIG_BANKS(banks)	(SIG_ALL_BANKS & (banks))
 #define SIG_PMT_LOADED		(1 << 16)
 #define SIG_PMT_READY		(1 << 17)

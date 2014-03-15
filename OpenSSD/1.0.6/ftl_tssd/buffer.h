@@ -15,8 +15,8 @@
  * */
 UINT8 buffer_id(UINT32 const buf);
 /*
- * Allocate a buffer and return the address.
- * Return NULL if no buffer available
+ * Allocate a buffer and return the buffer id.
+ * Return NULL_BUF_ID if no buffer available
  * */
 UINT8 buffer_allocate();
 /*

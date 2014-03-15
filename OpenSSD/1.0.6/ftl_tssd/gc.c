@@ -1,9 +1,9 @@
 #include "gc.h"
-#include "flash_util.h"
+#include "fla.h"
 #include "bad_blocks.h"
 
-/* ========================================================================== 
- * Macros and Data Structure 
+/* ==========================================================================
+ * Macros and Data Structure
  * ========================================================================*/
 
 typedef struct _gc_metadata
@@ -11,26 +11,26 @@ typedef struct _gc_metadata
     UINT32	next_vpn[2];
     UINT32	next_free_block;
     UINT32	num_free_blocks;
-} gc_metadata; 
+} gc_metadata;
 
 gc_metadata _metadata[NUM_BANKS];
 
-/* ========================================================================== 
- * Private Functions 
+/* ==========================================================================
+ * Private Functions
  * ========================================================================*/
 
-void find_next_good_vblk(UINT32 const bank, UINT32 *next_good_vblk) 
+void find_next_good_vblk(UINT32 const bank, UINT32 *next_good_vblk)
 {
-	while (*next_good_vblk < VBLKS_PER_BANK && bb_is_bad(bank, *next_good_vblk)) 
+	while (*next_good_vblk < VBLKS_PER_BANK && bb_is_bad(bank, *next_good_vblk))
 		(*next_good_vblk)++;
 
-	BUG_ON("no available blocks; need garbage collection", 
+	BUG_ON("no available blocks; need garbage collection",
 			*next_good_vblk == VBLKS_PER_BANK);
 }
 
 
-/* ========================================================================== 
- * Public Functions 
+/* ==========================================================================
+ * Public Functions
  * ========================================================================*/
 
 void gc_init(void)
@@ -38,15 +38,15 @@ void gc_init(void)
 	UINT32 user_data_from_vblk = 1;
 
 	INFO("gc>init", "format flash");
-	fu_format(user_data_from_vblk);
-	
+	fla_format(user_data_from_vblk);
+
 	UINT8 bank;
 	FOR_EACH_BANK(bank) {
 		_metadata[bank].next_vpn[0]  	= user_data_from_vblk
 						* PAGES_PER_VBLK;
 		_metadata[bank].next_vpn[1] 	= (user_data_from_vblk + 1)
 						* PAGES_PER_VBLK;
-		_metadata[bank].num_free_blocks = VBLKS_PER_BANK  
+		_metadata[bank].num_free_blocks = VBLKS_PER_BANK
 					        - bb_get_num(bank)
 					        - 1;
 		_metadata[bank].next_free_block	= user_data_from_vblk;

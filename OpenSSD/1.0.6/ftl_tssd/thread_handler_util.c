@@ -1,6 +1,6 @@
 #include "thread_handler_util.h"
 
-#define THREAD_STACK(i)		(THREAD_BUF_ADDR + THREAD_STACK_SIZE * (i))
+#define THREAD_STACK(i)		(THREAD_SWAP_BUF_ADDR + THREAD_STACK_SIZE * (i))
 
 void restore_thread_variables(thread_t *t)
 {
