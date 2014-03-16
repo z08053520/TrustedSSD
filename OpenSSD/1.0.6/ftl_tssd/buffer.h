@@ -22,6 +22,6 @@ UINT8 buffer_allocate();
 /*
  * Free a buffer allocated before
  * */
-void buffer_free(UINT8 buf_id);
+void buffer_free(UINT8 const buf_id);
 
 #endif
