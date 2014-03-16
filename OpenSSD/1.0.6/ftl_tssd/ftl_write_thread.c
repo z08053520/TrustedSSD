@@ -100,7 +100,7 @@ phase(LOCK_PHASE) {
 		last_lpn = lpn;
 		if (lock < lowest_lock) lowest_lock = lock;
 	}
-	if (lowest_lock != PAGE_LOCK_WRITE) run_later();
+	if (lowest_lock != PAGE_LOCK_WRITE) sleep(LOCK_RELEASED);
 }
 phase(BANK_PHASE) {
 	UINT8 idle_bank  = fla_get_idle_bank();

@@ -85,7 +85,7 @@ phase(BUFFER_PHASE) {
 }
 phase(LOCK_PHASE) {
 	if (lock_page(var(lpn), PAGE_LOCK_READ) != PAGE_LOCK_READ)
-		run_later();
+		sleep(SIG_LOCK_RELEASED);
 }
 /* Load PMT page and determine the segments */
 phase(MAPPING_PHASE) {

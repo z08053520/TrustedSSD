@@ -13,6 +13,7 @@ typedef UINT32 signals_t;
 #define SIG_BANKS(banks)	(SIG_ALL_BANKS & (banks))
 #define SIG_PMT_LOADED		(1 << 16)
 #define SIG_PMT_READY		(1 << 17)
+#define SIG_LOCK_RELEASED	(1 << 18)
 
 #define signals_clear(signals)			((signals) = 0)
 #define signals_is_empty(signals)		((signals) == 0)

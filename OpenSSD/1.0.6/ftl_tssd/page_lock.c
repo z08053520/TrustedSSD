@@ -62,12 +62,12 @@ void page_lock_init() {
 
 static page_lock_type_t _highest_compatible_lock[NUM_PAGE_LOCK_TYPES] = {
 	PAGE_LOCK_WRITE,
-	PAGE_LOCK_IN,
+	PAGE_LOCK_INTENT,
 	PAGE_LOCK_NULL,
 	PAGE_LOCK_NULL
 };
 #define get_highest_compatible_lock(lock_type)	\
-		(_highest_compatible_lock[lock_type])
+		(_highest_compatible_lock[(lock_type)])
 
 /* write lock is the highest, while null lock is the lowest */
 static inline page_lock_type_t get_highest_lock_except_owner(
@@ -114,6 +114,8 @@ page_lock_type_t page_lock(page_lock_owner_id_t const owner_id,
 	return final_lock;
 }
 
+extern signals_t g_scheduler_signals;
+
 void page_unlock(page_lock_owner_id_t const owner_id, UINT32 const lpn)
 {
 	ASSERT(owner_id < MAX_NUM_PAGE_LOCK_OWNERS);
@@ -128,4 +130,7 @@ void page_unlock(page_lock_owner_id_t const owner_id, UINT32 const lpn)
 	set_owners_info(lock_idx, owners_info);
 	/* if this page is not locked by any owner */
 	if (owners_info == 0) release_lock_at(lock_idx);
+
+	/* broadcast lock release signal */
+	signals_set(g_scheduler_signals, SIG_LOCK_RELEASED);
 }
