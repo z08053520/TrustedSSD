@@ -20,8 +20,7 @@
 /*
  * Thread variables
  * */
-#define THREAD_STACK_SIZE		256
-UINT8 __thread_stack[THREAD_STACK_SIZE];
+UINT8 * const __thread_stack;
 
 #define begin_thread_variables		\
 	typedef struct

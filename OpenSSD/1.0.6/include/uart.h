@@ -66,6 +66,7 @@ void uart_init(void);
 void uart_print(const char* msg, ...);
 void uart_print_32(UINT32 num);
 void uart_print_hex(UINT32 num);
+void uart_print_hex_64(UINT64 num);
 void uart_printf(const char *msg, ...);
 
 #else
@@ -73,7 +74,8 @@ void uart_printf(const char *msg, ...);
 #define uart_init(X)
 #define uart_print(X)
 #define uart_print_32(X)
-#define uart_print_hexa(X)
+#define uart_print_hex(X)
+#define uart_print_hex_64(X)
 #define uart_printf(X, ...)
 
 #endif

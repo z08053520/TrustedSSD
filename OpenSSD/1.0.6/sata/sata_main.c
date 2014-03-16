@@ -240,7 +240,7 @@ void sata_reset(void)
 
 void delay(UINT32 const count)
 {
-	static volatile UINT32 temp;
+	static volatile UINT32 __attribute__ ((unused)) temp;
 	UINT32 i;
 
 	for (i = 0; i < count; i++)

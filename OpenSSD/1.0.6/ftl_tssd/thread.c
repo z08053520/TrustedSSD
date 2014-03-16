@@ -55,7 +55,7 @@ void thread_set_next(thread_t *t, thread_t *n)
 thread_handler_id_t thread_handler_register(thread_handler_t handler)
 {
 	ASSERT(handler != NULL);
-	ASSERT(num_handlers == MAX_NUM_THREAD_HANDLERS);
+	ASSERT(num_handlers < MAX_NUM_THREAD_HANDLERS);
 
 	handlers[num_handlers] = handler;
 	return num_handlers++;

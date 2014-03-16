@@ -112,6 +112,7 @@ static buf_id_t find_fullest_buffer()
 }
 
 
+static void dump_state() __attribute__ ((unused));
 static void dump_state()
 {
 	UINT8 i = 0;

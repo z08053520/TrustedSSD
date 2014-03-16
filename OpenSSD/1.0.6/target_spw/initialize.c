@@ -19,6 +19,8 @@
 
 #include "jasmine.h"
 
+extern void ftl_open();
+
 void init_jasmine(void)
 {
 	UINT32 i, bank;

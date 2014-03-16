@@ -32,6 +32,7 @@ static void uart_txbyte(UINT8 data)
 	SETREG(UART_FIFODATA, (UINT32)data);
 }
 
+static UINT8 uart_rxbyte(void) __attribute__ ((unused));
 static UINT8 uart_rxbyte(void)
 {
 	while (RXFIFO_PENDING_CNT == UART_RXFIFO_EMPTY);
