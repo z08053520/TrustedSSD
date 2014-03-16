@@ -1,5 +1,6 @@
 #include "page_lock.h"
 #include "dram.h"
+#include "signal.h"
 
 #define MAX_NUM_LOCKS_PER_OWNER		SUB_PAGES_PER_PAGE
 #define MAX_NUM_LOCKS			(MAX_NUM_LOCKS_PER_OWNER * \
