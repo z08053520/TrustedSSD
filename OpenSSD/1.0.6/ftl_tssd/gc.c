@@ -6,20 +6,21 @@
  * Macros and Data Structure
  * ========================================================================*/
 
-typedef struct _gc_metadata
+typedef struct
 {
-    UINT32	next_vpn[2];
-    UINT32	next_free_block;
-    UINT32	num_free_blocks;
+	/* one is for user data; the other is for sys data */
+	UINT32	next_vpn[2];
+	UINT32	next_free_block;
+	UINT32	num_free_blocks;
 } gc_metadata;
 
-gc_metadata _metadata[NUM_BANKS];
+static gc_metadata _metadata[NUM_BANKS];
 
 /* ==========================================================================
  * Private Functions
  * ========================================================================*/
 
-void find_next_good_vblk(UINT32 const bank, UINT32 *next_good_vblk)
+static void find_next_good_vblk(UINT32 const bank, UINT32 *next_good_vblk)
 {
 	while (*next_good_vblk < VBLKS_PER_BANK && bb_is_bad(bank, *next_good_vblk))
 		(*next_good_vblk)++;
@@ -35,21 +36,20 @@ void find_next_good_vblk(UINT32 const bank, UINT32 *next_good_vblk)
 
 void gc_init(void)
 {
-	UINT32 user_data_from_vblk = 1;
+	/* first block of each bank is reserved */
+	UINT32 from_vblk = 1;
 
 	INFO("gc>init", "format flash");
-	fla_format_all(user_data_from_vblk);
+	fla_format_all(from_vblk);
 
 	UINT8 bank;
 	FOR_EACH_BANK(bank) {
-		_metadata[bank].next_vpn[0]  	= user_data_from_vblk
-						* PAGES_PER_VBLK;
-		_metadata[bank].next_vpn[1] 	= (user_data_from_vblk + 1)
-						* PAGES_PER_VBLK;
+		_metadata[bank].next_vpn[0]  	= 0;
+		_metadata[bank].next_vpn[1] 	= 0;
 		_metadata[bank].num_free_blocks = VBLKS_PER_BANK
 					        - bb_get_num(bank)
 					        - 1;
-		_metadata[bank].next_free_block	= user_data_from_vblk;
+		_metadata[bank].next_free_block	= from_vblk;
 	}
 }
 

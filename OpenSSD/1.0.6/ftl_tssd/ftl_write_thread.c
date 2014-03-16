@@ -72,8 +72,7 @@ phase(BUFFER_PHASE) {
 
 		UINT8 buf_id = buffer_allocate();
 		var(buf) = MANAGED_BUF(buf_id);
-		write_buffer_flush(var(buf), var(sp_lpn),
-					&var(valid_sectors));
+		write_buffer_flush(var(buf), var(sp_lpn), &var(valid_sectors));
 	}
 	/* write whole page to flash directly */
 	else {

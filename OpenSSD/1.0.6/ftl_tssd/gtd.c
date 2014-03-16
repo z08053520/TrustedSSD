@@ -11,10 +11,12 @@ void gtd_init(void)
 
 void gtd_flush(void)
 {
+	/* TODO: flush GTD to keep SSD state durable */
 }
 
 vsp_t gtd_get_vsp(UINT32 const pmt_idx)
 {
+	ASSERT(pmt_idx < PMT_SUB_PAGES);
 	vsp_t vsp = {
 		.as_uint = read_dram_32(GTD_ENTRY_ADDR(pmt_idx))
 	};
@@ -23,6 +25,7 @@ vsp_t gtd_get_vsp(UINT32 const pmt_idx)
 
 void   gtd_set_vsp(UINT32 const pmt_idx, vsp_t const vsp)
 {
-	BUG_ON("set vspn in vpn #0 ", vsp.vspn < SUB_PAGES_PER_PAGE);
+	ASSERT(pmt_idx < PMT_SUB_PAGES);
+	ASSERT(vsp.vspn >= SUB_PAGES_PER_PAGE);
 	write_dram_32(GTD_ENTRY_ADDR(pmt_idx), vsp.as_uint);
 }

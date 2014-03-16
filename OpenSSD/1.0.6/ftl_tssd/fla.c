@@ -71,11 +71,12 @@ UINT8 fla_get_idle_bank()
 
 	if (idle_banks == 0) return NUM_BANKS;
 
-	UINT8 i;
-	for (i = 0; i < NUM_BANKS; i++) {
+	for (UINT8 i = 0; i < NUM_BANKS; i++) {
 		bank_i = (bank_i + 1) % NUM_BANKS;
 		if (fla_is_bank_idle(bank_i)) return bank_i;
 	}
+	/* should never reach here */
+	ASSERT(0);
 	return NUM_BANKS;
 }
 
