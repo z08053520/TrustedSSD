@@ -33,6 +33,11 @@
 			return (type*) & (slab_##name##_buf[slab_##name##_size++]);	\
 		}							\
 		static void slab_deallocate_##name(type* obj) {		\
+			ASSERT((slab_##name##_obj_t*)obj - slab_##name##_buf >= 0);\
+			ASSERT((slab_##name##_obj_t*)obj - slab_##name##_buf <  \
+				capacity);					\
+			ASSERT(((slab_##name##_obj_t*)obj - slab_##name##_buf) %\
+				sizeof(slab_##name##_obj_t) == 0);	\
 			slab_##name##_obj_t *slab_obj = 		\
 					(slab_##name##_obj_t*) obj;	\
 			slab_obj->next_free = slab_##name##_free_list;	\

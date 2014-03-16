@@ -285,7 +285,7 @@ typedef struct
 }
 scan_list_t;
 
-#define NUM_LSECTORS	(21168 + ((NUM_PSECTORS) / 2097152 * 1953504)) // 125045424 ~= 59GiB
+#define NUM_LSECTORS	(21168 + ((NUM_PSECTORS) / 2097152 * 1953504))
 
 #include "misc.h"
 
@@ -296,9 +296,6 @@ scan_list_t;
 #define FOR_EACH_BANK(i)	for(i=0;i<NUM_BANKS;i++)
 #define for_each_bank(i)	for(UINT8 i = 0; i < NUM_BANKS; i++)
 #define for_each_subpage(i)	for(UINT8 i = 0; i < SUB_PAGES_PER_PAGE; i++)
-
-// page-level striping technique (I/O parallelism)
-#define lpn2bank(lpn)             ((lpn) % NUM_BANKS)
 
 #if OPTION_UART_DEBUG
 	/* log levels */

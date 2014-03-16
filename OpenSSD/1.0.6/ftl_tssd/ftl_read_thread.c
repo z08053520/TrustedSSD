@@ -69,29 +69,23 @@ begin_thread_handler
 {
 /* Try write buffer first */
 phase(BUFFER_PHASE) {
-	if (lock_page(var(lpn), PAGE_LOCK_READ) != PAGE_LOCK_READ)
-		run_later();
-
-	sectors_mask_t	target_sectors = init_mask(
-						var(sect_offset),
-						var(num_sectors));
+	var(target_sectors) = init_mask(var(sect_offset), var(num_sectors));
 
 	UINT32 		wr_buf;
 	sectors_mask_t	valid_sectors;
 	write_buffer_get(var(lpn), &wr_buf, &valid_sectors);
-	if (wr_buf == NULL) goto next_phase_mapping;
+	if (wr_buf == NULL) goto_phase(LOCK_PHASE);
 
-	sectors_mask_t	common_sectors = valid_sectors & target_sectors;
+	sectors_mask_t	common_sectors = valid_sectors & var(target_sectors);
 	if (common_sectors) {
 		fla_copy_buffer(sata_rd_buf, wr_buf, common_sectors);
-		target_sectors &= ~common_sectors;
+		var(target_sectors) &= ~common_sectors;
 	}
-	if (target_sectors == 0) {
-		unlock_page(var(lpn));
-		goto_phase(SATA_PHASE);
-	}
-next_phase_mapping:
-	var(target_sectors) = target_sectors;
+	if (var(target_sectors) == 0) goto_phase(SATA_PHASE);
+}
+phase(LOCK_PHASE) {
+	if (lock_page(var(lpn), PAGE_LOCK_READ) != PAGE_LOCK_READ)
+		run_later();
 }
 /* Load PMT page and determine the segments */
 phase(MAPPING_PHASE) {
@@ -133,6 +127,8 @@ phase(MAPPING_PHASE) {
 
 	var(num_segments) = num_segments;
 
+	/* we can safely unlock the page to read as soon as we know where to
+	 * find the pages */
 	unlock_page(var(lpn));
 }
 /* Do flash read */

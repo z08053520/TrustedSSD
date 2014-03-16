@@ -1,5 +1,4 @@
 #include "page_lock.h"
-#include "mem_util.h"
 #include "dram.h"
 
 #define MAX_NUM_LOCKS_PER_OWNER		SUB_PAGES_PER_PAGE
@@ -61,23 +60,22 @@ void page_lock_init() {
 	mem_set_dram(PL_OWNERS_INFO_ADDR, 0, sizeof(UINT32) * MAX_NUM_LOCKS);
 }
 
-/*
- * According to the compatibility matrix, we have
- *	null -> write,
- *	read -> intent,
- *	intent -> read,
- *	write -> null.
- * Thus
- *	x -> (write - x).
- * */
+static page_lock_type_t _highest_compatible_lock[NUM_PAGE_LOCK_TYPES] = {
+	PAGE_LOCK_WRITE,
+	PAGE_LOCK_IN,
+	PAGE_LOCK_NULL,
+	PAGE_LOCK_NULL
+};
 #define get_highest_compatible_lock(lock_type)	\
-		(PAGE_LOCK_WRITE - (lock_type))
+		(_highest_compatible_lock[lock_type])
 
 /* write lock is the highest, while null lock is the lowest */
 static inline page_lock_type_t get_highest_lock_except_owner(
 					owners_info_t const owners_info,
 					page_lock_owner_id_t const except_owner_id)
 {
+	if (owners_info == 0) return PAGE_LOCK_NULL;
+
 	page_lock_type_t highest_lock = PAGE_LOCK_NULL;
 	UINT8 owner_id;
 	for (owner_id = 0; owner_id < MAX_NUM_PAGE_LOCK_OWNERS; owner_id++) {

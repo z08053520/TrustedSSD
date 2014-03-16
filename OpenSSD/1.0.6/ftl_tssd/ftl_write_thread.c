@@ -61,18 +61,20 @@ begin_thread_handler
 {
 /* Write buffer if possible */
 phase(BUFFER_PHASE) {
+	var(buf) = NULL;
+
 	/* put partial page to write buffer */
 	if (var(num_sectors)< SECTORS_PER_PAGE) {
-		/* don't need to flush write buffer if it is not full*/
-		if (!write_buffer_is_full()) {
-			write_buffer_put(var(lpn), var(sect_offset),
-					var(num_sectors), sata_wr_buf);
-			goto_phase(SATA_PHASE);
+		/* flush write buffer if it is full*/
+		if (write_buffer_is_full()) {
+			UINT8 buf_id = buffer_allocate();
+			var(buf) = MANAGED_BUF(buf_id);
+			write_buffer_flush(var(buf), var(sp_lpn),
+						&var(valid_sectors));
 		}
 
-		UINT8 buf_id = buffer_allocate();
-		var(buf) = MANAGED_BUF(buf_id);
-		write_buffer_flush(var(buf), var(sp_lpn), &var(valid_sectors));
+		write_buffer_put(var(lpn), var(sect_offset),
+				var(num_sectors), sata_wr_buf);
 	}
 	/* write whole page to flash directly */
 	else {
@@ -84,8 +86,10 @@ phase(BUFFER_PHASE) {
 
 		write_buffer_drop(var(lpn));
 	}
+
+	if (var(buf) == NULL) goto_phase(SATA_PHASE);
 }
-/* lock pages to write */
+/* Lock pages to write */
 phase(LOCK_PHASE) {
 	page_lock_type_t lowest_lock = PAGE_LOCK_WRITE;
 	UINT32 last_lpn = NULL_LPN;
@@ -205,7 +209,7 @@ phase(FLASH_READ_PHASE) {
 /* Write the buffer to flash */
 phase(FLASH_WRITE_PHASE) {
 	UINT8 bank = var(vp).bank;
-	/* if not issued yet */
+	/* if flash write cmd is not issued yet */
 	if (!var(cmd_issued)) {
 		if (fla_is_bank_idle(bank)) {
 			UINT8	begin_i	= begin_subpage(var(valid_sectors))
@@ -217,6 +221,16 @@ phase(FLASH_WRITE_PHASE) {
 			fla_write_page(var(vp), sect_offset,
 					num_sectors, var(buf));
 			var(cmd_issued) = TRUE;
+
+			/* we can safely unlock pages as soon as flash write
+			 * cmd is issued. */
+			UINT32 last_lpn = NULL_LPN;
+			for_each_subpage(sp_i) {
+				UINT32 lpn = var(sp_lpn)[sp_i];
+				if (last_lpn == lpn || lpn == NULL_LPN) continue;
+				unlock_page(lpn);
+				last_lpn = lpn;
+			}
 		}
 		sleep(SIG_BANK(bank));
 	}
@@ -226,15 +240,6 @@ phase(FLASH_WRITE_PHASE) {
 	/* free managed buffer if used */
 	UINT8 buf_id = buffer_id(var(buf));
 	if (buf_id != NULL_BUF_ID) buffer_free(buf_id);
-
-	/* unlock pages */
-	UINT32 last_lpn = NULL_LPN;
-	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
-		UINT32 lpn = var(sp_lpn)[sp_i];
-		if (last_lpn == lpn || lpn == NULL_LPN) continue;
-		unlock_page(lpn);
-		last_lpn = lpn;
-	}
 }
 phase(SATA_PHASE) {
 	g_num_ftl_write_tasks_finished++;
