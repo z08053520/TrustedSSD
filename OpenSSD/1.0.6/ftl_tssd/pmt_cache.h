@@ -26,13 +26,16 @@ BOOL8	pmt_cache_is_loading(UINT32 const pmt_idx);
 /* Set a PMT page as loaded */
 void	pmt_cache_set_loaded(UINT32 const pmt_idx);
 
-/* A fixed PMT page won't be evicted */
+/* A fixed PMT page won't be evicted
+ *	A PMT page can be fixed many times as long as it is unfixed
+ *	as many times eventually.
+ * */
 void	pmt_cache_fix(UINT32 const pmt_idx);
 void	pmt_cache_unfix(UINT32 const pmt_idx);
 
 /* A dirty PMT page should be written back to flash */
 void	pmt_cache_set_dirty(UINT32 const pmt_idx, BOOL8 const is_dirty);
-void	pmt_cache_is_dirty(UINT32 const pmt_idx, BOOL8 *is_dirty);
+BOOL8	pmt_cache_is_dirty(UINT32 const pmt_idx);
 
 /* Return whether the cache is full
  *	If cache is full, no more page can be put into cache. */

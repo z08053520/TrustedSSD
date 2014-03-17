@@ -55,11 +55,10 @@ static void handle_timestamp_overflow()
 		min_timestamp = NULL_TIMESTAMP;
 		/* find the i-th minimum timestamp */
 		for (UINT32 j = 0; j < NUM_PC_SUB_PAGES; j++) {
-			if (cached_pmt_timestamps[j] < timestamp_low_bound)
-				continue;
-			if (cached_pmt_timestamps[j] >= min_timestamp)
-				continue;
-			min_timestamp = cached_pmt_timestamps[j];
+			UINT32 j_timestamp = cached_pmt_timestamps[j];
+			if (j_timestamp < timestamp_low_bound) continue;
+			if (j_timestamp >= min_timestamp) continue;
+			min_timestamp = j_timestamp;
 		}
 		if (min_timestamp == NULL_TIMESTAMP) break;
 
@@ -183,14 +182,23 @@ void	pmt_cache_fix(UINT32 const pmt_idx)
 {
 	UINT32	page_idx = get_page(pmt_idx);
 	ASSERT(page_idx != NULL_PAGE_IDX);
-	cached_pmt_timestamps[page_idx] = FIXED_TIMESTAMP;
-	cached_pmt_fix_count[page_idx]++;
+
+	if (cached_pmt_fix_count[page_idx] == 0) {
+		ASSERT(cached_pmt_timestamps[page_idx] < NULL_TIMESTAMP);
+		cached_pmt_timestamps[page_idx] = FIXED_TIMESTAMP;
+		cached_pmt_fix_count[page_idx] = 1;
+	}
+	else {
+		ASSERT(cached_pmt_timestamps[page_idx] == FIXED_TIMESTAMP);
+		cached_pmt_fix_count[page_idx]++;
+	}
 }
 
 void	pmt_cache_unfix(UINT32 const pmt_idx)
 {
 	UINT32	page_idx = get_page(pmt_idx);
 	ASSERT(page_idx != NULL_PAGE_IDX);
+
 	ASSERT(cached_pmt_timestamps[page_idx] == FIXED_TIMESTAMP);
 	ASSERT(cached_pmt_fix_count[page_idx] > 0);
 	cached_pmt_fix_count[page_idx]--;
@@ -209,12 +217,13 @@ void	pmt_cache_set_dirty(UINT32 const pmt_idx, BOOL8 const is_dirty)
 		bit_array_clear(cached_pmt_is_dirty, page_idx);
 }
 
-void	pmt_cache_is_dirty(UINT32 const pmt_idx, BOOL8 *is_dirty)
+BOOL8	pmt_cache_is_dirty(UINT32 const pmt_idx)
 {
 	UINT32	page_idx = get_page(pmt_idx);
 	ASSERT(page_idx != NULL_PAGE_IDX);
 
-	*is_dirty = bit_array_test(cached_pmt_is_dirty, page_idx);
+	BOOL8 is_dirty = bit_array_test(cached_pmt_is_dirty, page_idx);
+	return is_dirty;
 }
 
 BOOL8	pmt_cache_is_full(void)
