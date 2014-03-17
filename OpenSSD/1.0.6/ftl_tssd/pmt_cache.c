@@ -61,6 +61,8 @@ static inline void update_timestamp(UINT32 const page_idx)
 		handle_timestamp_overflow();
 }
 
+static void revoke_eviction(UINT32 const page_idx);
+
 static UINT32 get_page(UINT32 const pmt_idx)
 {
 	/* shortcuts for consecutive access of the same pmt_idx */
@@ -152,7 +154,7 @@ void	pmt_cache_set_loaded(UINT32 const pmt_idx)
 {
 	UINT32	page_idx = get_page(pmt_idx);
 	ASSERT(page_idx != NULL_PAGE_IDX);
-	ASSERT(timestamps[page_idx] == LOADING_TIMESTAMP);
+	ASSERT(cached_pmt_timestamps[page_idx] == LOADING_TIMESTAMP);
 	update_timestamp(page_idx);
 }
 
@@ -167,7 +169,7 @@ void	pmt_cache_unfix(UINT32 const pmt_idx)
 {
 	UINT32	page_idx = get_page(pmt_idx);
 	ASSERT(page_idx != NULL_PAGE_IDX);
-	ASSERT(timestamps[page_idx] == FIXED_TIMESTAMP);
+	ASSERT(cached_pmt_timestamps[page_idx] == FIXED_TIMESTAMP);
 	update_timestamp(page_idx);
 }
 
@@ -182,7 +184,7 @@ void	pmt_cache_set_dirty(UINT32 const pmt_idx, BOOL8 const is_dirty)
 		bit_array_clear(cached_pmt_is_dirty, page_idx);
 }
 
-BOOL8	pmt_cache_is_dirty(UINT32 const pmt_idx, BOOL8 *is_dirty)
+void	pmt_cache_is_dirty(UINT32 const pmt_idx, BOOL8 *is_dirty)
 {
 	UINT32	page_idx = get_page(pmt_idx);
 	ASSERT(page_idx != NULL_PAGE_IDX);
@@ -202,7 +204,7 @@ BOOL8	pmt_cache_is_full(void)
 static UINT8 merge_buf_size = 0;
 static UINT32 merged_page_idxes[SUB_PAGES_PER_PAGE];
 
-static void evoke_eviction(UINT32 const page_idx)
+static void revoke_eviction(UINT32 const page_idx)
 {
 	ASSERT(cached_pmt_timestamps[page_idx] == EVICTED_TIMESTAMP);
 	// find the evicted page in merge buf
@@ -212,7 +214,7 @@ static void evoke_eviction(UINT32 const page_idx)
 	ASSERT(sp_i != merge_buf_size);
 	// remove the evicted page from merge buf
 	merge_buf_size--;
-	merged_page_idxes[sp_i] = merge_page_idxes[merge_buf_size];
+	merged_page_idxes[sp_i] = merged_page_idxes[merge_buf_size];
 	// change timestamp to normal
 	update_timestamp(page_idx);
 }

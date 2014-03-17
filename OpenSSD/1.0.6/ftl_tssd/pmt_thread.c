@@ -29,11 +29,9 @@ static UINT32 pop_pmt_req()
 	return req_pmt_idx;
 }
 
-BOOL8 pmt_thread_request_enqueue(UINT32 const pmt_idx)
+void pmt_thread_request_enqueue(UINT32 const pmt_idx)
 {
-	BUG_ON("pmt req queue is full",
-		pmt_req_queue_size == MAX_PMT_REQ_QUEUE_SIZE);
-	if (pmt_req_queue_size == MAX_PMT_REQ_QUEUE_SIZE) return 1;
+	ASSERT(pmt_req_queue_size < MAX_PMT_REQ_QUEUE_SIZE);
 
 	if (singleton_thread->wakeup_signals == 0)
 		signals_set(singleton_thread->wakeup_signals, SIG_ALL_BANKS);
@@ -41,7 +39,6 @@ BOOL8 pmt_thread_request_enqueue(UINT32 const pmt_idx)
 	pmt_req_queue[pmt_req_tail] = pmt_idx;
 	pmt_req_tail = (pmt_req_tail + 1) % MAX_PMT_REQ_QUEUE_SIZE;
 	pmt_req_queue_size++;
-	return 0;
 }
 
 /*
@@ -117,7 +114,7 @@ phase(ONE_PHASE) {
 	while (var(next_pmt_idx) != NULL_PMT_IDX) {
 		/* if the requested PMT page is loaded or being loaded,
 		 * the we can safely ignore this duplicate request */
-		if (pmt_cache_get(next_pmt_idx)) goto next_pmt_req;
+		if (pmt_cache_get(var(next_pmt_idx))) goto next_pmt_req;
 
 		/* if cache is full, need to evict, even flush */
 		if (pmt_cache_is_full()) {

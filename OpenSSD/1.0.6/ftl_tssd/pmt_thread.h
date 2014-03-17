@@ -5,6 +5,6 @@
 
 void pmt_thread_init(thread_t *t);
 
-BOOL8 pmt_thread_request_enqueue(UINT32 const pmt_idx);
+void pmt_thread_request_enqueue(UINT32 const pmt_idx);
 
 #endif

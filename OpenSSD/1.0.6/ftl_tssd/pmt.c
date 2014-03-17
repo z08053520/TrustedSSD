@@ -23,9 +23,9 @@ void	pmt_load(UINT32 const lpn)
 
 	UINT32 buf = pmt_cache_get(pmt_idx);
 	/* the PMT page is loaded or being loaded */
-	if (buf != NULL) return FALSE;
+	if (buf != NULL) return;
 
-	return pmt_thread_request_enqueue(pmt_idx);
+	pmt_thread_request_enqueue(pmt_idx);
 }
 
 void pmt_get_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t *vp)
@@ -49,6 +49,18 @@ void pmt_update_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t const vp)
 	UINT32	pmt_offset = pmt_get_offset(lpn) * sizeof(pmt_entry_t)
 				+ (UINT32)(&((pmt_entry_t*)0)->vps[sp_offset]);
 	write_dram_32(pmt_buf + pmt_offset, vp.as_uint);
+}
+
+void	pmt_fix(UINT32 const lpn)
+{
+	UINT32	pmt_idx  = pmt_get_index(lpn);
+	pmt_cache_fix(pmt_idx);
+}
+
+void	pmt_unfix(UINT32 const lpn)
+{
+	UINT32	pmt_idx  = pmt_get_index(lpn);
+	pmt_cache_unfix(pmt_idx);
 }
 
 #if OPTION_ACL

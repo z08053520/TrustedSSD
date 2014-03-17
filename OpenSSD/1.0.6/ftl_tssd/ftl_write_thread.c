@@ -206,7 +206,7 @@ phase(PMT_UPDATE_PHASE) {
 		if (lpn == NULL_LPN) continue;
 
 		ASSERT(pmt_is_loaded(lpn));
-		pmt_set_vp(lpn, sp_i, var(vp));
+		pmt_update_vp(lpn, sp_i, var(vp));
 		pmt_unfix(lpn);
 	}
 
