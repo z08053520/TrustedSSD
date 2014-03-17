@@ -29,6 +29,7 @@ static UINT32	cached_pmt_timestamps[NUM_PC_SUB_PAGES] = {
 	[0 ... (NUM_PC_SUB_PAGES-1)] = NULL_TIMESTAMP
 };
 static DECLARE_BIT_ARRAY(cached_pmt_is_dirty, NUM_PC_SUB_PAGES);
+static UINT32	cached_pmt_fix_count[NUM_PC_SUB_PAGES] = {0};
 
 static UINT32	num_free_sub_pages = NUM_PC_SUB_PAGES;
 static UINT32	current_timestamp = 0;
@@ -43,14 +44,34 @@ static UINT32 	last_page_idx = NULL_PAGE_IDX;
 
 static void handle_timestamp_overflow()
 {
-	/* this is a brute force method */
-	for (UINT32 page_idx = 0; page_idx < NUM_PC_SUB_PAGES; page_idx++) {
-		if (cached_pmt_timestamps[page_idx] >= NULL_TIMESTAMP)
-			continue;
-		cached_pmt_timestamps[page_idx] = 0;
-	}
-	current_timestamp = 0;
 	uart_print("warning: pmt cache timestamp overflowed!");
+
+	/* reassign timestamp by order */
+	UINT32 timestamp_low_bound;
+	UINT32 min_timestamp;
+	/* update the timestamp of potentially all page */
+	for (UINT32 i = 0; i < NUM_PC_SUB_PAGES; i++) {
+		timestamp_low_bound = i;
+		min_timestamp = NULL_TIMESTAMP;
+		/* find the i-th minimum timestamp */
+		for (UINT32 j = 0; j < NUM_PC_SUB_PAGES; j++) {
+			if (cached_pmt_timestamps[j] < timestamp_low_bound)
+				continue;
+			if (cached_pmt_timestamps[j] >= min_timestamp)
+				continue;
+			min_timestamp = cached_pmt_timestamps[j];
+		}
+		if (min_timestamp == NULL_TIMESTAMP) break;
+
+		if (min_timestamp == timestamp_low_bound) continue;
+
+		/* i-th minimum timestamp is set to i */
+		for (UINT32 k = 0; k < NUM_PC_SUB_PAGES; k++)
+			if (cached_pmt_timestamps[k] == min_timestamp)
+				cached_pmt_timestamps[k] = timestamp_low_bound;
+	}
+	/* count timestamp from minnimal */
+	current_timestamp = ++timestamp_low_bound;
 }
 
 static inline void update_timestamp(UINT32 const page_idx)
@@ -163,6 +184,7 @@ void	pmt_cache_fix(UINT32 const pmt_idx)
 	UINT32	page_idx = get_page(pmt_idx);
 	ASSERT(page_idx != NULL_PAGE_IDX);
 	cached_pmt_timestamps[page_idx] = FIXED_TIMESTAMP;
+	cached_pmt_fix_count[page_idx]++;
 }
 
 void	pmt_cache_unfix(UINT32 const pmt_idx)
@@ -170,7 +192,10 @@ void	pmt_cache_unfix(UINT32 const pmt_idx)
 	UINT32	page_idx = get_page(pmt_idx);
 	ASSERT(page_idx != NULL_PAGE_IDX);
 	ASSERT(cached_pmt_timestamps[page_idx] == FIXED_TIMESTAMP);
-	update_timestamp(page_idx);
+	ASSERT(cached_pmt_fix_count[page_idx] > 0);
+	cached_pmt_fix_count[page_idx]--;
+	if (cached_pmt_fix_count[page_idx] == 0)
+		update_timestamp(page_idx);
 }
 
 void	pmt_cache_set_dirty(UINT32 const pmt_idx, BOOL8 const is_dirty)
@@ -264,7 +289,5 @@ void	pmt_cache_flush(UINT32 const flush_buf,
 		free_page(merge_page_idx);
 		flush_buf_offset += BYTES_PER_SUB_PAGE;
 	}
-
 	merge_buf_size = 0;
-	return 0;
 }
