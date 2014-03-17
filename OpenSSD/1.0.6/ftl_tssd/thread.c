@@ -12,10 +12,6 @@ define_slab_implementation(thread, thread_t, MAX_NUM_THREADS);
 		((id) >= NULL_THREAD_ID ? NULL :		\
 			(thread_t*)(& slab_thread_buf[id]))
 
-#define MAX_NUM_THREAD_HANDLERS	4
-thread_handler_t handlers[MAX_NUM_THREAD_HANDLERS] = {NULL};
-UINT8 num_handlers = 0;
-
 BOOL8 thread_can_allocate()
 {
 	return slab_thread_num_free > 0;
@@ -51,6 +47,10 @@ void thread_set_next(thread_t *t, thread_t *n)
 {
 	t->next_id = thread2id(n);
 }
+
+#define MAX_NUM_THREAD_HANDLERS	4
+static thread_handler_t handlers[MAX_NUM_THREAD_HANDLERS] = {NULL};
+static UINT8 num_handlers = 0;
 
 thread_handler_id_t thread_handler_register(thread_handler_t handler)
 {
