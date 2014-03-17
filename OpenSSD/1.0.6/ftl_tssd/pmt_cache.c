@@ -194,8 +194,12 @@ BOOL8	pmt_cache_is_full(void)
 static UINT8 merge_buf_size = 0;
 static UINT32 merged_page_idxes[SUB_PAGES_PER_PAGE];
 
-BOOL8	pmt_cache_evict()
+BOOL8	pmt_cache_evict_and_flush(
+		UINT32 const flush_buf,
+		UINT32 merged_pmt_idxes[SUB_PAGES_PER_PAGE])
 {
+	if (!pmt_cache_is_full()) return 0;
+
 	while (merge_buf_size < SUB_PAGES_PER_PAGE) {
 		UINT32 lru_page_idx = mem_search_min_max(
 						 cached_pmt_timestamps,
@@ -215,29 +219,23 @@ BOOL8	pmt_cache_evict()
 		merged_page_idxes[merge_buf_size] = lru_page_idx;
 		merge_buf_size++;
 	}
-	return 1;
-}
 
-BOOL8	pmt_cache_flush(UINT32 const target_buf,
-		UINT32 merged_pmt_idxes[SUB_PAGES_PER_PAGE])
-{
-	if (merge_buf_size != SUB_PAGES_PER_PAGE) return 1;
-
-	UINT32 target_buf_offset = 0;
+	/* need to flush */
+	UINT32 flush_buf_offset = 0;
 	for_each_subpage(sp_i) {
 		UINT8 merge_page_idx = merged_page_idxes[sp_i];
 
 		UINT32 merge_pmt_idx = cached_pmt_idxes[merge_page_idx];
 		merged_pmt_idxes[sp_i] = merge_pmt_idx;
 
-		mem_copy(target_buf + target_buf_offset,
+		mem_copy(flush_buf + flush_buf_offset,
 			PC_SUB_PAGE(merge_page_idx),
 			BYTES_PER_SUB_PAGE);
 
 		free_page(merge_page_idx);
-		target_buf_offset += BYTES_PER_SUB_PAGE;
+		flush_buf_offset += BYTES_PER_SUB_PAGE;
 	}
 
 	merge_buf_size = 0;
-	return 0;
+	return 1;
 }

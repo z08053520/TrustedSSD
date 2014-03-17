@@ -59,8 +59,8 @@ static void print_info(void)
 	PRINT_SIZE("sub-page",	BYTES_PER_SUB_PAGE);
 	uart_print("# of GTD entries = %u, size of GTD = %uKB, # of GTD pages = %u",
 			GTD_ENTRIES, GTD_BYTES / 1024, GTD_PAGES);
-	uart_print("# of PMT entries == %u, # of PMT pages == %u, # of PMT sub-pages == %u",
-			PMT_ENTRIES, PMT_PAGES, PMT_SUB_PAGES);
+	uart_print("# of PMT entries == %u, # of PMT sub-pages == %u",
+			PMT_ENTRIES, PMT_SUB_PAGES);
 	uart_print("");
 }
 
