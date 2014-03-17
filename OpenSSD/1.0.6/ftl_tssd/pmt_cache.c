@@ -137,6 +137,8 @@ static inline UINT32 find_free_buf()
 
 UINT32 	pmt_cache_get(UINT32 const pmt_idx)
 {
+	ASSERT(pmt_idx < PMT_SUB_PAGES);
+
 	UINT32	page_idx = get_page(pmt_idx);
 	/* if the entry exists, put fails */
 	if (page_idx == NULL_PAGE_IDX) return NULL;
@@ -146,6 +148,8 @@ UINT32 	pmt_cache_get(UINT32 const pmt_idx)
 
 BOOL8	pmt_cache_put(UINT32 const pmt_idx)
 {
+	ASSERT(pmt_idx < PMT_SUB_PAGES);
+
 	UINT32	old_page_idx = get_page(pmt_idx);
 	ASSERT(old_page_idx == NULL_PAGE_IDX);
 
@@ -270,6 +274,11 @@ BOOL8	pmt_cache_evict()
 		if (!is_dirty) {
 			free_page(lru_page_idx);
 			return 0;
+		}
+
+		if (lru_page_idx == last_page_idx) {
+			last_page_idx = NULL_PAGE_IDX;
+			last_pmt_idx = NULL_PMT_IDX;
 		}
 
 		cached_pmt_timestamps[lru_page_idx] = EVICTED_TIMESTAMP;

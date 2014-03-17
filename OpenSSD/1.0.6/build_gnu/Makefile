@@ -25,6 +25,7 @@ RM	= rm
 #TEST = ftl_write_task
 #TEST = fde
 #TEST = flash_mock
+TEST = pmt
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size

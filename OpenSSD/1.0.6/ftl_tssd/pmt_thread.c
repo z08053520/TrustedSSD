@@ -9,6 +9,11 @@
 #include "gtd.h"
 #include "dram.h"
 
+#if OPTION_PERF_TUNING
+UINT32 g_pmt_cache_flush_count = 0;
+UINT32 g_pmt_cache_load_count = 0;
+#endif
+
 static thread_t *singleton_thread = NULL;
 
 /*
@@ -145,6 +150,9 @@ phase(ONE_PHASE) {
 				.vpn = flush_vpn
 			};
 			fla_write_page(flush_vp, 0, SECTORS_PER_PAGE, flush_buf);
+#if OPTION_PERF_TUNING
+			g_pmt_cache_flush_count++;
+#endif
 
 			/* update GTD */
 			vsp_t flush_vsp = {
@@ -153,6 +161,7 @@ phase(ONE_PHASE) {
 			};
 			for_each_subpage(sp_i) {
 				UINT32 pmt_idx = flush_pmt_idxes[sp_i];
+				uart_print("flushed pmt_idx = %u", pmt_idx);
 				gtd_set_vsp(pmt_idx, flush_vsp);
 				flush_vsp.vspn++;
 			}
@@ -175,7 +184,6 @@ pmt_load:
 			goto next_pmt_req;
 		}
 
-
 		load_bank = load_vsp.bank;
 		signals_set(interesting_signals, SIG_BANK(load_bank));
 		if (!fla_is_bank_idle(load_bank)) break;
@@ -193,6 +201,9 @@ pmt_load:
 		UINT8	sect_offset = sp_offset * SECTORS_PER_SUB_PAGE;
 		fla_read_page(load_vp, sect_offset, SECTORS_PER_SUB_PAGE,
 				load_buf);
+#if OPTION_PERF_TUNING
+		g_pmt_cache_load_count++;
+#endif
 
 		var(loading_pmt_idxes)[load_bank] = var(next_pmt_idx);
 		var(loading_pmt_vsps)[load_bank] = load_vsp;
