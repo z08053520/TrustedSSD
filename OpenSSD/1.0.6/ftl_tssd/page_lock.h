@@ -32,7 +32,7 @@
  *	NU	RD	IN	WR
  * NU	OK	OK	OK	OK
  * RD	OK	OK	OK	X
- * IN	OK	OK	X	X
+ * IN	OK	X	X	X
  * WR	OK	X	X	X
  *
  * */

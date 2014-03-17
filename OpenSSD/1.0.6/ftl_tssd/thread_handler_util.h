@@ -66,12 +66,12 @@ UINT8 * const __thread_stack;
  * */
 #define sleep(signals)	do {					\
 		__t->wakeup_signals = (signals);		\
-		context_switch(THREAD_SLEEPING);			\
+		context_switch(THREAD_SLEEPING);		\
 	} while(0)
 
 #define run_later()	do {					\
 		__t->wakeup_signals = 0;			\
-		context_switch(THREAD_RUNNABLE);			\
+		context_switch(THREAD_RUNNABLE);		\
 	} while(0)
 
 #define end()		do {					\
@@ -79,7 +79,7 @@ UINT8 * const __thread_stack;
 		return;						\
 	} while(0)
 
-#define context_switch(new_state)	do {				\
+#define context_switch(new_state)	do {			\
 		__t->state = (new_state);			\
 		save_thread_variables(__tid);			\
 		return;						\
