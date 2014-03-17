@@ -14,7 +14,7 @@ static thread_t *singleton_thread = NULL;
 /*
  * Request queue
  * */
-#define MAX_PMT_REQ_QUEUE_SIZE	32
+#define MAX_PMT_REQ_QUEUE_SIZE	(MAX_NUM_THREADS * SUB_PAGES_PER_PAGE)
 static UINT32 pmt_req_queue[MAX_PMT_REQ_QUEUE_SIZE] = {0};
 static UINT32 pmt_req_head = 0, pmt_req_tail = 0;
 static UINT32 pmt_req_queue_size = 0;
@@ -65,7 +65,6 @@ begin_thread_handler
 {
 /* PMT thread is designed as a event loop */
 phase(ONE_PHASE) {
-	BOOL8 res;
 	signals_t interesting_signals = 0;
 
 	/* Check whether issued flash read cmds are complete */
@@ -91,7 +90,7 @@ phase(ONE_PHASE) {
 		/* finishing */
 		var(loading_pmt_idxes)[bank_i] = NULL_PMT_IDX;
 		buffer_free(load_buf_id);
-		pmt_cache_set_reserved(pmt_idx, FALSE);
+		pmt_cache_set_loaded(pmt_idx);
 
 		signals_set(g_scheduler_signals, SIG_PMT_LOADED);
 	}
@@ -116,14 +115,15 @@ phase(ONE_PHASE) {
 		var(next_pmt_idx) = pop_pmt_req();
 	/* Process request */
 	while (var(next_pmt_idx) != NULL_PMT_IDX) {
-		vsp_t	load_vsp;
-		UINT32	load_bank;
+		/* if the requested PMT page is loaded or being loaded,
+		 * the we can safely ignore this duplicate request */
+		if (pmt_cache_get(next_pmt_idx)) goto next_pmt_req;
 
 		/* if cache is full, need to evict, even flush */
 		if (pmt_cache_is_full()) {
-			res = pmt_cache_evict();
+			BOOL8 need_flush = pmt_cache_evict();
 			/* evict a clean page */
-			if (res == 0) goto pmt_load;
+			if (need_flush == FALSE) goto pmt_load;
 
 			/* try to find a idle bank to flush */
 			UINT8 flush_bank = fla_get_idle_bank();
@@ -139,8 +139,7 @@ phase(ONE_PHASE) {
 			var(flush_buf_ids)[flush_bank] = flush_buf_id;
 			UINT32	flush_buf = MANAGED_BUF(flush_buf_id);
 			UINT32	flush_pmt_idxes[SUB_PAGES_PER_PAGE];
-			res = pmt_cache_flush(flush_buf, flush_pmt_idxes);
-			ASSERT(res == 0);
+			pmt_cache_flush(flush_buf, flush_pmt_idxes);
 
 			/* issue flash write cmd */
 			UINT32 flush_vpn = gc_allocate_new_vpn(flush_bank, TRUE);
@@ -161,6 +160,8 @@ phase(ONE_PHASE) {
 				flush_vsp.vspn++;
 			}
 		}
+		vsp_t	load_vsp;
+		UINT8	load_bank;
 pmt_load:
 		load_vsp = gtd_get_vsp(var(next_pmt_idx));
 		load_bank = load_vsp.bank;
@@ -168,7 +169,7 @@ pmt_load:
 		if (!fla_is_bank_idle(load_bank)) break;
 
 		/* reserve a place for the PMT page in cache */
-		res = pmt_cache_put(var(next_pmt_idx));
+		BOOL8 res = pmt_cache_put(var(next_pmt_idx));
 		ASSERT(res == 0);
 
 		/* do flash read */
@@ -184,9 +185,7 @@ pmt_load:
 		var(loading_pmt_idxes)[load_bank] = var(next_pmt_idx);
 		var(loading_pmt_vsps)[load_bank] = load_vsp;
 		var(loading_buf_ids)[load_bank] = load_buf_id;
-
-		signals_set(g_scheduler_signals, SIG_PMT_READY);
-
+next_pmt_req:
 		/* get next PMT request */
 		var(next_pmt_idx) = pop_pmt_req();
 	}

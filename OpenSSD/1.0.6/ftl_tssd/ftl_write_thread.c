@@ -97,18 +97,11 @@ phase(LOCK_PHASE) {
 		if (lock < lowest_lock) lowest_lock = lock;
 	}
 	if (lowest_lock != PAGE_LOCK_WRITE) run_later();
-}
-phase(BANK_PHASE) {
-	UINT8 idle_bank  = fla_get_idle_bank();
-	if (idle_bank >= NUM_BANKS) sleep(SIG_ALL_BANKS);
-
-	var(vp).bank	= idle_bank;
-	var(vp).vpn	= gc_allocate_new_vpn(idle_bank, FALSE);
 
 	/* prepare for next phase */
 	var(pmt_done)	= 0;
 }
-phase(MAPPING_PHASE) {
+phase(PMT_LOAD_PHASE) {
 	signals_t interesting_signals = 0;
 	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++)	{
 		if (mask_is_set(var(pmt_done), sp_i)) continue;
@@ -121,17 +114,13 @@ phase(MAPPING_PHASE) {
 		}
 
 		if (!pmt_is_loaded(lpn)) {
-			if (pmt_load(lpn))
-				signals_set(interesting_signals,
-						SIG_PMT_READY);
-			else
-				signals_set(interesting_signals,
-						SIG_PMT_LOADED);
+			pmt_load(lpn);
+			signals_set(interesting_signals, SIG_PMT_LOADED);
 			continue;
 		}
 
+		pmt_fix(lpn);
 		pmt_get_vp(lpn, sp_i, &var(sp_old_vp)[sp_i]);
-		pmt_update_vp(lpn, sp_i, var(vp));
 		mask_set(var(pmt_done), sp_i);
 	}
 	if (interesting_signals) sleep(interesting_signals);
@@ -198,6 +187,24 @@ phase(FLASH_READ_PHASE) {
 	}
 
 	if (interesting_signals) sleep(interesting_signals);
+}
+phase(BANK_PHASE) {
+	UINT8 idle_bank  = fla_get_idle_bank();
+	if (idle_bank >= NUM_BANKS) sleep(SIG_ALL_BANKS);
+
+	var(vp).bank	= idle_bank;
+	var(vp).vpn	= gc_allocate_new_vpn(idle_bank, FALSE);
+}
+phase(PMT_UPDATE_PHASE) {
+	for_each_subpage(sp_i) {
+		/* skip sub-page that is not in write buffer */
+		UINT32 lpn = var(sp_lpn)[sp_i];
+		if (lpn == NULL_LPN) continue;
+
+		ASSERT(pmt_is_loaded(lpn));
+		pmt_set_vp(lpn, sp_i, var(vp));
+		pmt_unfix(lpn);
+	}
 
 	/* prepare for next phase */
 	var(cmd_issued) = FALSE;

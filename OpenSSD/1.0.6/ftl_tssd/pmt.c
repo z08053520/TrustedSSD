@@ -13,16 +13,13 @@ BOOL8	pmt_is_loaded(UINT32 const lpn)
 	UINT32 buf = pmt_cache_get(pmt_idx);
 	if (buf == NULL) return FALSE;
 
-	BOOL8 is_reserved;
-	pmt_cache_is_reserved(pmt_idx, &is_reserved);
-	if (is_reserved) return FALSE;
-
-	return TRUE;
+	BOOL8 is_loading = pmt_cache_is_loading(pmt_idx);
+	return !is_loading;
 }
 
-BOOL8	pmt_load(UINT32 const lpn)
+void	pmt_load(UINT32 const lpn)
 {
-	UINT32	pmt_idx  = pmt_get_index(lpn);
+	UINT32 pmt_idx  = pmt_get_index(lpn);
 
 	UINT32 buf = pmt_cache_get(pmt_idx);
 	/* the PMT page is loaded or being loaded */

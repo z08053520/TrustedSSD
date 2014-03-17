@@ -94,13 +94,12 @@ next_phase_mapping:
 	var(target_sectors) = target_sectors;
 }
 /* Load PMT page and determine the segments */
-phase(MAPPING_PHASE) {
+phase(PMT_LOAD_PHASE) {
 	/* Make sure lpn-->vpn mapping is in PMT */
 	if (!pmt_is_loaded(var(lpn))) {
-		/* if can't load PMT, then we should wait for PMT to flush */
-		if (pmt_load(var(lpn))) sleep(SIG_PMT_READY);
+		pmt_load(var(lpn));
 		/* wait for LPN to be loaded */
-		else sleep(SIG_PMT_LOADED);
+		sleep(SIG_PMT_LOADED);
 	}
 
 	/* Iterate each sub-page to make segments */

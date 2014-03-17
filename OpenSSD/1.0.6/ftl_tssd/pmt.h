@@ -38,10 +38,15 @@ typedef struct {
  * =========================================================================*/
 
 BOOL8	pmt_is_loaded(UINT32 const lpn);
-BOOL8	pmt_load(UINT32 const lpn);
+void	pmt_load(UINT32 const lpn);
 
 void 	pmt_update_vp(UINT32 const lpn, UINT8 const sp_offset, vp_t const vp);
 void 	pmt_get_vp(UINT32 const lpn,  UINT8 const sp_offset, vp_t* vp);
+
+/* A fixed lpn will not be unloaded.
+ *	Fix a lpn only after it is loaded. */
+void	pmt_fix(UINT32 const lpn);
+void	pmt_unfix(UINT32 const lpn);
 
 #if OPTION_ACL
 BOOL8	pmt_authenticate(UINT32 const lpn, UINT8 const sect_offset,

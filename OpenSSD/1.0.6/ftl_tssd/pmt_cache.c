@@ -4,19 +4,23 @@
 #include "bit_array.h"
 
 #define EVICTED_TIMESTAMP	0xFFFFFFFF
-#define RESERVED_TIMESTAMP	0xFFFFFFFE
-#define NULL_TIMESTAMP		0xFFFFFFFD
+#define FIXED_TIMESTAMP		0xFFFFFFFE
+#define LOADING_TIMESTAMP	0xFFFFFFFD
+#define NULL_TIMESTAMP		0xFFFFFFFC
+
 #define NULL_PAGE_IDX		NUM_PC_SUB_PAGES
 
 /* For each cached sub page, we record **pmt_idx**, and **timestamp**.
  *
- * There are three different entries in cache:
+ * There are four different entries in cache:
  *
  *	Free entries (timestamp == NULL_TIMESTAMP, index = NULL_PMT_IDX),
+ *	Loading entries (timestamp == LOADING_TIMESTAMP, index < NULL_PMT_IDX).
  *	Normal entries (timestamp < NULL_TIMESTAMP, index < NULL_PMT_IDX),
- *	Reserved entries (timestamp == RESERVED_TIMESTAMP, index < NULL_PMT_IDX).
+ *	Fixed entries (timestamp == FIXED_TIMESTAMP, index < NULL_PMT_IDX).
  *	Evicted entries (timestamp == EVICTED_TIMESTAMP, index < NULL_PMT_IDX).
  *
+ * Only normal entries can be evicted.
  * */
 static UINT32	cached_pmt_idxes[NUM_PC_SUB_PAGES] = {
 	[0 ... (NUM_PC_SUB_PAGES-1)] = NULL_PMT_IDX
@@ -39,19 +43,14 @@ static UINT32 	last_page_idx = NULL_PAGE_IDX;
 
 static void handle_timestamp_overflow()
 {
-	/* find minimum timestamp */
-	UINT32	min_timestamp_idx = mem_search_min_max(
-					cached_pmt_timestamps,
-					sizeof(UINT32),
-					NUM_PC_SUB_PAGES,
-					MU_CMD_SEARCH_MIN_SRAM),
-		min_timestamp = cached_pmt_timestamps[min_timestamp_idx];
-	/* update timestamps */
-	UINT8 sp_i;
-	for (sp_i = 0; sp_i < NUM_PC_SUB_PAGES; sp_i++) {
-		if (cached_pmt_timestamps[sp_i] >= NULL_TIMESTAMP) continue;
-		cached_pmt_timestamps[sp_i] -= min_timestamp;
+	/* this is a brute force method */
+	for (UINT32 page_idx = 0; page_idx < NUM_PC_SUB_PAGES; page_idx++) {
+		if (cached_pmt_timestamps[page_idx] >= NULL_TIMESTAMP)
+			continue;
+		cached_pmt_timestamps[page_idx] = 0;
 	}
+	current_timestamp = 0;
+	uart_print("warning: pmt cache timestamp overflowed!");
 }
 
 static inline void update_timestamp(UINT32 const page_idx)
@@ -75,7 +74,10 @@ static UINT32 get_page(UINT32 const pmt_idx)
 	last_pmt_idx = pmt_idx;
 	last_page_idx = page_idx;
 
-	if (cached_pmt_timestamps[page_idx] < NULL_TIMESTAMP)
+	UINT32 timestamp = cached_pmt_timestamps[page_idx];
+	if (timestamp == EVICTED_TIMESTAMP)
+		revoke_eviction(page_idx);
+	else if (timestamp < NULL_TIMESTAMP)
 		update_timestamp(page_idx);
 
 	return page_idx;
@@ -123,15 +125,14 @@ UINT32 	pmt_cache_get(UINT32 const pmt_idx)
 BOOL8	pmt_cache_put(UINT32 const pmt_idx)
 {
 	UINT32	old_page_idx = get_page(pmt_idx);
-	/* if the entry exists, then don't need to put again */
-	if (old_page_idx != NULL_PAGE_IDX) return 0;
+	ASSERT(old_page_idx == NULL_PAGE_IDX);
 
 	/* if no more free entries, put fails */
 	if (num_free_sub_pages == 0) return 1;
 
 	UINT32 free_page_idx = find_free_buf();
 	cached_pmt_idxes[free_page_idx] = pmt_idx;
-	cached_pmt_timestamps[free_page_idx] = RESERVED_TIMESTAMP;
+	cached_pmt_timestamps[free_page_idx] = LOADING_TIMESTAMP;
 
 	last_pmt_idx = pmt_idx;
 	last_page_idx = free_page_idx;
@@ -140,50 +141,53 @@ BOOL8	pmt_cache_put(UINT32 const pmt_idx)
 	return 0;
 }
 
-BOOL8	pmt_cache_set_reserved(UINT32 const pmt_idx, BOOL8 const is_reserved)
+BOOL8	pmt_cache_is_loading(UINT32 const pmt_idx)
 {
 	UINT32	page_idx = get_page(pmt_idx);
-	/* if the entry doesn't exist, then fails */
-	if (page_idx == NULL_PAGE_IDX) return 1;
-
-	if (is_reserved)
-		cached_pmt_timestamps[page_idx] = RESERVED_TIMESTAMP;
-	else
-		update_timestamp(page_idx);
-	return 0;
+	ASSERT(page_idx != NULL_PAGE_IDX);
+	return cached_pmt_timestamps[page_idx] == LOADING_TIMESTAMP;
 }
 
-BOOL8	pmt_cache_is_reserved(UINT32 const pmt_idx, BOOL8 *is_reserved)
+void	pmt_cache_set_loaded(UINT32 const pmt_idx)
 {
 	UINT32	page_idx = get_page(pmt_idx);
-	/* if the entry exists, put fails */
-	if (page_idx == NULL_PAGE_IDX) return 1;
-
-	*is_reserved = (cached_pmt_timestamps[page_idx] == RESERVED_TIMESTAMP);
-	return 0;
+	ASSERT(page_idx != NULL_PAGE_IDX);
+	ASSERT(timestamps[page_idx] == LOADING_TIMESTAMP);
+	update_timestamp(page_idx);
 }
 
-BOOL8	pmt_cache_set_dirty(UINT32 const pmt_idx, BOOL8 const is_dirty)
+void	pmt_cache_fix(UINT32 const pmt_idx)
 {
 	UINT32	page_idx = get_page(pmt_idx);
-	/* if the entry exists, then fails */
-	if (page_idx == NULL_PAGE_IDX) return 1;
+	ASSERT(page_idx != NULL_PAGE_IDX);
+	cached_pmt_timestamps[page_idx] = FIXED_TIMESTAMP;
+}
+
+void	pmt_cache_unfix(UINT32 const pmt_idx)
+{
+	UINT32	page_idx = get_page(pmt_idx);
+	ASSERT(page_idx != NULL_PAGE_IDX);
+	ASSERT(timestamps[page_idx] == FIXED_TIMESTAMP);
+	update_timestamp(page_idx);
+}
+
+void	pmt_cache_set_dirty(UINT32 const pmt_idx, BOOL8 const is_dirty)
+{
+	UINT32	page_idx = get_page(pmt_idx);
+	ASSERT(page_idx != NULL_PAGE_IDX);
 
 	if (is_dirty)
 		bit_array_set(cached_pmt_is_dirty, page_idx);
 	else
 		bit_array_clear(cached_pmt_is_dirty, page_idx);
-	return 0;
 }
 
 BOOL8	pmt_cache_is_dirty(UINT32 const pmt_idx, BOOL8 *is_dirty)
 {
 	UINT32	page_idx = get_page(pmt_idx);
-	/* if the entry exists, then fails */
-	if (page_idx == NULL_PAGE_IDX) return 1;
+	ASSERT(page_idx != NULL_PAGE_IDX);
 
 	*is_dirty = bit_array_test(cached_pmt_is_dirty, page_idx);
-	return 0;
 }
 
 BOOL8	pmt_cache_is_full(void)
@@ -191,12 +195,29 @@ BOOL8	pmt_cache_is_full(void)
 	return num_free_sub_pages == 0;
 }
 
+/*
+ * Eviction and merge buffer for dirty, evicted pages
+ * */
+
 static UINT8 merge_buf_size = 0;
 static UINT32 merged_page_idxes[SUB_PAGES_PER_PAGE];
 
-BOOL8	pmt_cache_evict_and_flush(
-		UINT32 const flush_buf,
-		UINT32 merged_pmt_idxes[SUB_PAGES_PER_PAGE])
+static void evoke_eviction(UINT32 const page_idx)
+{
+	ASSERT(cached_pmt_timestamps[page_idx] == EVICTED_TIMESTAMP);
+	// find the evicted page in merge buf
+	UINT8 sp_i;
+	for (sp_i = 0; sp_i < merge_buf_size; sp_i++)
+		if (merged_page_idxes[sp_i] == page_idx) break;
+	ASSERT(sp_i != merge_buf_size);
+	// remove the evicted page from merge buf
+	merge_buf_size--;
+	merged_page_idxes[sp_i] = merge_page_idxes[merge_buf_size];
+	// change timestamp to normal
+	update_timestamp(page_idx);
+}
+
+BOOL8	pmt_cache_evict()
 {
 	if (!pmt_cache_is_full()) return 0;
 
@@ -215,11 +236,17 @@ BOOL8	pmt_cache_evict_and_flush(
 			return 0;
 		}
 
-		cached_pmt_timestamps[lru_page_idx] = RESERVED_TIMESTAMP;
+		cached_pmt_timestamps[lru_page_idx] = EVICTED_TIMESTAMP;
 		merged_page_idxes[merge_buf_size] = lru_page_idx;
 		merge_buf_size++;
 	}
+	return 1;
+}
 
+void	pmt_cache_flush(UINT32 const flush_buf,
+			UINT32 merged_pmt_idxes[SUB_PAGES_PER_PAGE])
+{
+	ASSERT(merge_buf_size == SUB_PAGES_PER_PAGE);
 	/* need to flush */
 	UINT32 flush_buf_offset = 0;
 	for_each_subpage(sp_i) {
@@ -237,5 +264,5 @@ BOOL8	pmt_cache_evict_and_flush(
 	}
 
 	merge_buf_size = 0;
-	return 1;
+	return 0;
 }
