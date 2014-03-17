@@ -161,6 +161,21 @@ phase(ONE_PHASE) {
 		UINT8	load_bank;
 pmt_load:
 		load_vsp = gtd_get_vsp(var(next_pmt_idx));
+		/* if this PMT page has never been written to flash */
+		if (load_vsp.vspn == 0) {
+			BOOL8 res = pmt_cache_put(var(next_pmt_idx));
+			ASSERT(res == 0);
+			UINT32 pmt_buf = pmt_cache_get(var(next_pmt_idx));
+			ASSERT(pmt_buf != NULL);
+
+			mem_set_dram(pmt_buf, 0, BYTES_PER_SUB_PAGE);
+			pmt_cache_set_loaded(var(next_pmt_idx));
+
+			signals_set(g_scheduler_signals, SIG_PMT_LOADED);
+			goto next_pmt_req;
+		}
+
+
 		load_bank = load_vsp.bank;
 		signals_set(interesting_signals, SIG_BANK(load_bank));
 		if (!fla_is_bank_idle(load_bank)) break;
