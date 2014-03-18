@@ -112,6 +112,7 @@ phase(LOCK_PHASE) {
 }
 phase(PMT_LOAD_PHASE) {
 	signals_t interesting_signals = 0;
+	UINT32 last_load_lpn = NULL_LPN;
 	for_each_subpage(sp_i) {
 		if (mask_is_set(var(pmt_done), sp_i)) continue;
 
@@ -122,8 +123,12 @@ phase(PMT_LOAD_PHASE) {
 			continue;
 		}
 
+		/* shortcut */
+		if (lpn == last_load_lpn) continue;
+
 		if (!pmt_is_loaded(lpn)) {
 			pmt_load(lpn);
+			last_load_lpn = lpn;
 			signals_set(interesting_signals, SIG_PMT_LOADED);
 			continue;
 		}
