@@ -105,8 +105,10 @@ BOOL8 ftl_all_sata_cmd_accepted()
 	return sata_cmd.sector_count == 0 && !sata_has_next_rw_cmd();
 }
 
-extern UINT32	g_num_ftl_read_tasks_submitted;
-extern UINT32	g_num_ftl_write_tasks_submitted;
+extern UINT32 g_num_ftl_read_tasks_submitted;
+extern UINT32 g_num_ftl_read_tasks_finished;
+extern UINT32 g_num_ftl_write_tasks_submitted;
+extern UINT32 g_num_ftl_write_tasks_finished;
 
 BOOL8 ftl_main(void)
 {
@@ -173,7 +175,13 @@ BOOL8 ftl_main(void)
 	/* scheduler runs all threads enqueud */
 	schedule();
 
-	BOOL8 idle = ftl_all_sata_cmd_accepted();
+	BOOL8 all_accepted_cmds_finished =
+		(g_num_ftl_read_tasks_submitted ==
+			g_num_ftl_read_tasks_finished ) &&
+		(g_num_ftl_write_tasks_submitted ==
+			g_num_ftl_write_tasks_finished);
+	BOOL8 idle = all_accepted_cmds_finished &&
+			ftl_all_sata_cmd_accepted();
 	return idle;
 }
 
