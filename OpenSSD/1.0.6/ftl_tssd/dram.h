@@ -12,9 +12,8 @@
 
 #define PC_ADDR			DRAM_BASE
 #define PC_END			(PC_ADDR + PC_BYTES)
-/* Should be number large enough (>20)*/
-#define NUM_PC_BUFFERS		64
-/* #define NUM_PC_BUFFERS		3 */
+#define MIN_NUM_PC_BUFFERS	MAX_NUM_THREADS
+#define NUM_PC_BUFFERS		MIN_NUM_PC_BUFFERS
 #define NUM_PC_SUB_PAGES	(NUM_PC_BUFFERS * SUB_PAGES_PER_PAGE)
 #define PC_BYTES		(NUM_PC_BUFFERS * BYTES_PER_PAGE)
 #define PC_SUB_PAGE(i)		(PC_ADDR + BYTES_PER_SUB_PAGE * (i))
@@ -63,7 +62,7 @@
  * ========================================================================= */
 
 #define NUM_READ_BUFFERS	1
-#define NUM_WRITE_BUFFERS	8
+#define NUM_WRITE_BUFFERS	1
 
 #define READ_BUF_ADDR		GTD_END
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)

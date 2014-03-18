@@ -40,8 +40,8 @@ void pmt_thread_request_enqueue(UINT32 const pmt_idx)
 {
 	ASSERT(pmt_req_queue_size < MAX_PMT_REQ_QUEUE_SIZE);
 
-	if (singleton_thread->wakeup_signals == 0)
-		signals_set(singleton_thread->wakeup_signals, SIG_ALL_BANKS);
+	/* wake up PMT thread */
+	singleton_thread->state = THREAD_RUNNABLE;
 
 	pmt_req_queue[pmt_req_tail] = pmt_idx;
 	pmt_req_tail = (pmt_req_tail + 1) % MAX_PMT_REQ_QUEUE_SIZE;
@@ -69,6 +69,8 @@ begin_thread_handler
 {
 /* PMT thread is designed as a event loop */
 phase(ONE_PHASE) {
+	uart_print("> queue size = %u", pmt_req_queue_size);
+
 	signals_t interesting_signals = 0;
 
 	/* Check whether issued flash read cmds are complete */
@@ -213,6 +215,8 @@ next_pmt_req:
 		/* get next PMT request */
 		var(next_pmt_idx) = pop_pmt_req();
 	}
+
+	uart_print("< queue size = %u", pmt_req_queue_size);
 
 	if (interesting_signals)
 		sleep(interesting_signals);

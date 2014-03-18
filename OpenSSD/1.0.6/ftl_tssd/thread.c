@@ -57,8 +57,10 @@ thread_handler_id_t thread_handler_register(thread_handler_t handler)
 	ASSERT(handler != NULL);
 	ASSERT(num_handlers < MAX_NUM_THREAD_HANDLERS);
 
-	handlers[num_handlers] = handler;
-	return num_handlers++;
+	thread_handler_id_t handler_id = num_handlers;
+	handlers[handler_id] = handler;
+	num_handlers++;
+	return handler_id;
 }
 
 thread_handler_t thread_handler_get(thread_handler_id_t const handler_id)

@@ -11,7 +11,6 @@ RM	= rm
 # If any unit test is specifed, the firmware will be compiled to run unit test 
 # withour any SATA communication; otherwise, a normal firmware that can handle 
 # SATA request will be generated.
-#TEST = flash_uti
 #TEST = ftl
 #TEST = gc
 #TEST = gtd
@@ -25,7 +24,7 @@ RM	= rm
 #TEST = ftl_write_task
 #TEST = fde
 #TEST = flash_mock
-TEST = pmt
+#TEST = pmt
 
 INCLUDES = -I../include -I../ftl_$(FTL) -I../sata -I../target_spw -I../test_tssd
 # Try -Os, --strip-all, -ffunction-sections, -fdata-sections to optimize size

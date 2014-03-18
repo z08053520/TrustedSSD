@@ -30,7 +30,7 @@ static UINT32	cached_pmt_timestamps[NUM_PC_SUB_PAGES] = {
 	[0 ... (NUM_PC_SUB_PAGES-1)] = NULL_TIMESTAMP
 };
 static DECLARE_BIT_ARRAY(cached_pmt_is_dirty, NUM_PC_SUB_PAGES);
-static UINT32	cached_pmt_fix_count[NUM_PC_SUB_PAGES] = {0};
+static UINT8	cached_pmt_fix_count[NUM_PC_SUB_PAGES] = {0};
 
 static UINT32	num_free_sub_pages = NUM_PC_SUB_PAGES;
 static UINT32	current_timestamp = 0;

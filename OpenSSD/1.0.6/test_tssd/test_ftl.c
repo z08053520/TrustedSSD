@@ -6,11 +6,10 @@
 #if OPTION_FTL_TEST
 #include "dram.h"
 #include "ftl.h"
+#include "pmt_thread.h"
+#include "scheduler.h"
 #include "misc.h"
 #include "test_util.h"
-#include "task_engine.h"
-#include "ftl_read_task.h"
-#include "ftl_write_task.h"
 #include <stdlib.h>
 
 UINT32	num_ftl_write_tasks_submitted = 0;
@@ -22,7 +21,7 @@ extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 #endif
 				UINT32 const cmd_type);
 
-/* #define DEBUG_FTL */
+#define DEBUG_FTL
 #ifdef DEBUG_FTL
 	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
 #else
@@ -264,7 +263,7 @@ static void do_flash_read(UINT32 lba, UINT32 const req_sectors
 	num_ftl_read_tasks_submitted += count_rd_tasks;
 }
 
-static BOOL8 const mix_reads_enabled = TRUE;
+static BOOL8 const mix_reads_enabled = FALSE;
 static UINT32 const odds = 4; // 1 out of N
 static UINT32 mix_read_lba = 4096;
 
@@ -405,7 +404,7 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 	       wr_bytes < params->max_wr_bytes &&
 	       num_reqs < params->max_num_reqs) {
 		req_size = random(params->min_req_size, params->max_req_size);
-		/* req_size = 1; */
+		req_size = 1;
 
 		do_flash_write(lba, req_size, VAL_PER_REQ);
 		request_push(lba, req_size);
@@ -416,10 +415,10 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 			finish_all();
 			while (request_pop(&lba, &req_size)) {
 				/* if (req_buf_size % 500 == 0) { */
-				/* 	uart_print("%u, %u] read lba = %u, req_size = %u", */
-				/* 		req_buf_size, num_reqs, lba, req_size); */
+					uart_print("%u, %u] read lba = %u, req_size = %u",
+						req_buf_size, num_reqs, lba, req_size);
 				/* } */
-				/* do_flash_verify(lba, req_size, VAL_PER_REQ); */
+				do_flash_verify(lba, req_size, VAL_PER_REQ);
 			}
 		}
 
@@ -435,7 +434,7 @@ static void seq_rw_test_runner(rw_test_params_t *params)
 			/* uart_print("%u, %u] read lba = %u, req_size = %u", */
 			/* 	req_buf_size, num_reqs, lba, req_size); */
 		/* } */
-		/* do_flash_verify(lba, req_size, VAL_PER_REQ); */
+		do_flash_verify(lba, req_size, VAL_PER_REQ);
 	}
 }
 
@@ -555,6 +554,7 @@ void ftl_test()
 	srand(RAND_SEED);
 
 	UINT32 test_mb = 512;
+	UINT32 max_num_reqs = 1024;
 
 	/* Prepare sequential rw tests */
 	rw_test_t seq_rw_test = {
@@ -566,7 +566,7 @@ void ftl_test()
 			.min_req_size = 1,
 			.max_req_size = 256,
 			/* .max_req_size = 1, */
-			.max_num_reqs = MAX_UINT32,
+			.max_num_reqs = max_num_reqs,
 			/* .max_num_reqs = 4096, */
 			.max_wr_bytes = test_mb * MB
 		}
@@ -582,7 +582,7 @@ void ftl_test()
 			.min_req_size = 1,
 			.max_req_size = 256,
 			/* .max_req_size = 1, */
-			.max_num_reqs = MAX_UINT32,
+			.max_num_reqs = max_num_reqs,
 			/* .max_num_reqs = 1, */
 			.max_wr_bytes = test_mb * MB
 		}
@@ -597,7 +597,7 @@ void ftl_test()
 			.min_req_size = 1,
 			.max_req_size = 256,
 			/* .max_req_size = 1, */
-			.max_num_reqs = MAX_UINT32,
+			.max_num_reqs = max_num_reqs,
 			/* .max_num_reqs = 1024, */
 			.max_wr_bytes = test_mb * MB
 		}
@@ -605,10 +605,14 @@ void ftl_test()
 
 	/* Run all tests */
 	rw_test_t* rw_tests[]	= {
-		&seq_rw_test,
-		/* &rnd_rw_test, */
-		&sparse_rw_test
+		&seq_rw_test/*,
+		&rnd_rw_test,
+		&sparse_rw_test*/
 	};
+
+	thread_t* pmt_thread = thread_allocate();
+	pmt_thread_init(pmt_thread);
+	enqueue(pmt_thread);
 
 	UINT32	num_rw_tests = sizeof(rw_tests) / sizeof(rw_tests[0]);
 	for (UINT32 test_i = 0; test_i < num_rw_tests; test_i++) {
