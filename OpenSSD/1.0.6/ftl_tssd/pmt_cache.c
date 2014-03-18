@@ -299,7 +299,7 @@ void	pmt_cache_flush(UINT32 const flush_buf,
 	/* need to flush */
 	UINT32 flush_buf_offset = 0;
 	for_each_subpage(sp_i) {
-		UINT8 merge_page_idx = merged_page_idxes[sp_i];
+		UINT32 merge_page_idx = merged_page_idxes[sp_i];
 
 		UINT32 merge_pmt_idx = cached_pmt_idxes[merge_page_idx];
 		merged_pmt_idxes[sp_i] = merge_pmt_idx;

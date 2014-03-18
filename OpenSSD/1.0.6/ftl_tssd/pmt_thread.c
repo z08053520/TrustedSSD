@@ -163,7 +163,6 @@ phase(ONE_PHASE) {
 			};
 			for_each_subpage(sp_i) {
 				UINT32 pmt_idx = flush_pmt_idxes[sp_i];
-				uart_print("flushed pmt_idx = %u", pmt_idx);
 				gtd_set_vsp(pmt_idx, flush_vsp);
 				flush_vsp.vspn++;
 			}
