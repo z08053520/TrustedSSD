@@ -11,8 +11,6 @@
  *
  * */
 
-#define NULL_PMT_IDX	0xFFFFFFFF
-
 /* Get the buffer allocated for a PMT page
  *	return NULL if not cached */
 UINT32 	pmt_cache_get(UINT32 const pmt_idx);

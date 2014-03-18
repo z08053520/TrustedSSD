@@ -9,6 +9,7 @@
 #define NULL_TIMESTAMP		0xFFFFFFFC
 
 #define NULL_PAGE_IDX		NUM_PC_SUB_PAGES
+#define NULL_PMT_IDX		0xFFFFFFFF
 
 /* For each cached sub page, we record **pmt_idx**, and **timestamp**.
  *
@@ -85,6 +86,8 @@ static void revoke_eviction(UINT32 const page_idx);
 
 static UINT32 get_page(UINT32 const pmt_idx)
 {
+	ASSERT(pmt_idx < PMT_SUB_PAGES);
+
 	/* shortcuts for consecutive access of the same pmt_idx */
 	if (last_pmt_idx == pmt_idx) return last_page_idx;
 
@@ -137,8 +140,6 @@ static inline UINT32 find_free_buf()
 
 UINT32 	pmt_cache_get(UINT32 const pmt_idx)
 {
-	ASSERT(pmt_idx < PMT_SUB_PAGES);
-
 	UINT32	page_idx = get_page(pmt_idx);
 	/* if the entry exists, put fails */
 	if (page_idx == NULL_PAGE_IDX) return NULL;
@@ -245,6 +246,7 @@ static UINT32 merged_page_idxes[SUB_PAGES_PER_PAGE];
 static void revoke_eviction(UINT32 const page_idx)
 {
 	ASSERT(cached_pmt_timestamps[page_idx] == EVICTED_TIMESTAMP);
+	ASSERT(merge_buf_size > 0);
 	// find the evicted page in merge buf
 	UINT8 sp_i;
 	for (sp_i = 0; sp_i < merge_buf_size; sp_i++)
@@ -267,6 +269,8 @@ BOOL8	pmt_cache_evict()
 						 sizeof(UINT32),
 						 NUM_PC_SUB_PAGES,
 						 MU_CMD_SEARCH_MIN_SRAM);
+		ASSERT(lru_page_idx < NUM_PC_SUB_PAGES);
+		ASSERT(cached_pmt_idxes[lru_page_idx] < PMT_SUB_PAGES);
 		UINT32 lru_page_timestamp = cached_pmt_timestamps[lru_page_idx];
 		ASSERT(lru_page_timestamp < NULL_TIMESTAMP);
 

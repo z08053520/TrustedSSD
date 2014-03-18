@@ -9,6 +9,8 @@
 #include "gtd.h"
 #include "dram.h"
 
+#define NULL_PMT_IDX		0xFFFFFFFF
+
 #if OPTION_PERF_TUNING
 UINT32 g_pmt_cache_flush_count = 0;
 UINT32 g_pmt_cache_load_count = 0;
