@@ -11,7 +11,7 @@ RM	= rm
 # If any unit test is specifed, the firmware will be compiled to run unit test 
 # withour any SATA communication; otherwise, a normal firmware that can handle 
 # SATA request will be generated.
-#TEST = ftl
+TEST = ftl
 #TEST = gc
 #TEST = gtd
 #TEST = pmt

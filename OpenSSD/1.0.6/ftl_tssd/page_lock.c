@@ -9,7 +9,7 @@ static UINT32 num_locks = 0;
 
 #define PL_LPNS_ADDR			PL_ADDR
 #define PL_LPN(i)			(PL_LPNS_ADDR + sizeof(UINT32) * (i))
-#define PL_OWNERS_INFO_ADDR		(PL_LPNS_ADDR + sizeof(UINT32) * MAX_NUM_LOCKS)
+#define PL_OWNERS_INFO_ADDR		(PL_ADDR + BYTES_PER_PAGE / 2)
 #define PL_OWNERS_INFO(i)		(PL_OWNERS_INFO_ADDR + sizeof(UINT32) * (i))
 
 #define find_lpn(lpn)							\
@@ -57,8 +57,8 @@ void page_lock_init() {
 	/* one page can be locked by at most 16 different lock owners */
 	ASSERT(MAX_NUM_PAGE_LOCK_OWNERS <= 16);
 
-	mem_set_dram(PL_LPNS_ADDR, NULL_LPN, sizeof(UINT32) * MAX_NUM_LOCKS);
-	mem_set_dram(PL_OWNERS_INFO_ADDR, 0, sizeof(UINT32) * MAX_NUM_LOCKS);
+	mem_set_dram(PL_LPNS_ADDR, NULL_LPN, BYTES_PER_PAGE / 2);
+	mem_set_dram(PL_OWNERS_INFO_ADDR, 0, BYTES_PER_PAGE / 2);
 }
 
 static page_lock_type_t _highest_compatible_lock[NUM_PAGE_LOCK_TYPES] = {
