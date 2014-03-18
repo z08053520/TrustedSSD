@@ -46,7 +46,7 @@ begin_thread_variables
 }
 end_thread_variables
 
-static void copy_subpage_miss_sectors(UINT32 const target_buf,
+static void copy_subpage_missing_sectors(UINT32 const target_buf,
 				UINT32 const src_buf,
 				UINT8 const sp_i,
 				sectors_mask_t const valid_sectors)
@@ -64,17 +64,20 @@ phase(BUFFER_PHASE) {
 	var(buf) = NULL;
 
 	/* put partial page to write buffer */
-	if (var(num_sectors)< SECTORS_PER_PAGE) {
+	if (var(num_sectors) < SECTORS_PER_PAGE) {
 		/* flush write buffer if it is full*/
 		if (write_buffer_is_full()) {
 			UINT8 buf_id = buffer_allocate();
 			var(buf) = MANAGED_BUF(buf_id);
 			write_buffer_flush(var(buf), var(sp_lpn),
 						&var(valid_sectors));
+			ASSERT(var(valid_sectors) != 0);
 		}
 
 		write_buffer_put(var(lpn), var(sect_offset),
 				var(num_sectors), sata_wr_buf);
+
+		if (var(buf) == NULL) goto_phase(SATA_PHASE);
 	}
 	/* write whole page to flash directly */
 	else {
@@ -86,8 +89,6 @@ phase(BUFFER_PHASE) {
 
 		write_buffer_drop(var(lpn));
 	}
-
-	if (var(buf) == NULL) goto_phase(SATA_PHASE);
 }
 /* Lock pages to write */
 phase(LOCK_PHASE) {
@@ -96,9 +97,13 @@ phase(LOCK_PHASE) {
 	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
 		UINT32 lpn = var(sp_lpn)[sp_i];
 		if (last_lpn == lpn || lpn == NULL_LPN) continue;
+		/* TODO: remember lock that has been acquired to save
+		 * rudundant asking for lock that has got */
+
 		page_lock_type_t lock = lock_page(lpn, PAGE_LOCK_WRITE);
-		last_lpn = lpn;
 		if (lock < lowest_lock) lowest_lock = lock;
+
+		last_lpn = lpn;
 	}
 	if (lowest_lock != PAGE_LOCK_WRITE) sleep(SIG_LOCK_RELEASED);
 
@@ -107,7 +112,7 @@ phase(LOCK_PHASE) {
 }
 phase(PMT_LOAD_PHASE) {
 	signals_t interesting_signals = 0;
-	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++)	{
+	for_each_subpage(sp_i) {
 		if (mask_is_set(var(pmt_done), sp_i)) continue;
 
 		/* skip sub-page that is not in write buffer */
@@ -136,14 +141,24 @@ phase(PMT_LOAD_PHASE) {
 /* Make sure every sub-page has no missing sectors in write buffer */
 phase(FLASH_READ_PHASE) {
 	signals_t interesting_signals = 0;
-	for (UINT8 sp_i = 0; sp_i < SUB_PAGES_PER_PAGE; sp_i++) {
+
+	UINT8 begin_sp = begin_subpage(var(valid_sectors)),
+	      end_sp = end_subpage(var(valid_sectors));
+	for (UINT8 sp_i = begin_sp; sp_i < end_sp; sp_i++) {
 		if (mask_is_set(var(cmd_done), sp_i)) continue;
 
 		UINT8	sp_mask = (var(valid_sectors) >>
 					(SECTORS_PER_SUB_PAGE * sp_i));
 
-		/* the whole sub-page is valid or irrelevant */
-		if (sp_mask == 0xFF || sp_mask == 0x00) {
+		/* if the whole sub-page is valid */
+		if (sp_mask == 0xFF) {
+			mask_set(var(cmd_done), sp_i);
+			continue;
+		}
+		/* if the whole sub-page is irrelevant */
+		if (sp_mask == 0x00) {
+			mem_set_dram(var(buf) + sp_i * BYTES_PER_SUB_PAGE,
+					0xFFFFFFFF, BYTES_PER_SUB_PAGE);
 			mask_set(var(cmd_done), sp_i);
 			continue;
 		}
@@ -160,7 +175,7 @@ phase(FLASH_READ_PHASE) {
 			}
 
 			UINT8 buf_id = var(sp_rd_buf_id)[sp_i];
-			copy_subpage_miss_sectors(var(buf), MANAGED_BUF(buf_id),
+			copy_subpage_missing_sectors(var(buf), MANAGED_BUF(buf_id),
 							sp_i, var(valid_sectors));
 			buffer_free(buf_id);
 			mask_set(var(cmd_done), sp_i);
@@ -172,7 +187,7 @@ phase(FLASH_READ_PHASE) {
 		UINT32 rd_buf = NULL;
 		read_buffer_get(old_vp, &rd_buf);
 		if (rd_buf) {
-			copy_subpage_miss_sectors(var(buf), rd_buf, sp_i,
+			copy_subpage_missing_sectors(var(buf), rd_buf, sp_i,
 							var(valid_sectors));
 			mask_set(var(cmd_done), sp_i);
 			continue;

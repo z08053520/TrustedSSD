@@ -132,76 +132,73 @@ phase(PMT_LOAD_PHASE) {
 }
 /* Do flash read */
 phase(FLASH_READ_PHASE) {
-	while (1) {
-		signals_t interesting_signals = 0;
+	signals_t interesting_signals = 0;
 
-		segment_t *seg; UINT8 bank, seg_i;
-		for (seg_i = 0; seg_i < var(num_segments); seg_i++) {
-			seg = & var(segments)[seg_i];
+	segment_t *seg; UINT8 bank, seg_i;
+	for (seg_i = 0; seg_i < var(num_segments); seg_i++) {
+		seg = & var(segments)[seg_i];
 
-			if (seg->is_done) continue;
-			bank = seg->vp.bank;
+		if (seg->is_done) continue;
+		bank = seg->vp.bank;
 
-			/* check whether the issued flash cmd is complete */
-			if (seg->is_issued) {
-				/* check bank whether complete */
-				if (!fla_is_bank_complete(bank)) {
-					signals_set(interesting_signals,
-							SIG_BANK(bank));
-					continue;
-				}
-
-				if (seg->has_holes) {
-					UINT8 buf_id	= seg->managed_buf_id;
-					UINT32 rd_buf	= MANAGED_BUF(buf_id);
-					fla_copy_buffer(sata_rd_buf,
-							rd_buf,
-							seg->target_sectors);
-					buffer_free(buf_id);
-				}
-
-				seg->is_done = TRUE;
+		/* check whether the issued flash cmd is complete */
+		if (seg->is_issued) {
+			/* check bank whether complete */
+			if (!fla_is_bank_complete(bank)) {
+				signals_set(interesting_signals,
+						SIG_BANK(bank));
 				continue;
 			}
 
-			/* try to reader buffer */
-			UINT32 read_buf = NULL;
-			read_buffer_get(seg->vp, &read_buf);
-			if (read_buf) {
-				fla_copy_buffer(sata_rd_buf, read_buf,
+			if (seg->has_holes) {
+				UINT8 buf_id	= seg->managed_buf_id;
+				UINT32 rd_buf	= MANAGED_BUF(buf_id);
+				fla_copy_buffer(sata_rd_buf,
+						rd_buf,
 						seg->target_sectors);
-				seg->is_done = TRUE;
-				continue;
+				buffer_free(buf_id);
 			}
 
-			/* need idle bank */
-			signals_set(interesting_signals, SIG_BANK(bank));
-			if (!fla_is_bank_idle(bank)) continue;
-
-			/* determine which buffer to use as read buffer */
-			UINT32 rd_buf;
-			if (check_segment_has_holes(seg)) {
-				seg->has_holes = TRUE;
-
-				UINT8 buf_id = buffer_allocate();
-				seg->managed_buf_id = buf_id;
-				rd_buf = MANAGED_BUF(buf_id);
-			}
-			else {
-				rd_buf = sata_rd_buf;
-			}
-
-			/* issue flash read cmd */
-			UINT8 sect_offset = begin_sector(seg->target_sectors),
-			      num_sectors = end_sector(seg->target_sectors)
-						- sect_offset;
-			fla_read_page(seg->vp, sect_offset, num_sectors, rd_buf);
-			seg->is_issued = TRUE;
+			seg->is_done = TRUE;
+			continue;
 		}
 
-		if (signals_is_empty(interesting_signals)) break;
-		sleep(interesting_signals);
+		/* try to reader buffer */
+		UINT32 read_buf = NULL;
+		read_buffer_get(seg->vp, &read_buf);
+		if (read_buf) {
+			fla_copy_buffer(sata_rd_buf, read_buf,
+					seg->target_sectors);
+			seg->is_done = TRUE;
+			continue;
+		}
+
+		/* need idle bank */
+		signals_set(interesting_signals, SIG_BANK(bank));
+		if (!fla_is_bank_idle(bank)) continue;
+
+		/* determine which buffer to use as read buffer */
+		UINT32 rd_buf;
+		if (check_segment_has_holes(seg)) {
+			seg->has_holes = TRUE;
+
+			UINT8 buf_id = buffer_allocate();
+			seg->managed_buf_id = buf_id;
+			rd_buf = MANAGED_BUF(buf_id);
+		}
+		else {
+			rd_buf = sata_rd_buf;
+		}
+
+		/* issue flash read cmd */
+		UINT8 sect_offset = begin_sector(seg->target_sectors),
+		      num_sectors = end_sector(seg->target_sectors)
+					- sect_offset;
+		fla_read_page(seg->vp, sect_offset, num_sectors, rd_buf);
+		seg->is_issued = TRUE;
 	}
+
+	if (interesting_signals) sleep(interesting_signals);
 }
 /* Update SATA buffer pointers */
 phase(SATA_PHASE) {
