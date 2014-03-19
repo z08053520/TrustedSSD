@@ -68,25 +68,21 @@
 #define READ_BUF_ADDR		GTD_END
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)
 #define READ_BUF_END		(READ_BUF_ADDR + READ_BUF_BYTES)
-
-#define WRITE_BUF_ADDR		READ_BUF_END
-#define WRITE_BUF_BYTES		(NUM_WRITE_BUFFERS * BYTES_PER_PAGE)
-#define WRITE_BUF_END		(WRITE_BUF_ADDR + WRITE_BUF_BYTES)
-
 #define READ_BUF(i)		(READ_BUF_ADDR + BYTES_PER_PAGE * (i))
-#define WRITE_BUF(i)		(WRITE_BUF_ADDR + BYTES_PER_PAGE * (i))
+
+/* Write buffer use managed buffer */
 
 /* ========================================================================= *
  * Other Non-SATA Buffers
  * ========================================================================= */
 
 #define NUM_COPY_BUFFERS	NUM_BANKS_MAX
-#define NUM_MANAGED_BUFFERS	(2 * NUM_BANKS)
+#define NUM_MANAGED_BUFFERS	(2 * NUM_BANKS + NUM_WRITE_BUFFERS)
 #define NUM_HIL_BUFFERS		1
 #define NUM_TEMP_BUFFERS	1
 #define NUM_THREAD_SWAP_BUFFERS	1
 
-#define COPY_BUF_ADDR          	WRITE_BUF_END
+#define COPY_BUF_ADDR          	READ_BUF_END
 #define COPY_BUF_BYTES          (NUM_COPY_BUFFERS * BYTES_PER_PAGE)
 #define _COPY_BUF(RBANK)	(COPY_BUF_ADDR + (RBANK) * BYTES_PER_PAGE)
 #define COPY_BUF(BANK)		_COPY_BUF(REAL_BANK(BANK))
@@ -113,7 +109,7 @@
 #define NUM_NON_SATA_BUFFERS	(NUM_COPY_BUFFERS + NUM_MANAGED_BUFFERS + \
 				 NUM_HIL_BUFFERS + NUM_TEMP_BUFFERS + \
 				 NUM_THREAD_SWAP_BUFFERS + \
-				 NUM_READ_BUFFERS + NUM_WRITE_BUFFERS)
+				 NUM_READ_BUFFERS)
 #define NON_SATA_BUF_BYTES	(NUM_NON_SATA_BUFFERS * BYTES_PER_PAGE)
 #define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + \
 				 PC_BYTES + PL_BYTES + \

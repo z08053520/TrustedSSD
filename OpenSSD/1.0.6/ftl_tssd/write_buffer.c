@@ -3,6 +3,7 @@
 #include "gc.h"
 #include "mem_util.h"
 #include "fla.h"
+#include "buffer.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables
@@ -21,10 +22,29 @@ typedef UINT8 		buf_id_t;
 
 static buf_id_t		head_buf_id;
 static UINT32		num_clean_buffers;
+static UINT8		buf_managed_ids[NUM_WRITE_BUFFERS]; /* buf id -->
+							       managed buf id */
 static sectors_mask_t 	buf_masks[NUM_WRITE_BUFFERS]; /* 1 - occupied; 0 - available */
 static UINT8		buf_sizes[NUM_WRITE_BUFFERS];
 
 #define next_buf_id(buf_id)		(((buf_id) + 1) % NUM_WRITE_BUFFERS)
+
+#define WRITE_BUF(buf_id)		MANAGED_BUF(buf_managed_ids[buf_id])
+
+void allocate_buf(buf_id_t const buf_id)
+{
+	ASSERT(buf_managed_ids[buf_id] == NULL_BUF_ID);
+	buf_managed_ids[buf_id] = buffer_allocate();
+	num_clean_buffers--;
+}
+
+void free_buf(buf_id_t const buf_id)
+{
+	UINT8 buf_managed_id = buf_managed_ids[buf_id];
+	buffer_free(buf_managed_id);
+	buf_managed_ids[buf_id] = NULL_BUF_ID;
+	num_clean_buffers++;
+}
 
 /* For each logical page which has some part in write buffer, three fields are
  * maintained: lpn, valid sector mask and buffer id. */
@@ -163,7 +183,7 @@ static UINT8 allocate_buffer_for(sectors_mask_t const mask)
 	do {
 		if ((buf_masks[new_buf_id] & mask) == 0) {
 			if (buf_masks[new_buf_id] == 0)
-				num_clean_buffers--;
+				allocate_buf(new_buf_id);
 			return new_buf_id;
 		}
 		new_buf_id = next_buf_id(new_buf_id);
@@ -207,6 +227,7 @@ void write_buffer_init()
 //	mem_set_sram(buf_sizes,   0, 		NUM_WRITE_BUFFERS * sizeof(UINT8));
 	for (i = 0; i < NUM_WRITE_BUFFERS; i++) {
 		buf_sizes[i] = 0;
+		buf_managed_ids[i] = NULL_BUF_ID;
 	}
 }
 
@@ -271,8 +292,7 @@ void write_buffer_put(UINT32 const lpn,
 
 			// update old buffer
 			buf_mask_remove(old_buf_id, lp_old_mask);
-			if (buf_sizes[old_buf_id] == 0)
-				num_clean_buffers++;
+			if (buf_sizes[old_buf_id] == 0) free_buf(old_buf_id);
 
 			// Update new buffer
 			buf_mask_add(new_buf_id, old_useful_mask);
@@ -336,10 +356,10 @@ void write_buffer_drop(UINT32 const lpn)
 	buf_id_t buf_id = lp_buf_ids[lpn_idx];
 	remove_lpn_by_index(lpn_idx);
 
-	if (buf_sizes[buf_id] == 0) num_clean_buffers++;
+	if (buf_sizes[buf_id] == 0) free_buf(buf_id);
 }
 
-void write_buffer_flush(UINT32 const buf, UINT32 sp_lpn[SUB_PAGES_PER_PAGE],
+void write_buffer_flush(UINT8 *flushed_buf_id, UINT32 sp_lpn[SUB_PAGES_PER_PAGE],
 			sectors_mask_t *valid_sectors)
 {
 	/* find a vicitim buffer */
@@ -378,17 +398,14 @@ void write_buffer_flush(UINT32 const buf, UINT32 sp_lpn[SUB_PAGES_PER_PAGE],
 		lpn_i++;
 	}
 
-	// Copy buffer
-	UINT32 offset 	   	= begin_sector(*valid_sectors),
-	       num_sectors 	= end_sector(*valid_sectors) - offset;
-	mem_copy(buf + offset * BYTES_PER_SECTOR,
-		 WRITE_BUF(buf_id) + offset * BYTES_PER_SECTOR,
-		 num_sectors * BYTES_PER_SECTOR);
-
 	// Remove buffer
 	BUG_ON("buf mask is not cleared", buf_masks[buf_id] != 0ULL);
 	BUG_ON("buf size is not zero", buf_sizes[buf_id] != 0);
+	*flushed_buf_id = buf_managed_ids[buf_id];
+	ASSERT(*flushed_buf_id != NULL_BUF_ID);
+	buf_managed_ids[buf_id] = NULL_BUF_ID;
 	num_clean_buffers++;
+
 	if (buf_id == head_buf_id)
 		head_buf_id = next_buf_id(head_buf_id);
 

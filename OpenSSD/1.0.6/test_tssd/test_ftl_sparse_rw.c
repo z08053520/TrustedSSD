@@ -57,7 +57,7 @@ typedef struct {
 		.min_lba = 0,			\
 		.max_lba = MAX_LBA,		\
 		.min_req_size = 1,		\
-		.max_req_size = 100,		\
+		.max_req_size = 64,		\
 		.max_num_reqs = MAX_NUM_REQS,	\
 		.max_wr_bytes = 512 * MB	\
 	}

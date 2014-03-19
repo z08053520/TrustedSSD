@@ -59,7 +59,7 @@ typedef struct {
 		.min_req_size = 1,		\
 		.max_req_size = 128,		\
 		.max_num_reqs = MAX_NUM_REQS,	\
-		.max_wr_bytes = 256 * MB	\
+		.max_wr_bytes = 512 * MB	\
 	}
 
 void finish_all()
@@ -206,7 +206,7 @@ void ftl_test()
 
 	declare_rw_case(rw_case);
 	/* rw_case.min_req_size = 64; */
-	/* rw_case.max_req_size = 64; */
+	/* rw_case.max_req_size = 4; */
 	/* rw_case.max_req_size = 128; */
 
 	do_seq_rw_test(&rw_case);

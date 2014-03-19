@@ -67,11 +67,13 @@ phase(BUFFER_PHASE) {
 	if (var(num_sectors) < SECTORS_PER_PAGE) {
 		/* flush write buffer if it is full*/
 		if (write_buffer_is_full()) {
-			UINT8 buf_id = buffer_allocate();
-			var(buf) = MANAGED_BUF(buf_id);
-			write_buffer_flush(var(buf), var(sp_lpn),
+			UINT8 managed_buf_id = NULL_BUF_ID;
+			write_buffer_flush(&managed_buf_id, var(sp_lpn),
 						&var(valid_sectors));
+			ASSERT(managed_buf_id < NUM_MANAGED_BUFFERS);
 			ASSERT(var(valid_sectors) != 0);
+
+			var(buf) = MANAGED_BUF(managed_buf_id);
 		}
 
 		write_buffer_put(var(lpn), var(sect_offset),

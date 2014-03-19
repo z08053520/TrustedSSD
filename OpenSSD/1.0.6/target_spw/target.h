@@ -176,6 +176,8 @@ void enable_interrupt(void);
 void disable_interrupt(void);
 
 #if OPTION_ENABLE_ASSERT
+	/* #define ASSERT(X)\ */
+	/* {\ */
 	/* 	if (!(X))\ */
 	/* 	{\ */
 	/* 		uart_print("error: %u, %s", __LINE__, __FILE__);\ */
