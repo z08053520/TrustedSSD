@@ -9,12 +9,15 @@
 #include "bad_blocks.h"
 #include "gc.h"
 #include "test_util.h"
+#include "pmt_thread.h"
+#include "scheduler.h"
 
 extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 #if OPTION_ACL
 				UINT32 const session_key,
 #endif
 				UINT32 const cmd_type);
+extern BOOL8 ftl_all_sata_cmd_accepted();
 
 static void sram_perf_test()
 {
@@ -76,7 +79,7 @@ static void dram_perf_test()
 	bank = 0;
 	timer_reset();
 	while (num_pages_copied < num_pages_to_copy) {
-		mem_copy(FTL_RD_BUF(bank), TEMP_BUF_ADDR, BYTES_PER_PAGE);
+		mem_copy(COPY_BUF(bank), TEMP_BUF_ADDR, BYTES_PER_PAGE);
 
 		bank = (bank + 1) % NUM_BANKS;
 		num_pages_copied++;
@@ -267,6 +270,9 @@ static void ftl_read(UINT32 const lba, UINT32 const req_sectors)
 	while(eventq_put(lba, req_sectors, READ))
 #endif
 		ftl_main();
+	/* Make sure it is accepted and proccessed */
+	while (!ftl_all_sata_cmd_accepted())
+		ftl_main();
 }
 
 static void ftl_write(UINT32 const lba, UINT32 const req_sectors)
@@ -276,6 +282,9 @@ static void ftl_write(UINT32 const lba, UINT32 const req_sectors)
 #else
 	while(eventq_put(lba, req_sectors, WRITE))
 #endif
+		ftl_main();
+	/* Make sure it is accepted and proccessed */
+	while (!ftl_all_sata_cmd_accepted())
 		ftl_main();
 }
 
@@ -300,7 +309,6 @@ static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 	perf_monitor_reset();
 	while (lba < end_lba) {
 		ftl_write(lba, num_sectors);
-		ftl_main();
 
 		lba += num_sectors;
 	}
@@ -313,7 +321,6 @@ static void ftl_perf_test_seq(UINT32 const num_sectors, UINT32 const total_mb)
 	perf_monitor_reset();
 	while (lba < end_lba) {
 		ftl_read(lba, num_sectors);
-		ftl_main();
 
 		lba += num_sectors;
 	}
@@ -340,7 +347,6 @@ static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 		lba = lba / num_sectors * num_sectors; // align with req size
 
 		ftl_write(lba, num_sectors);
-		ftl_main();
 
 		num_sectors_so_far += num_sectors;
 	}
@@ -356,7 +362,6 @@ static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 		lba = lba / num_sectors * num_sectors; // align with req size
 
 		ftl_read(lba, num_sectors);
-		ftl_main();
 
 		num_sectors_so_far += num_sectors;;
 	}
@@ -368,6 +373,11 @@ static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 
 void ftl_test()
 {
+	/* Run PMT thread */
+	thread_t* pmt_thread = thread_allocate();
+	pmt_thread_init(pmt_thread);
+	enqueue(pmt_thread);
+
 	uart_print("Performance test begins...");
 	uart_print("------------------------ SRAM ---------------------------");
 //		sram_perf_test();

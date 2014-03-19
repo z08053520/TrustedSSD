@@ -13,13 +13,13 @@ RM	= rm
 # SATA request will be generated.
 #TEST = ftl_seq_rw
 #TEST = ftl_rnd_rw
-TEST = ftl_sparse_rw
+#TEST = ftl_sparse_rw
 #TEST = ftl
 #TEST = gc
 #TEST = gtd
 #TEST = pmt
 #TEST = page_cache
-#TEST = perf
+TEST = perf
 #TEST = sot
 #TEST = write_buffer
 #TEST = task_engine
