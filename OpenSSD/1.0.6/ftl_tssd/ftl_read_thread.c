@@ -1,4 +1,4 @@
-#include "ftl_read_thread.h"
+#include "ftl_thread.h"
 #include "thread_handler_util.h"
 #include "read_buffer.h"
 #include "write_buffer.h"
@@ -60,6 +60,9 @@ begin_thread_variables
 	sectors_mask_t	target_sectors;
 	UINT8		sect_offset;
 	UINT8		num_sectors;
+#if OPTION_ACL
+	user_id_t	uid;
+#endif
 	UINT8		num_segments;
 	segment_t	segments[SUB_PAGES_PER_PAGE];
 }
@@ -228,8 +231,7 @@ end_thread_handler
 
 static thread_handler_id_t registered_handler_id = NULL_THREAD_HANDLER_ID;
 
-void ftl_read_thread_init(thread_t *t, UINT32 lpn, UINT8 sect_offset,
-				UINT8 num_sectors)
+void ftl_read_thread_init(thread_t *t, const ftl_cmd_t *cmd);
 {
 	if (registered_handler_id == NULL_THREAD_HANDLER_ID) {
 		registered_handler_id = thread_handler_register(
@@ -239,8 +241,11 @@ void ftl_read_thread_init(thread_t *t, UINT32 lpn, UINT8 sect_offset,
 	t->handler_id = registered_handler_id;
 
 	var(seq_id) = g_num_ftl_read_tasks_submitted++;
-	var(lpn) = lpn;
-	var(sect_offset) = sect_offset;
-	var(num_sectors) = num_sectors;
+	var(lpn) = cmd->lpn;
+	var(sect_offset) = cmd->sect_offset;
+	var(num_sectors) = cmd->num_sectors;
+#if OPTION_ACL
+	var(uid) = cmd->uid;
+#endif
 	save_thread_variables(thread_id(t));
 }

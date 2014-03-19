@@ -1,14 +1,14 @@
-#include "ftl_write_thread.h"
+#include "ftl_thread.h"
 #include "thread_handler_util.h"
 #include "read_buffer.h"
 #include "write_buffer.h"
-#include "gc.h"
 #include "buffer.h"
 #include "fla.h"
 #include "pmt.h"
 #include "signal.h"
 #include "page_lock.h"
 #include "dram.h"
+#include "gc.h"
 
 /*
  * SATA
@@ -30,6 +30,9 @@ begin_thread_variables
 	UINT32		lpn;
 	UINT8		sect_offset;
 	UINT8		num_sectors;
+#if OPTION_ACL
+	user_id_t	uid;
+#endif
 	/* flags */
 	BOOL8		cmd_issued;
 	union {
@@ -293,8 +296,7 @@ end_thread_handler
 
 static thread_handler_id_t registered_handler_id = NULL_THREAD_HANDLER_ID;
 
-void ftl_write_thread_init(thread_t *t, UINT32 lpn, UINT8 sect_offset,
-				UINT8 num_sectors)
+void ftl_write_thread_init(thread_t *t, const ftl_cmd_t *cmd);
 {
 	if (registered_handler_id == NULL_THREAD_HANDLER_ID) {
 		registered_handler_id =
@@ -304,8 +306,11 @@ void ftl_write_thread_init(thread_t *t, UINT32 lpn, UINT8 sect_offset,
 	t->handler_id = registered_handler_id;
 
 	var(seq_id) = g_num_ftl_write_tasks_submitted++;
-	var(lpn) = lpn;
-	var(sect_offset) = sect_offset;
-	var(num_sectors) = num_sectors;
+	var(lpn) = cmd->lpn;
+	var(sect_offset) = cmd->sect_offset;
+	var(num_sectors) = cmd->num_sectors;
+#if OPTION_ACL
+	var(uid) = cmd->uid;
+#endif
 	save_thread_variables(thread_id(t));
 }

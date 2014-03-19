@@ -6,8 +6,7 @@
 #include "gc.h"
 #include "read_buffer.h"
 #include "write_buffer.h"
-#include "ftl_read_thread.h"
-#include "ftl_write_thread.h"
+#include "ftl_thread.h"
 #include "scheduler.h"
 #if OPTION_ACL
 	#include "acl.h"
@@ -152,21 +151,21 @@ BOOL8 ftl_main(void)
 
 
 		/* Submit a new task */
-		thread_t *thread = thread_allocate();
+		thread_t *ftl_thread = thread_allocate();
 		ASSERT(thread != NULL);
-#if	OPTION_ACL
-		UINT32	uid = acl_skey2uid(sata_cmd.session_key);
-		if (sata_cmd.cmd_type == READ)
-			ftl_read_thread_init(thread, uid, lpn, offset, num_sectors);
-		else
-			ftl_write_thread_init(thread, uid, lpn, offset, num_sectors);
-#else
-		if (sata_cmd.cmd_type == READ)
-			ftl_read_thread_init(thread, lpn, offset, num_sectors);
-		else
-			ftl_write_thread_init(thread, lpn, offset, num_sectors);
+		ftl_cmd_t ftl_cmd = {
+			.lpn = lpn,
+			.sect_offset = offset,
+			.num_sectors = num_sectors
+#if OPTOIN_ACL
+			,.uid = acl_skey2uid(sata_cmd.session_key)
 #endif
-		enqueue(thread);
+		};
+		if (sata_cmd.cmd_type == READ)
+			ftl_read_thread_init(ftl_thread, ftl_cmd);
+		else
+			ftl_write_thread_init(ftl_thread, ftl_cmd);
+		enqueue(ftl_thread);
 
 		sata_cmd.lba += num_sectors;
 		sata_cmd.sector_count -= num_sectors;

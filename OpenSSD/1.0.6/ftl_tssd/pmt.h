@@ -48,10 +48,12 @@ void 	pmt_get_vp(UINT32 const lpn,  UINT8 const sp_offset, vp_t* vp);
 void	pmt_fix(UINT32 const lpn);
 void	pmt_unfix(UINT32 const lpn);
 
+#if 0
 #if OPTION_ACL
 BOOL8	pmt_authenticate(UINT32 const lpn, UINT8 const sect_offset,
 			 UINT8 const num_sectors, user_id_t const expected_uid);
 void	pmt_authorize  (UINT32 const lpn, UINT8 const sect_offset,
 			UINT8 const num_sectors, user_id_t const new_uid);
+#endif
 #endif
 #endif /* __PMT_H */

@@ -63,6 +63,7 @@ void	pmt_unfix(UINT32 const lpn)
 	pmt_cache_unfix(pmt_idx);
 }
 
+#if 0
 #if OPTION_ACL
 
 #define align_even(num)		(num / 2 * 2)
@@ -138,4 +139,5 @@ void	pmt_authorize  (UINT32 const lpn, UINT8 const sect_offset,
 			(sect_offset % 2 == 1) * 2)) * sizeof(user_id_t);
 	mem_copy(target_buf, src_buf, size);
 }
+#endif
 #endif
