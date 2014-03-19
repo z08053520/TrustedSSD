@@ -152,7 +152,7 @@ BOOL8 ftl_main(void)
 
 		/* Submit a new task */
 		thread_t *ftl_thread = thread_allocate();
-		ASSERT(thread != NULL);
+		ASSERT(ftl_thread != NULL);
 		ftl_cmd_t ftl_cmd = {
 			.lpn = lpn,
 			.sect_offset = offset,
@@ -162,9 +162,9 @@ BOOL8 ftl_main(void)
 #endif
 		};
 		if (sata_cmd.cmd_type == READ)
-			ftl_read_thread_init(ftl_thread, ftl_cmd);
+			ftl_read_thread_init(ftl_thread, &ftl_cmd);
 		else
-			ftl_write_thread_init(ftl_thread, ftl_cmd);
+			ftl_write_thread_init(ftl_thread, &ftl_cmd);
 		enqueue(ftl_thread);
 
 		sata_cmd.lba += num_sectors;

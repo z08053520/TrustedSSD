@@ -9,6 +9,13 @@ static banks_mask_t idle_banks = 0xFFFF;
 /* 1 - complete; 0 - not complete */
 static banks_mask_t complete_banks = 0;
 
+static UINT8 const num_banks =
+#if OPTION_FTL_TEST && (MAX_NUM_THREADS < NUM_BANKS)
+				MAX_NUM_THREADS;
+#else
+				NUM_BANKS;
+#endif
+
 /* notify scheduler for any banks state changes by signals */
 extern signals_t g_scheduler_signals;
 static inline void  update_scheduler_signals()
@@ -67,17 +74,17 @@ BOOL8 fla_is_bank_complete(UINT8 const bank)
 
 UINT8 fla_get_idle_bank()
 {
-	static UINT8 bank_i = NUM_BANKS - 1;
+	static UINT8 bank_i = num_banks - 1;
 
-	if (idle_banks == 0) return NUM_BANKS;
+	if (idle_banks == 0) return num_banks;
 
-	for (UINT8 i = 0; i < NUM_BANKS; i++) {
-		bank_i = (bank_i + 1) % NUM_BANKS;
+	for (UINT8 i = 0; i < num_banks; i++) {
+		bank_i = (bank_i + 1) % num_banks;
 		if (fla_is_bank_idle(bank_i)) return bank_i;
 	}
 	/* should never reach here */
 	ASSERT(0);
-	return NUM_BANKS;
+	return num_banks;
 }
 
 void fla_read_page(vp_t const vp, UINT8 const sect_offset,

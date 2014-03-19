@@ -14,7 +14,6 @@ static thread_t _head = {
 	.state = THREAD_SLEEPING,
 	.next_id = NULL_THREAD_ID,
 	.handler_id = NULL_THREAD_HANDLER_ID,
-	.handler_last_offset = 0,
 	.wakeup_signals = 0
 };
 static thread_t * const head = &_head;

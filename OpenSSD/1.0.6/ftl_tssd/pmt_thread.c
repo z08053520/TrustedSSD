@@ -53,7 +53,6 @@ void pmt_thread_request_enqueue(UINT32 const pmt_idx)
  * */
 
 begin_thread_variables
-{
 	/* PMT loading info */
 	UINT32	loading_pmt_idxes[NUM_BANKS];
 	vsp_t	loading_pmt_vsps[NUM_BANKS];
@@ -62,11 +61,9 @@ begin_thread_variables
 	UINT8	flush_buf_ids[NUM_BANKS];
 	/* PMT next request */
 	UINT32	next_pmt_idx;
-}
 end_thread_variables
 
 begin_thread_handler
-{
 /* PMT thread is designed as a event loop */
 phase(ONE_PHASE) {
 	uart_print("> queue size = %u", pmt_req_queue_size);
@@ -169,10 +166,8 @@ phase(ONE_PHASE) {
 				flush_vsp.vspn++;
 			}
 		}
-		vsp_t	load_vsp;
-		UINT8	load_bank;
-pmt_load:
-		load_vsp = gtd_get_vsp(var(next_pmt_idx));
+pmt_load:;
+		vsp_t	load_vsp = gtd_get_vsp(var(next_pmt_idx));
 		/* if this PMT page has never been written to flash */
 		if (load_vsp.vspn == 0) {
 			BOOL8 res = pmt_cache_put(var(next_pmt_idx));
@@ -187,7 +182,7 @@ pmt_load:
 			goto next_pmt_req;
 		}
 
-		load_bank = load_vsp.bank;
+		UINT8 load_bank = load_vsp.bank;
 		signals_set(interesting_signals, SIG_BANK(load_bank));
 		if (!fla_is_bank_idle(load_bank)) break;
 
@@ -224,7 +219,6 @@ next_pmt_req:
 		/* need to be waken up */
 		sleep(0);
 }
-}
 end_thread_handler
 
 /*
@@ -254,5 +248,5 @@ void pmt_thread_init(thread_t *t)
 	/* init next outstanding PMT request */
 	var(next_pmt_idx) = NULL_PMT_IDX;
 
-	save_thread_variables(thread_id(t));
+	init_thread_variables(thread_id(t));
 }

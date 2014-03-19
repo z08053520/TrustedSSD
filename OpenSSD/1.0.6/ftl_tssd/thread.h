@@ -28,7 +28,6 @@ typedef struct {
 	thread_state_t		state:2;
 	thread_id_t		next_id:6;
 	thread_handler_id_t	handler_id;
-	UINT16			handler_last_offset;
 	signals_t		wakeup_signals;
 } thread_t;
 

@@ -22,11 +22,12 @@
  * */
 UINT8 * const __thread_stack;
 
-#define begin_thread_variables		\
-	typedef struct
+#define begin_thread_variables			\
+	typedef struct {			\
+		void* __handler_last_position;
 
 #define end_thread_variables		\
-	thread_variables_t;
+	} thread_variables_t;
 
 #define var(name)	(((thread_variables_t*)__thread_stack)->name)
 
@@ -37,8 +38,12 @@ UINT8 * const __thread_stack;
 		static void __thread_handler(thread_t *__t) {	\
 			thread_id_t __tid = thread_id(__t);	\
 			restore_thread_variables(__tid);	\
-			jump_to_last_position(__t);		\
-		__begin:
+			jump_to_last_position(__t);
+
+			/* uart_print("last position = %u",	\ */
+			/* 		__t->__handler_last_position);\ */
+			/* uart_print("enter thread handler %u",	\ */
+			/* 		__t->handler_id);	\ */
 
 #define end_thread_handler					\
 			end();					\
@@ -48,18 +53,20 @@ UINT8 * const __thread_stack;
 
 /*
  * Thread phase
+ *
+ * Note the semicolon after the colon of a label. This is a workaround
+ * for the limitation of C standard that a label must belong to a statement.
  * */
 #define phase(name)						\
 		save_position(__t, name);			\
-	__##name:
+	__##name:;
+
+/* uart_print("enter phase at line %u", __LINE__);	\ */
 
 #define goto_phase(new_name)	do {				\
 		save_position(__t, new_name);			\
 		goto __##new_name;				\
 	} while(0)
-
-#define phase2offset(name)		(&&__##name - &&__begin)
-#define offset2phase(offset)		*(&&__begin + (offset))
 
 /*
  * Context switch
@@ -87,10 +94,16 @@ UINT8 * const __thread_stack;
 /*
  * Save and restore thread information
  * */
-#define jump_to_last_position(t)	\
-		goto offset2phase((t)->handler_last_offset)
+#define jump_to_last_position(t)				\
+		if (var(__handler_last_position))			\
+			goto *(var(__handler_last_position))
 #define save_position(t, name)	\
-		(t)->handler_last_offset = phase2offset(name)
+		var(__handler_last_position)= &&__##name
+
+#define init_thread_variables(tid)	do {		\
+		var(__handler_last_position) = NULL;	\
+		save_thread_variables(tid);		\
+	} while(0)
 
 void restore_thread_variables(thread_id_t const tid);
 void save_thread_variables(thread_id_t const tid);

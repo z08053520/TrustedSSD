@@ -59,7 +59,6 @@ static BOOL8 check_segment_has_holes(segment_t *seg)
  * */
 
 begin_thread_variables
-{
 	UINT32		seq_id;
 	UINT32		lpn;
 	sectors_mask_t	target_sectors;
@@ -70,11 +69,9 @@ begin_thread_variables
 #endif
 	UINT8		num_segments;
 	segment_t	segments[SUB_PAGES_PER_PAGE];
-}
 end_thread_variables
 
 begin_thread_handler
-{
 /* Try write buffer first */
 phase(BUFFER_PHASE) {
 	var(target_sectors) = init_mask(var(sect_offset), var(num_sectors));
@@ -231,7 +228,6 @@ phase(SATA_PHASE) {
 
 	ASSERT(g_num_ftl_read_tasks_finished <= g_num_ftl_read_tasks_submitted);
 }
-}
 end_thread_handler
 
 /*
@@ -240,7 +236,7 @@ end_thread_handler
 
 static thread_handler_id_t registered_handler_id = NULL_THREAD_HANDLER_ID;
 
-void ftl_read_thread_init(thread_t *t, const ftl_cmd_t *cmd);
+void ftl_read_thread_init(thread_t *t, const ftl_cmd_t *cmd)
 {
 	if (registered_handler_id == NULL_THREAD_HANDLER_ID) {
 		registered_handler_id = thread_handler_register(
@@ -256,5 +252,5 @@ void ftl_read_thread_init(thread_t *t, const ftl_cmd_t *cmd);
 #if OPTION_ACL
 	var(uid) = cmd->uid;
 #endif
-	save_thread_variables(thread_id(t));
+	init_thread_variables(thread_id(t));
 }

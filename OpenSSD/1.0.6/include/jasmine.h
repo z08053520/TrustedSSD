@@ -231,7 +231,7 @@ BOOL8 show_debug_msg;
 
 
 /* #define MAX_NUM_THREADS		16 */
-#define MAX_NUM_THREADS		2
+#define MAX_NUM_THREADS		4
 
 /* virtual page */
 typedef union {

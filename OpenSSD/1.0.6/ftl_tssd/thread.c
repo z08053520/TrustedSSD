@@ -23,7 +23,6 @@ thread_t* thread_allocate()
 	t->state	= THREAD_RUNNABLE;
 	t->next_id	= NULL_THREAD_ID;
 	t->handler_id	= NULL_THREAD_HANDLER_ID;
-	t->handler_last_offset	= 0;
 	t->wakeup_signals	= 0;
 	return t;
 }

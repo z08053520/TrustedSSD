@@ -25,7 +25,6 @@ UINT32	g_next_finishing_write_task_seq_id = 0;
  * */
 
 begin_thread_variables
-{
 	UINT32		seq_id;
 	UINT32		lpn;
 	UINT8		sect_offset;
@@ -46,7 +45,6 @@ begin_thread_variables
 	UINT32		sp_lpn[SUB_PAGES_PER_PAGE];
 	vp_t		sp_old_vp[SUB_PAGES_PER_PAGE];
 	UINT8		sp_rd_buf_id[SUB_PAGES_PER_PAGE];
-}
 end_thread_variables
 
 static void copy_subpage_missing_sectors(UINT32 const target_buf,
@@ -61,7 +59,6 @@ static void copy_subpage_missing_sectors(UINT32 const target_buf,
 }
 
 begin_thread_handler
-{
 /* Write buffer if possible */
 phase(BUFFER_PHASE) {
 	var(buf) = NULL;
@@ -287,7 +284,6 @@ phase(SATA_PHASE) {
 	SETREG(BM_STACK_WRSET, next_write_buf_id);
 	SETREG(BM_STACK_RESET, 0x01);
 }
-}
 end_thread_handler
 
 /*
@@ -296,7 +292,7 @@ end_thread_handler
 
 static thread_handler_id_t registered_handler_id = NULL_THREAD_HANDLER_ID;
 
-void ftl_write_thread_init(thread_t *t, const ftl_cmd_t *cmd);
+void ftl_write_thread_init(thread_t *t, const ftl_cmd_t *cmd)
 {
 	if (registered_handler_id == NULL_THREAD_HANDLER_ID) {
 		registered_handler_id =
@@ -312,5 +308,5 @@ void ftl_write_thread_init(thread_t *t, const ftl_cmd_t *cmd);
 #if OPTION_ACL
 	var(uid) = cmd->uid;
 #endif
-	save_thread_variables(thread_id(t));
+	init_thread_variables(thread_id(t));
 }

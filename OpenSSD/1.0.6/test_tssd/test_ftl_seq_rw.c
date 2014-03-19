@@ -8,6 +8,17 @@
 #include "test_util.h"
 #include <stdlib.h>
 
+/* #define DEBUG_FTL */
+#ifdef DEBUG_FTL
+	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
+#else
+	#define debug(format, ...)
+#endif
+
+extern BOOL8 eventq_put(UINT32 const lba, UINT32 const num_sectors,
+			UINT32 const cmd_type);
+extern BOOL8 ftl_all_sata_cmd_accepted();
+
 /* DRAM buffer to remember every requests first issued and then verified */
 #define REQ_LBA_BUF_ADDR	TEMP_BUF_ADDR
 #define REQ_SIZE_BUF_ADDR	HIL_BUF_ADDR
@@ -19,7 +30,10 @@ SETUP_BUF(req_size,		REQ_SIZE_BUF_ADDR, 	SECTORS_PER_PAGE);
 void ftl_verify(UINT32 const lpn, UINT8 const sect_offset,
 		UINT8 const num_sectors, UINT32 const sata_rd_buf)
 {
-	UINT32 curr_lba = lpn * SECTORS_PER_PAGE;
+	debug("verify lpn = %u, sect_offset = %u, num_sectors = %u",
+		lpn, sect_offset, num_sectors);
+
+	UINT32 curr_lba = lpn * SECTORS_PER_PAGE + sect_offset;
 	UINT8 sect_i = sect_offset, sect_end = sect_offset + num_sectors;
 	while (sect_i < sect_end) {
 		UINT32 expected_sect_val = curr_lba;
@@ -43,7 +57,7 @@ typedef struct {
 		.min_lba = 0,			\
 		.max_lba = MAX_LBA,		\
 		.min_req_size = 1,		\
-		.max_req_size = 255,		\
+		.max_req_size = 1,		\
 		.max_num_reqs = MAX_NUM_REQS,	\
 		.max_wr_bytes = 256 * MB	\
 	}
@@ -58,6 +72,9 @@ void finish_all()
 
 void do_flash_read(UINT32 const lba, UINT8 const req_sectors)
 {
+	debug("do_flash_read: lba = %u, req_sectors = %u",
+			lba, req_sectors);
+
 	/* Put SATA cmds into queue */
 	while(eventq_put(lba, req_sectors, READ))
 		ftl_main();
@@ -70,6 +87,9 @@ static UINT32 num_ftl_write_tasks_submitted = 0;
 
 void do_flash_write(UINT32 const lba, UINT8 const req_sectors)
 {
+	debug("do_flash_write: lba = %u, req_sectors = %u",
+			lba, req_sectors);
+
 	/* Prepare SATA write buffer */
 	UINT32 lpn          = lba / SECTORS_PER_PAGE;
 	UINT32 sect_offset  = lba % SECTORS_PER_PAGE;
@@ -83,6 +103,9 @@ void do_flash_write(UINT32 const lba, UINT8 const req_sectors)
 		    num_sectors = remain_sects;
 		else
 		    num_sectors = SECTORS_PER_PAGE - sect_offset;
+
+		debug("write lpn = %u, sect_offset = %u, num_sectors = %u",
+			lpn, sect_offset, num_sectors);
 
 		/* set values in SATA write buffer */
 		UINT32 curr_lba = lpn * SECTORS_PER_PAGE + sect_offset;
@@ -120,7 +143,7 @@ void do_seq_rw_test(const rw_case_t *rw_case)
 
 	/* first write sequentiallly */
 	UINT32 lba = rw_case->min_lba, req_size;
-	UINT32 num_reqs = 0, wr_bytes = 0,
+	UINT32 num_reqs = 0, wr_bytes = 0;
 	while (wr_bytes < rw_case->max_wr_bytes &&
 		lba < rw_case->max_lba &&
 		num_reqs < rw_case->max_num_reqs) {
@@ -128,15 +151,17 @@ void do_seq_rw_test(const rw_case_t *rw_case)
 		req_size = random(rw_case->min_req_size,
 				rw_case->max_req_size);
 		do_flash_write(lba, req_size);
-		lba += req_size;
 
 		/* remember write requests to verify later */
 		set_req_lba(num_reqs, lba);
 		set_req_size(num_reqs, req_size);
+
+		/* for next */
 		num_reqs++;
+		lba += req_size;
+		wr_bytes += req_size * BYTES_PER_SECTOR;
 
 		/* update statisitcs */
-		wr_bytes += req_size * BYTES_PER_SECTOR;
 		total_sectors += req_size;
 	}
 	finish_all();
@@ -179,7 +204,7 @@ void ftl_test()
 
 	declare_rw_case(rw_case);
 	rw_case.max_req_size = 1;
-	rw_case.max_num_reqs = 1;
+	rw_case.max_num_reqs = 1024;
 
 	do_seq_rw_test(&rw_case);
 
