@@ -66,7 +66,7 @@ end_thread_variables
 begin_thread_handler
 /* PMT thread is designed as a event loop */
 phase(ONE_PHASE) {
-	uart_print("> queue size = %u", pmt_req_queue_size);
+	/* uart_print("> queue size = %u", pmt_req_queue_size); */
 
 	signals_t interesting_signals = 0;
 
@@ -211,7 +211,7 @@ next_pmt_req:
 		var(next_pmt_idx) = pop_pmt_req();
 	}
 
-	uart_print("< queue size = %u", pmt_req_queue_size);
+	/* uart_print("< queue size = %u", pmt_req_queue_size); */
 
 	if (interesting_signals)
 		sleep(interesting_signals);

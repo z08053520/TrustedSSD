@@ -76,7 +76,7 @@ UINT8 fla_get_idle_bank()
 {
 	static UINT8 bank_i = num_banks - 1;
 
-	if (idle_banks == 0) return num_banks;
+	if (idle_banks == 0) return NUM_BANKS;
 
 	for (UINT8 i = 0; i < num_banks; i++) {
 		bank_i = (bank_i + 1) % num_banks;
@@ -84,7 +84,7 @@ UINT8 fla_get_idle_bank()
 	}
 	/* should never reach here */
 	ASSERT(0);
-	return num_banks;
+	return NUM_BANKS;
 }
 
 void fla_read_page(vp_t const vp, UINT8 const sect_offset,

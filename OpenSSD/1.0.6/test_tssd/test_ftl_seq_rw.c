@@ -57,7 +57,7 @@ typedef struct {
 		.min_lba = 0,			\
 		.max_lba = MAX_LBA,		\
 		.min_req_size = 1,		\
-		.max_req_size = 1,		\
+		.max_req_size = 128,		\
 		.max_num_reqs = MAX_NUM_REQS,	\
 		.max_wr_bytes = 256 * MB	\
 	}
@@ -136,10 +136,12 @@ void do_flash_write(UINT32 const lba, UINT8 const req_sectors)
 		ftl_main();
 }
 
-void do_seq_rw_test(const rw_case_t *rw_case)
+void do_seq_rw_test(rw_case_t *rw_case)
 {
 	UINT32  total_sectors = 0;
 	timer_reset();
+
+	rw_case->max_num_reqs = MIN(rw_case->max_num_reqs, MAX_NUM_REQS);
 
 	/* first write sequentiallly */
 	UINT32 lba = rw_case->min_lba, req_size;
@@ -203,8 +205,9 @@ void ftl_test()
 	enqueue(pmt_thread);
 
 	declare_rw_case(rw_case);
-	rw_case.max_req_size = 1;
-	rw_case.max_num_reqs = 1024;
+	/* rw_case.min_req_size = 64; */
+	/* rw_case.max_req_size = 64; */
+	/* rw_case.max_req_size = 128; */
 
 	do_seq_rw_test(&rw_case);
 
