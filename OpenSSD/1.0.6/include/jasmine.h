@@ -67,6 +67,17 @@
  * */
 #define OPTION_ACL			0
 
+#ifdef OPTION_FTL_TEST
+/* About macro OPTION_FTL_VERIFY
+ *
+ * When this macro is set, ftl_read_thread evokes a function that verifies
+ * the result of FTL read when verification is possible. This built-in
+ * verificaiton mechanism simplifies the implementation of FTL unit test.
+ */
+	#define OPTION_FTL_VERIFY	1
+#endif
+
+
 #define CHN_WIDTH			2 	// 2 = 16bit IO
 #define NUM_CHNLS_MAX		4
 #define BANKS_PER_CHN_MAX	8

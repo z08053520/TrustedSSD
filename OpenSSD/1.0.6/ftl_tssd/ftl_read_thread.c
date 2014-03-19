@@ -9,6 +9,11 @@
 #include "page_lock.h"
 #include "dram.h"
 
+#if OPTION_FTL_VERIFY
+void ftl_verify(UINT32 const lpn, UINT8 const sect_offset,
+		UINT8 const num_sectors, UINT32 const sata_rd_buf);
+#endif
+
 /*
  * SATA
  * */
@@ -206,6 +211,10 @@ phase(FLASH_READ_PHASE) {
 /* Update SATA buffer pointers */
 phase(SATA_PHASE) {
 	g_num_ftl_read_tasks_finished++;
+
+#if OPTION_FTL_VERIFY
+	ftl_verify(var(lpn), var(sect_offset), var(num_sectors), sata_rd_buf);
+#endif
 
 	if (g_next_finishing_read_task_seq_id == var(seq_id))
 		g_next_finishing_read_task_seq_id++;
