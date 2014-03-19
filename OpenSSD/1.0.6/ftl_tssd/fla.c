@@ -64,11 +64,17 @@ void fla_update_bank_state()
 
 BOOL8 fla_is_bank_idle(UINT8 const bank)
 {
+#if OPTION_FTL_TEST
+	if (bank >= num_banks) return 0;
+#endif
 	return (idle_banks >> bank) & 1;
 }
 
 BOOL8 fla_is_bank_complete(UINT8 const bank)
 {
+#if OPTION_FTL_TEST
+	if (bank >= num_banks) return 0;
+#endif
 	return (complete_banks >> bank) & 1;
 }
 
@@ -76,14 +82,17 @@ UINT8 fla_get_idle_bank()
 {
 	static UINT8 bank_i = num_banks - 1;
 
+	/* shortcut */
 	if (idle_banks == 0) return NUM_BANKS;
 
 	for (UINT8 i = 0; i < num_banks; i++) {
 		bank_i = (bank_i + 1) % num_banks;
 		if (fla_is_bank_idle(bank_i)) return bank_i;
 	}
+#if OPTION_FTL_TEST == 0
 	/* should never reach here */
 	ASSERT(0);
+#endif
 	return NUM_BANKS;
 }
 
