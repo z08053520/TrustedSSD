@@ -230,8 +230,8 @@ UINT8 end_sector(sectors_mask_t const mask);
 BOOL8 show_debug_msg;
 
 
-/* #define MAX_NUM_THREADS		16 */
-#define MAX_NUM_THREADS		8
+#define MAX_NUM_THREADS		16
+/* #define MAX_NUM_THREADS		8 */
 
 /* virtual page */
 typedef union {

@@ -12,7 +12,8 @@ RM	= rm
 # withour any SATA communication; otherwise, a normal firmware that can handle 
 # SATA request will be generated.
 #TEST = ftl_seq_rw
-TEST = ftl_rnd_rw
+#TEST = ftl_rnd_rw
+TEST = ftl_sparse_rw
 #TEST = ftl
 #TEST = gc
 #TEST = gtd
