@@ -43,10 +43,6 @@ void ftl_test()
  	init_lspn_buf(0xFFFFFFFF);
 	init_vp_buf(0);
 
-	thread_t *pmt_thread = thread_allocate();
-	pmt_thread_init(pmt_thread);
-	enqueue(pmt_thread);
-
 	uart_print("\tsample lspn to check vp is set to 0 by default");
 	for(i = 0; i < SAMPLE_SIZE; i++) {
 		lspn = rand() % MAX_LSPN;

@@ -86,6 +86,11 @@ void ftl_open(void) {
 	read_buffer_init();
 	write_buffer_init();
 
+	/* Run PMT thread */
+	thread_t* pmt_thread = thread_allocate();
+	pmt_thread_init(pmt_thread);
+	enqueue(pmt_thread);
+
 	flash_clear_irq();
 	// This example FTL can handle runtime bad block interrupts and read fail (uncorrectable bit errors) interrupts
 	SETREG(INTR_MASK, FIRQ_DATA_CORRUPT | FIRQ_BADBLK_L | FIRQ_BADBLK_H);

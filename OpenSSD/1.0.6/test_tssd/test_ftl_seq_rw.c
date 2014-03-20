@@ -199,11 +199,6 @@ void ftl_test()
 	init_req_lba_buf(0);
 	init_req_size_buf(0);
 
-	/* Run PMT thread */
-	thread_t* pmt_thread = thread_allocate();
-	pmt_thread_init(pmt_thread);
-	enqueue(pmt_thread);
-
 	declare_rw_case(rw_case);
 	/* rw_case.min_req_size = 64; */
 	/* rw_case.max_req_size = 4; */

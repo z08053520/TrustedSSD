@@ -212,11 +212,6 @@ void ftl_test()
 	srand(RAND_SEED);
 	init_sector_val_buf(0xFFFFFFFF);
 
-	/* Run PMT thread */
-	thread_t* pmt_thread = thread_allocate();
-	pmt_thread_init(pmt_thread);
-	enqueue(pmt_thread);
-
 	declare_rw_case(rw_case);
 	/* rw_case.max_num_reqs = ; */
 	/* rw_case.max_req_size = 64; */
