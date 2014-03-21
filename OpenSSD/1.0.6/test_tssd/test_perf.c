@@ -9,8 +9,6 @@
 #include "bad_blocks.h"
 #include "gc.h"
 #include "test_util.h"
-#include "pmt_thread.h"
-#include "scheduler.h"
 
 extern BOOL8 	eventq_put(UINT32 const lba, UINT32 const num_sectors,
 #if OPTION_ACL
@@ -373,11 +371,6 @@ static void ftl_perf_test_rnd(UINT32 const num_sectors, UINT32 const total_mb)
 
 void ftl_test()
 {
-	/* Run PMT thread */
-	thread_t* pmt_thread = thread_allocate();
-	pmt_thread_init(pmt_thread);
-	enqueue(pmt_thread);
-
 	uart_print("Performance test begins...");
 	uart_print("------------------------ SRAM ---------------------------");
 //		sram_perf_test();

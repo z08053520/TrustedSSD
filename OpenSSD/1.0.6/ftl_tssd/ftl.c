@@ -6,8 +6,9 @@
 #include "gc.h"
 #include "read_buffer.h"
 #include "write_buffer.h"
-#include "ftl_thread.h"
 #include "scheduler.h"
+#include "ftl_thread.h"
+#include "pmt_thread.h"
 #if OPTION_ACL
 	#include "acl.h"
 #endif
