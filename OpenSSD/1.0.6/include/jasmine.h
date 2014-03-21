@@ -367,13 +367,13 @@ scan_list_t;
 	/* 	}\ */
 	/* } while(0); */
 
-	/* #define BUG_ON(MESSAGE, COND) do {\ */
-	/* 	if (COND) {\ */
-	/* 		uart_print("bug on");\ */
-	/* 		while(1);\ */
-	/* 	}\ */
-	/* } while(0); */
-	#define BUG_ON(MESSAGE, COND)
+	#define BUG_ON(MESSAGE, COND) do {\
+		if (COND) {\
+			uart_print("bug on");\
+			while(1);\
+		}\
+	} while(0);
+	/* #define BUG_ON(MESSAGE, COND) */
 #else
 	#define LOG(label, ...)
 	#define DEBUG(label, ...)
