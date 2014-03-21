@@ -21,16 +21,17 @@
 		static slab_##name##_obj_t 	*slab_##name##_free_list = NULL;	\
 		static UINT32			 slab_##name##_num_free = capacity;	\
 		static type* slab_allocate_##name() {			\
+			slab_##name##_obj_t *free_obj = NULL;		\
 			if (slab_##name##_free_list) {			\
-				slab_##name##_obj_t	*free_obj;	\
 				free_obj = slab_##name##_free_list;	\
 				slab_##name##_free_list = free_obj->next_free;	\
 				slab_##name##_num_free--;		\
-				return (type*) free_obj;		\
 			}						\
-			if (slab_##name##_size == capacity) return NULL;	\
-			slab_##name##_num_free--;			\
-			return (type*) & (slab_##name##_buf[slab_##name##_size++]);	\
+			else if (slab_##name##_size < capacity) {	\
+				free_obj = & (slab_##name##_buf[slab_##name##_size++]);\
+				slab_##name##_num_free--;		\
+			}						\
+			return (type*)free_obj;				\
 		}							\
 		static void slab_deallocate_##name(type* obj) {		\
 			ASSERT((slab_##name##_obj_t*)obj - slab_##name##_buf >= 0);\

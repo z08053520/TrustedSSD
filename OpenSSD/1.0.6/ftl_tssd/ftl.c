@@ -53,7 +53,7 @@ static void print_info(void)
 	PRINT_SIZE("non SATA buffer size",		NON_SATA_BUF_BYTES);
 	uart_print("# of SATA read buffers == %u",	NUM_SATA_RD_BUFFERS);
 	PRINT_SIZE("SATA read buffers", 		SATA_RD_BUF_BYTES);
-	uart_print("# of SATA write buffers == %n",	NUM_SATA_WR_BUFFERS);
+	uart_print("# of SATA write buffers == %u",	NUM_SATA_WR_BUFFERS);
 	PRINT_SIZE("SATA write buffers",		SATA_WR_BUF_BYTES);
 	PRINT_SIZE("page",	BYTES_PER_PAGE);
 	PRINT_SIZE("sub-page",	BYTES_PER_SUB_PAGE);
@@ -114,6 +114,89 @@ extern UINT32 g_num_ftl_read_tasks_submitted;
 extern UINT32 g_num_ftl_read_tasks_finished;
 extern UINT32 g_num_ftl_write_tasks_submitted;
 extern UINT32 g_num_ftl_write_tasks_finished;
+
+/* Dummy FTL */
+#if 0
+
+UINT32 g_ftl_read_buf_id;
+UINT32 g_ftl_write_buf_id;
+
+void ftl_read(UINT32 const lba, UINT32 const total_sectors)
+{
+	UINT32 num_sectors_to_read;
+
+	UINT32 lpage_addr		= lba / SECTORS_PER_PAGE;	// logical page address
+	UINT32 sect_offset 		= lba % SECTORS_PER_PAGE;	// sector offset within the page
+	UINT32 sectors_remain	= total_sectors;
+
+	while (sectors_remain != 0)	// one page per iteration
+	{
+		if (sect_offset + sectors_remain < SECTORS_PER_PAGE)
+		{
+			num_sectors_to_read = sectors_remain;
+		}
+		else
+		{
+			num_sectors_to_read = SECTORS_PER_PAGE - sect_offset;
+		}
+
+		UINT32 next_read_buf_id = (g_ftl_read_buf_id + 1) % NUM_SATA_RD_BUFFERS;
+
+		while (next_read_buf_id == GETREG(SATA_RBUF_PTR));	// wait if the read buffer is full (slow host)
+
+		SETREG(BM_STACK_RDSET, next_read_buf_id);	// change bm_read_limit
+		SETREG(BM_STACK_RESET, 0x02);				// change bm_read_limit
+
+		g_ftl_read_buf_id = next_read_buf_id;
+
+		sect_offset = 0;
+		sectors_remain -= num_sectors_to_read;
+		lpage_addr++;
+	}
+}
+
+void ftl_write(UINT32 const lba, UINT32 const total_sectors)
+{
+	UINT32 num_sectors_to_write;
+
+	UINT32 sect_offset = lba % SECTORS_PER_PAGE;
+	UINT32 remain_sectors = total_sectors;
+
+	while (remain_sectors != 0)
+	{
+		if (sect_offset + remain_sectors >= SECTORS_PER_PAGE)
+		{
+			num_sectors_to_write = SECTORS_PER_PAGE - sect_offset;
+		}
+		else
+		{
+			num_sectors_to_write = remain_sectors;
+		}
+
+		while (g_ftl_write_buf_id == GETREG(SATA_WBUF_PTR));	// bm_write_limit should not outpace SATA_WBUF_PTR
+
+		g_ftl_write_buf_id = (g_ftl_write_buf_id + 1) % NUM_SATA_WR_BUFFERS;		// Circular buffer
+
+		SETREG(BM_STACK_WRSET, g_ftl_write_buf_id);	// change bm_write_limit
+		SETREG(BM_STACK_RESET, 0x01);				// change bm_write_limit
+
+		sect_offset = 0;
+		remain_sectors -= num_sectors_to_write;
+	}
+}
+
+BOOL8 ftl_main(void)
+{
+	while (sata_has_next_rw_cmd()) {
+		sata_get_next_rw_cmd(&sata_cmd);
+		if (sata_cmd.cmd_type == READ)
+			ftl_read(sata_cmd.lba, sata_cmd.sector_count);
+		else
+			ftl_write(sata_cmd.lba, sata_cmd.sector_count);
+	}
+	return TRUE;
+}
+#endif
 
 BOOL8 ftl_main(void)
 {
