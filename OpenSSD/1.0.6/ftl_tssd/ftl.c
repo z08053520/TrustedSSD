@@ -99,7 +99,7 @@ void ftl_open(void) {
 
 	enable_irq();
 
-	uart_print("ftl_open done 2\r\n");
+	uart_print("ftl_open done \r\n");
 }
 
 
@@ -110,6 +110,7 @@ BOOL8 ftl_all_sata_cmd_accepted()
 	return sata_cmd.sector_count == 0 && !sata_has_next_rw_cmd();
 }
 
+/* FIXME: what if these counter overflow ? */
 extern UINT32 g_num_ftl_read_tasks_submitted;
 extern UINT32 g_num_ftl_read_tasks_finished;
 extern UINT32 g_num_ftl_write_tasks_submitted;
@@ -205,7 +206,7 @@ BOOL8 ftl_main(void)
 		if (sata_cmd.sector_count == 0) {
 			if (!sata_has_next_rw_cmd()) break;
 			sata_get_next_rw_cmd(&sata_cmd);
-
+			ASSERT(sata_cmd.sector_count > 0);
 			/* uart_print("> new %s cmd: lba = %u, sector_count = %u", */
 			/* 	    sata_cmd.cmd_type == READ ? "READ" : "WRITE", */
 			/* 	    sata_cmd.lba, sata_cmd.sector_count); */
@@ -278,6 +279,8 @@ void ftl_flush(void) {
 }
 
 void ftl_isr(void) {
+	uart_print("BSP interrupt occured...");
+
 	// interrupt service routine for flash interrupts
 	UINT32 bank;
 	UINT32 bsp_intr_flag;
@@ -288,19 +291,16 @@ void ftl_isr(void) {
 
 		bsp_intr_flag = BSP_INTR(bank);
 
-		if (bsp_intr_flag == 0)
-		{
-			continue;
-		}
+		if (bsp_intr_flag == 0) continue;
 
 		UINT32 fc = GETREG(BSP_CMD(bank));
-
+		// BSP clear
 		CLR_BSP_INTR(bank, bsp_intr_flag);
 
 		if (bsp_intr_flag & FIRQ_DATA_CORRUPT)
 		{
 //			g_read_fail_count++;
-			WARNING("warning", "flash read failure");
+			uart_print("warning: flash read failure");
 		}
 
 		if (bsp_intr_flag & (FIRQ_BADBLK_H | FIRQ_BADBLK_L))
@@ -308,13 +308,13 @@ void ftl_isr(void) {
 			if (fc == FC_COL_ROW_IN_PROG || fc == FC_IN_PROG || fc == FC_PROG)
 			{
 //				g_program_fail_count++;
-				WARNING("warning", "flash program failure");
+				uart_print("warning: flash program failure");
 			}
 			else
 			{
 				ASSERT(fc == FC_ERASE);
 //				g_erase_fail_count++;
-				WARNING("warning", "flash erase failure");
+				uart_print("warning: flash erase failure");
 			}
 		}
 	}

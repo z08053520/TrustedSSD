@@ -74,7 +74,7 @@
  * the result of FTL read when verification is possible. This built-in
  * verificaiton mechanism simplifies the implementation of FTL unit test.
  */
-#define OPTION_FTL_VERIFY		0
+#define OPTION_FTL_VERIFY		1
 #endif
 
 

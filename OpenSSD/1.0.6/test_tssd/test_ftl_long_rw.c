@@ -15,16 +15,15 @@
 	#define debug(format, ...)
 #endif
 
+#define MAX_UINT32	0xFFFFFFFF
+#define KB		1024
+#define MB		(KB * KB)
+#define GB		(MB * KB)
+#define RAND_SEED	1234567
+
 extern BOOL8 eventq_put(UINT32 const lba, UINT32 const num_sectors,
 			UINT32 const cmd_type);
 extern BOOL8 ftl_all_sata_cmd_accepted();
-
-/* DRAM buffer to remember every requests first issued and then verified */
-#define REQ_LBA_BUF_ADDR	TEMP_BUF_ADDR
-#define REQ_SIZE_BUF_ADDR	HIL_BUF_ADDR
-SETUP_BUF(req_lba, 		REQ_LBA_BUF_ADDR, 	SECTORS_PER_PAGE);
-SETUP_BUF(req_size,		REQ_SIZE_BUF_ADDR, 	SECTORS_PER_PAGE);
-#define MAX_NUM_REQS		(BYTES_PER_PAGE / sizeof(UINT32))
 
 #if OPTION_FTL_VERIFY != 1
 	#error FTL verification is not enabled
@@ -65,8 +64,8 @@ typedef struct {
 		.max_lba = MAX_LBA,		\
 		.min_req_size = 1,		\
 		.max_req_size = 128,		\
-		.max_num_reqs = MAX_NUM_REQS,	\
-		.max_wr_bytes = 1048 * MB,	\
+		.max_num_reqs = MAX_UINT32,	\
+		.max_wr_bytes = 256 * MB,	\
 		.read_percent = 0		\
 	}
 
@@ -144,16 +143,17 @@ void do_flash_write(UINT32 const lba, UINT8 const req_sectors)
 		ftl_main();
 }
 
-void do_seq_rw_test(rw_case_t *rw_case)
+void do_long_rw_test(rw_case_t *rw_case)
 {
 	UINT32  total_sectors = 0;
 	timer_reset();
 
 	rw_case->read_percent = MIN(rw_case->read_percent, 100);
-	rw_case->max_num_reqs = MIN(rw_case->max_num_reqs, MAX_NUM_REQS);
 
 	/* first write sequentiallly */
-	UINT32 lba = rw_case->min_lba, req_size;
+	srand(RAND_SEED);
+	UINT32 lba = rw_case->min_lba,
+	       req_size = (rw_case->min_req_size + rw_case->max_req_size) / 2;
 	UINT32 num_reqs = 0, wr_bytes = 0;
 	BOOL8 is_read;
 	read_res_0xFFFFFFFF = TRUE;
@@ -161,16 +161,11 @@ void do_seq_rw_test(rw_case_t *rw_case)
 		lba < rw_case->max_lba &&
 		num_reqs < rw_case->max_num_reqs) {
 		/* do flash write */
-		req_size = random(rw_case->min_req_size,
-				rw_case->max_req_size);
 		is_read = (rand() % 100) < rw_case->read_percent;
 		if (is_read)
 			do_flash_read(lba, req_size);
 		else {
 			do_flash_write(lba, req_size);
-			/* remember write requests to verify later */
-			set_req_lba(num_reqs, lba);
-			set_req_size(num_reqs, req_size);
 
 			num_reqs++;
 			wr_bytes += req_size * BYTES_PER_SECTOR;
@@ -184,13 +179,28 @@ void do_seq_rw_test(rw_case_t *rw_case)
 	}
 	finish_all();
 
-	/* then read sequentiallly */
+	/* then read sequentially */
+	srand(RAND_SEED);
 	read_res_0xFFFFFFFF = FALSE;
-	for (UINT32 req_i = 0; req_i < num_reqs; req_i++) {
-		lba = get_req_lba(req_i);
-		req_size = get_req_size(req_i);
+	lba = rw_case->min_lba;
+	num_reqs = 0;
+	UINT32 rd_bytes = 0;
+	while (rd_bytes < rw_case->max_wr_bytes &&
+		lba < rw_case->max_lba &&
+		num_reqs < rw_case->max_num_reqs) {
+		/* skip read cmd */
+		is_read = (rand() % 100) < rw_case->read_percent;
+		if (is_read) goto next;
+
+		/* check write cmd */
 		do_flash_read(lba, req_size);
 
+		num_reqs++;
+		rd_bytes += req_size * BYTES_PER_SECTOR;
+next:
+		/* for next */
+		lba += req_size;
+		/* update statisitcs */
 		total_sectors += req_size;
 	}
 	finish_all();
@@ -202,28 +212,17 @@ void do_seq_rw_test(rw_case_t *rw_case)
 			seconds, mb);
 }
 
-#define MAX_UINT32	0xFFFFFFFF
-#define KB		1024
-#define MB		(KB * KB)
-#define GB		(MB * KB)
-#define RAND_SEED	123456
-
 void ftl_test()
 {
 	uart_print("Start FTL seq r/w test");
 
-	srand(RAND_SEED);
-	init_req_lba_buf(0);
-	init_req_size_buf(0);
-
 	declare_rw_case(rw_case);
 	rw_case.min_req_size = 8;
 	rw_case.max_req_size = 8;
-	/* rw_case.max_req_size = 128; */
 	rw_case.min_lba = 655650;
 	rw_case.read_percent = 50;
 
-	do_seq_rw_test(&rw_case);
+	do_long_rw_test(&rw_case);
 
 	uart_print("FTL passed unit test ^_^");
 }
