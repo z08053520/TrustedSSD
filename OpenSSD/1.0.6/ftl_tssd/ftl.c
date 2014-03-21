@@ -99,7 +99,7 @@ void ftl_open(void) {
 
 	enable_irq();
 
-	uart_print("ftl_open done\r\n");
+	uart_print("ftl_open done 2\r\n");
 }
 
 

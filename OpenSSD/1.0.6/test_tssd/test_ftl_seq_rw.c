@@ -27,6 +27,7 @@ SETUP_BUF(req_size,		REQ_SIZE_BUF_ADDR, 	SECTORS_PER_PAGE);
 #define MAX_NUM_REQS		(BYTES_PER_PAGE / sizeof(UINT32))
 
 /* FTL read thread evokes this function to verify the result in SATA read buf */
+static BOOL8 read_res_0xFFFFFFFF = FALSE;
 void ftl_verify(UINT32 const lpn, UINT8 const sect_offset,
 		UINT8 const num_sectors, UINT32 const sata_rd_buf)
 {
@@ -36,7 +37,8 @@ void ftl_verify(UINT32 const lpn, UINT8 const sect_offset,
 	UINT32 curr_lba = lpn * SECTORS_PER_PAGE + sect_offset;
 	UINT8 sect_i = sect_offset, sect_end = sect_offset + num_sectors;
 	while (sect_i < sect_end) {
-		UINT32 expected_sect_val = curr_lba;
+		UINT32 expected_sect_val = read_res_0xFFFFFFFF ?
+						0xFFFFFFFF : curr_lba;
 		BUG_ON("Verification failed",
 			is_buff_wrong(sata_rd_buf, expected_sect_val,
 					sect_i, 1));
@@ -50,6 +52,7 @@ typedef struct {
 	UINT32	min_lba, max_lba;
 	UINT32	min_req_size, max_req_size;
 	UINT32	max_num_reqs, max_wr_bytes;
+	UINT32	read_percent; /* 0 - 100 */
 } rw_case_t;
 
 #define declare_rw_case(name)			\
@@ -59,7 +62,8 @@ typedef struct {
 		.min_req_size = 1,		\
 		.max_req_size = 128,		\
 		.max_num_reqs = MAX_NUM_REQS,	\
-		.max_wr_bytes = 512 * MB	\
+		.max_wr_bytes = 1048 * MB,	\
+		.read_percent = 0		\
 	}
 
 void finish_all()
@@ -141,18 +145,25 @@ void do_seq_rw_test(rw_case_t *rw_case)
 	UINT32  total_sectors = 0;
 	timer_reset();
 
+	rw_case->read_percent = MIN(rw_case->read_percent, 100);
 	rw_case->max_num_reqs = MIN(rw_case->max_num_reqs, MAX_NUM_REQS);
 
 	/* first write sequentiallly */
 	UINT32 lba = rw_case->min_lba, req_size;
 	UINT32 num_reqs = 0, wr_bytes = 0;
+	BOOL8 is_read;
+	read_res_0xFFFFFFFF = TRUE;
 	while (wr_bytes < rw_case->max_wr_bytes &&
 		lba < rw_case->max_lba &&
 		num_reqs < rw_case->max_num_reqs) {
 		/* do flash write */
 		req_size = random(rw_case->min_req_size,
 				rw_case->max_req_size);
-		do_flash_write(lba, req_size);
+		is_read = (rand() % 100 ) < rw_case->read_percent;
+		if (is_read)
+			do_flash_read(lba, req_size);
+		else
+			do_flash_write(lba, req_size);
 
 		/* remember write requests to verify later */
 		set_req_lba(num_reqs, lba);
@@ -169,6 +180,7 @@ void do_seq_rw_test(rw_case_t *rw_case)
 	finish_all();
 
 	/* then read sequentiallly */
+	read_res_0xFFFFFFFF = FALSE;
 	for (UINT32 req_i = 0; req_i < num_reqs; req_i++) {
 		lba = get_req_lba(req_i);
 		req_size = get_req_size(req_i);
@@ -203,6 +215,8 @@ void ftl_test()
 	/* rw_case.min_req_size = 64; */
 	/* rw_case.max_req_size = 4; */
 	/* rw_case.max_req_size = 128; */
+	rw_case.min_lba = 655350;
+	rw_case.read_percent = 50;
 
 	do_seq_rw_test(&rw_case);
 
