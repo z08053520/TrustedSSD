@@ -273,7 +273,9 @@ typedef union {
 
 void delay(UINT32 const count);
 
-typedef UINT16		user_id_t;
+typedef UINT16			user_id_t;
+#define NULL_USER_ID		((user_id_t)0xFFFF)
+#define DEFAULT_USER_ID		0
 
 #include "flash.h"
 #include "sata.h"
@@ -367,13 +369,13 @@ scan_list_t;
 	/* 	}\ */
 	/* } while(0); */
 
-	/* #define BUG_ON(MESSAGE, COND) do {\ */
-	/* 	if (COND) {\ */
-	/* 		uart_print("bug on");\ */
-	/* 		while(1);\ */
-	/* 	}\ */
-	/* } while(0); */
-	#define BUG_ON(MESSAGE, COND)
+	#define BUG_ON(MESSAGE, COND) do {\
+		if (COND) {\
+			uart_print("bug on");\
+			while(1);\
+		}\
+	} while(0);
+	/* #define BUG_ON(MESSAGE, COND) */
 #else
 	#define LOG(label, ...)
 	#define DEBUG(label, ...)
