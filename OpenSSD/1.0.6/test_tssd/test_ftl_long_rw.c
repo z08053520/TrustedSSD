@@ -1,33 +1,6 @@
 #include "jasmine.h"
 #if OPTION_FTL_TEST
-#include "dram.h"
-#include "ftl.h"
-#include "pmt_thread.h"
-#include "scheduler.h"
-#include "misc.h"
-#include "test_util.h"
-#include <stdlib.h>
-
-/* #define DEBUG_FTL */
-#ifdef DEBUG_FTL
-	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
-#else
-	#define debug(format, ...)
-#endif
-
-#define MAX_UINT32	0xFFFFFFFF
-#define KB		1024
-#define MB		(KB * KB)
-#define GB		(MB * KB)
-#define RAND_SEED	1234567
-
-extern BOOL8 eventq_put(UINT32 const lba, UINT32 const num_sectors,
-			UINT32 const cmd_type);
-extern BOOL8 ftl_all_sata_cmd_accepted();
-
-#if OPTION_FTL_VERIFY != 1
-	#error FTL verification is not enabled
-#endif
+#include "test_ftl_rw_common.h"
 
 /* FTL read thread evokes this function to verify the result in SATA read buf */
 static BOOL8 read_res_0xFFFFFFFF = FALSE;
@@ -69,21 +42,18 @@ typedef struct {
 		.read_percent = 0		\
 	}
 
-void finish_all()
-{
-	BOOL8 idle;
-	do {
-		idle = ftl_main();
-	} while(!idle);
-}
-
 void do_flash_read(UINT32 const lba, UINT8 const req_sectors)
 {
 	debug("do_flash_read: lba = %u, req_sectors = %u",
 			lba, req_sectors);
 
 	/* Put SATA cmds into queue */
+#if OPTION_ACL
+	UINT32 session_key = 0;
+	while(eventq_put(lba, req_sectors, session_key, READ))
+#else
 	while(eventq_put(lba, req_sectors, READ))
+#endif
 		ftl_main();
 	/* Make sure it is accepted and proccessed */
 	while (!ftl_all_sata_cmd_accepted())
@@ -136,7 +106,13 @@ void do_flash_write(UINT32 const lba, UINT8 const req_sectors)
 	}
 
 	/* Put SATA write cmd */
+#if OPTION_ACL
+	/* TODO: use more complicated session key pattern */
+	UINT32 session_key = 0;
+	while(eventq_put(lba, req_sectors, session_key, WRITE))
+#else
 	while(eventq_put(lba, req_sectors, WRITE))
+#endif
 		ftl_main();
 	/* Make sure it is accepted and proccessed */
 	while (!ftl_all_sata_cmd_accepted())

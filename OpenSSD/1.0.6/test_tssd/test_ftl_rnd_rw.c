@@ -1,23 +1,6 @@
 #include "jasmine.h"
 #if OPTION_FTL_TEST
-#include "dram.h"
-#include "ftl.h"
-#include "pmt_thread.h"
-#include "scheduler.h"
-#include "misc.h"
-#include "test_util.h"
-#include <stdlib.h>
-
-/* #define DEBUG_FTL */
-#ifdef DEBUG_FTL
-	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
-#else
-	#define debug(format, ...)
-#endif
-
-extern BOOL8 eventq_put(UINT32 const lba, UINT32 const num_sectors,
-			UINT32 const cmd_type);
-extern BOOL8 ftl_all_sata_cmd_accepted();
+#include "test_ftl_rw_common.h"
 
 /* DRAM buffer to remember the value of every sector from 0 to BUF_SIZE */
 #define SECTOR_VAL_BUF_ADDR	HIL_BUF_ADDR
@@ -70,21 +53,18 @@ typedef struct {
 		.max_wr_bytes = 512 * MB	\
 	}
 
-void finish_all()
-{
-	BOOL8 idle;
-	do {
-		idle = ftl_main();
-	} while(!idle);
-}
-
 void do_flash_read(UINT32 const lba, UINT8 const req_sectors)
 {
 	debug("do_flash_read: lba = %u, req_sectors = %u",
 			lba, req_sectors);
 
 	/* Put SATA cmds into queue */
+#if OPTION_ACL
+	UINT32 session_key = 0;
+	while(eventq_put(lba, req_sectors, session_key, READ))
+#else
 	while(eventq_put(lba, req_sectors, READ))
+#endif
 		ftl_main();
 	/* Make sure it is accepted and proccessed */
 	while (!ftl_all_sata_cmd_accepted())
@@ -139,7 +119,13 @@ void do_flash_write(UINT32 const lba, UINT8 const req_sectors)
 	}
 
 	/* Put SATA write cmd */
+#if OPTION_ACL
+	/* TODO: use more complicated session key pattern */
+	UINT32 session_key = 0;
+	while(eventq_put(lba, req_sectors, session_key, WRITE))
+#else
 	while(eventq_put(lba, req_sectors, WRITE))
+#endif
 		ftl_main();
 	/* Make sure it is accepted and proccessed */
 	while (!ftl_all_sata_cmd_accepted())
@@ -198,12 +184,6 @@ void do_rnd_rw_test(rw_case_t *rw_case)
 	uart_print("Summary: %u seconds used; %u MB data written and read.",
 			seconds, mb);
 }
-
-#define MAX_UINT32	0xFFFFFFFF
-#define KB		1024
-#define MB		(KB * KB)
-#define GB		(MB * KB)
-#define RAND_SEED	123456
 
 void ftl_test()
 {

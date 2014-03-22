@@ -1,28 +1,6 @@
 #include "jasmine.h"
 #if OPTION_FTL_TEST
-#include "dram.h"
-#include "ftl.h"
-#include "pmt_thread.h"
-#include "scheduler.h"
-#include "misc.h"
-#include "test_util.h"
-#include <stdlib.h>
-
-/* #define DEBUG_FTL */
-#ifdef DEBUG_FTL
-	#define debug(format, ...)	uart_print(format, ##__VA_ARGS__)
-#else
-	#define debug(format, ...)
-#endif
-
-#if OPTION_ACL
-extern BOOL8 eventq_put(UINT32 const lba, UINT32 const num_sectors,
-			UINT32 const session_key, UINT32 const cmd_type);
-#else
-extern BOOL8 eventq_put(UINT32 const lba, UINT32 const num_sectors,
-			UINT32 const cmd_type);
-#endif
-extern BOOL8 ftl_all_sata_cmd_accepted();
+#include "test_ftl_rw_common.h"
 
 /* DRAM buffer to remember every requests first issued and then verified */
 #define REQ_LBA_BUF_ADDR	TEMP_BUF_ADDR
@@ -30,10 +8,6 @@ extern BOOL8 ftl_all_sata_cmd_accepted();
 SETUP_BUF(req_lba, 		REQ_LBA_BUF_ADDR, 	SECTORS_PER_PAGE);
 SETUP_BUF(req_size,		REQ_SIZE_BUF_ADDR, 	SECTORS_PER_PAGE);
 #define MAX_NUM_REQS		(BYTES_PER_PAGE / sizeof(UINT32))
-
-#if OPTION_FTL_VERIFY != 1
-	#error FTL verification is not enabled
-#endif
 
 /* FTL read thread evokes this function to verify the result in SATA read buf */
 static BOOL8 read_res_0xFFFFFFFF = FALSE;
@@ -74,14 +48,6 @@ typedef struct {
 		.max_wr_bytes = 256 * MB,	\
 		.read_percent = 0		\
 	}
-
-void finish_all()
-{
-	BOOL8 idle;
-	do {
-		idle = ftl_main();
-	} while(!idle);
-}
 
 void do_flash_read(UINT32 const lba, UINT8 const req_sectors)
 {
@@ -217,12 +183,6 @@ void do_seq_rw_test(rw_case_t *rw_case)
 	uart_print("Summary: %u seconds used; %u MB data written and read.",
 			seconds, mb);
 }
-
-#define MAX_UINT32	0xFFFFFFFF
-#define KB		1024
-#define MB		(KB * KB)
-#define GB		(MB * KB)
-#define RAND_SEED	123456
 
 void ftl_test()
 {
