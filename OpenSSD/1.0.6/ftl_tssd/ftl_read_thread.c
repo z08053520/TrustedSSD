@@ -76,17 +76,16 @@ begin_thread_handler
 phase(BUFFER_PHASE) {
 	var(target_sectors) = init_mask(var(sect_offset), var(num_sectors));
 
-	UINT32 		wr_buf;
-	sectors_mask_t	valid_sectors;
-	write_buffer_get(var(lpn), &wr_buf, &valid_sectors);
-	if (wr_buf == NULL) goto_phase(LOCK_PHASE);
-
-	sectors_mask_t	common_sectors = valid_sectors & var(target_sectors);
-	if (common_sectors) {
-		fla_copy_buffer(sata_rd_buf, wr_buf, common_sectors);
-		var(target_sectors) &= ~common_sectors;
+	sectors_mask_t valid_sectors =
+		write_buffer_pull(var(lpn), var(target_sectors),
+#if OPTION_ACL
+				var(uid),
+#endif
+				sata_rd_buf);
+	if (valid_sectors) {
+		var(target_sectors) &= ~valid_sectors;
+		if (var(target_sectors) == 0) goto_phase(SATA_PHASE);
 	}
-	if (var(target_sectors) == 0) goto_phase(SATA_PHASE);
 }
 phase(LOCK_PHASE) {
 	if (lock_page(var(lpn), PAGE_LOCK_READ) != PAGE_LOCK_READ)

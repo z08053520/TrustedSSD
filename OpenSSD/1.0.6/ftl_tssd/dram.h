@@ -62,13 +62,16 @@
  * Read and Write Buffers
  * ========================================================================= */
 
-#define NUM_READ_BUFFERS	1
+#define NUM_READ_BUFFERS	2
 #define NUM_WRITE_BUFFERS	8
 
 #define READ_BUF_ADDR		GTD_END
 #define READ_BUF_BYTES		(NUM_READ_BUFFERS * BYTES_PER_PAGE)
 #define READ_BUF_END		(READ_BUF_ADDR + READ_BUF_BYTES)
 #define READ_BUF(i)		(READ_BUF_ADDR + BYTES_PER_PAGE * (i))
+
+#define ALL_ONE_BUF		READ_BUF(0)
+#define ALL_ZERO_BUF		READ_BUF(1)
 
 /* Write buffer use managed buffer */
 

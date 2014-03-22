@@ -65,18 +65,28 @@ phase(BUFFER_PHASE) {
 
 	/* put partial page to write buffer */
 	if (var(num_sectors) < SECTORS_PER_PAGE) {
+#if OPTION_ACL
+		user_id_t push_buf_uid = var(uid);
+#endif
 		/* flush write buffer if it is full*/
 		if (write_buffer_is_full()) {
 			UINT8 managed_buf_id = NULL_BUF_ID;
-			write_buffer_flush(&managed_buf_id, var(sp_lpn),
-						&var(valid_sectors));
+			write_buffer_flush(&managed_buf_id,
+					&var(valid_sectors),
+#if OPTION_ACL
+					&var(uid),
+#endif
+					var(sp_lpn));
 			ASSERT(managed_buf_id < NUM_MANAGED_BUFFERS);
 			ASSERT(var(valid_sectors) != 0);
 
 			var(buf) = MANAGED_BUF(managed_buf_id);
 		}
 
-		write_buffer_put(var(lpn), var(sect_offset),
+		write_buffer_push(var(lpn), var(sect_offset),
+#if OPTION_ACL
+				push_buf_uid,
+#endif
 				var(num_sectors), sata_wr_buf);
 
 		if (var(buf) == NULL) goto_phase(SATA_PHASE);

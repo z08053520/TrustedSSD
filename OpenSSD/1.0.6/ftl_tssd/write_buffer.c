@@ -4,6 +4,7 @@
 #include "mem_util.h"
 #include "fla.h"
 #include "buffer.h"
+#include "fla.h"
 
 /* ========================================================================= *
  * Macros, Data Structure and Gloal Variables
@@ -26,6 +27,9 @@ static UINT8		buf_managed_ids[NUM_WRITE_BUFFERS]; /* buf id -->
 							       managed buf id */
 static sectors_mask_t 	buf_masks[NUM_WRITE_BUFFERS]; /* 1 - occupied; 0 - available */
 static UINT8		buf_sizes[NUM_WRITE_BUFFERS];
+#if OPTION_ACL
+static user_id_t	buf_uids[NUM_WRITE_BUFFERS];
+#endif
 
 #define next_buf_id(buf_id)		(((buf_id) + 1) % NUM_WRITE_BUFFERS)
 
@@ -43,18 +47,20 @@ void free_buf(buf_id_t const buf_id)
 	UINT8 buf_managed_id = buf_managed_ids[buf_id];
 	buffer_free(buf_managed_id);
 	buf_managed_ids[buf_id] = NULL_BUF_ID;
+#if OPTOIN_ACL
+	buf_uids[buf_id] = NULL_USER_ID;
+#endif
 	num_clean_buffers++;
 }
 
 /* For each logical page which has some part in write buffer, three fields are
  * maintained: lpn, valid sector mask and buffer id. */
-#define MAX_NUM_LPNS			(8 * NUM_WRITE_BUFFERS)
+#define MAX_NUM_LPNS			(SUB_PAGES_PER_PAGE * NUM_WRITE_BUFFERS)
 #define NULL_LPN			0xFFFFFFFF
 static UINT32		num_lpns;
 static UINT32		lpns[MAX_NUM_LPNS];
 static sectors_mask_t 	lp_masks[MAX_NUM_LPNS]; /* 1 - in buff; 0 - not in buff  */
 static buf_id_t		lp_buf_ids[MAX_NUM_LPNS];
-
 
 /* ========================================================================= *
  * Private Functions
@@ -89,30 +95,60 @@ static void buf_mask_remove(UINT32 const buf_id,
 
 	buf_masks[buf_id] &= ~lp_mask_aligned;
 	buf_sizes[buf_id] = count_sectors(buf_masks[buf_id]);
+
+	if (buf_sizes[buf_id] == 0) free_buf(old_buf_id);
 }
 
-static BOOL8 find_index_of_lpn(UINT32 const lpn, UINT32 *lpn_idx)
+#if OPTION_ACL
+static BOOL8 next_index_of_lpn(UINT32 const lpn, UINT32 *lp_idx)
 {
-	UINT32 idx = mem_search_equ_sram(lpns, sizeof(UINT32), MAX_NUM_LPNS, lpn);
-	if (idx >= MAX_NUM_LPNS) return FALSE;
+	static UINT32 next_lp_idx = 0;
+	while (next_lp_idx < MAX_NUM_LPNS &&
+		lpns[next_lp_idx] != lpn) next_lp_idx++;
 
-	*lpn_idx = idx;
+	if (next_lp_idx == MAX_NUM_LPNS) {
+		next_lp_idx = 0;
+		return FALSE;
+	}
+
+	*lp_idx = next_lp_idx++;
 	return TRUE;
 }
 
-static void remove_lpn_by_index(UINT32 const lpn_idx)
+static BOOL8 find_index_of_lpn_with_uid( UINT32 const lpn,
+			user_id_t const uid, UINT32 *lp_idx)
 {
-	BUG_ON("out of bound", lpn_idx >= MAX_NUM_LPNS);
+	while (next_index_of_lpn(lpn, lp_idx)) {
+		buf_id_t buf_id = lp_buf_ids[*lp_idx];
+		if (buf_uids[buf_id] == uid) return TRUE;
+	}
+	return FALSE;
+}
+#endif
 
-	sectors_mask_t mask     = lp_masks[lpn_idx];
-	buf_id_t bid     	= lp_buf_ids[lpn_idx];
+static BOOL8 find_index_of_lpn(UINT32 const lpn, UINT32 *lp_idx)
+{
+	UINT32 idx = mem_search_equ_sram(lpns, sizeof(UINT32),
+					MAX_NUM_LPNS, lpn);
+	if (idx >= MAX_NUM_LPNS) return FALSE;
+
+	*lp_idx = idx;
+	return TRUE;
+}
+
+static void remove_lp_by_index(UINT32 const lp_idx)
+{
+	BUG_ON("out of bound", lp_idx >= MAX_NUM_LPNS);
+
+	sectors_mask_t mask     = lp_masks[lp_idx];
+	buf_id_t bid     	= lp_buf_ids[lp_idx];
 	BUG_ON("invalid bid", bid >= NUM_WRITE_BUFFERS);
 
 	buf_mask_remove(bid, mask);
 
-	lpns[lpn_idx]  		= NULL_LPN;
-	lp_masks[lpn_idx] 	= 0;
-	lp_buf_ids[lpn_idx] 	= NULL_BID;
+	lpns[lp_idx]  		= NULL_LPN;
+	lp_masks[lp_idx] 	= 0;
+	lp_buf_ids[lp_idx] 	= NULL_BID;
 
 	num_lpns--;
 }
@@ -177,27 +213,40 @@ static void dump_state()
 	uart_print("");
 }
 
-static UINT8 allocate_buffer_for(sectors_mask_t const mask)
+static UINT8 allocate_buffer_for(sectors_mask_t const mask,
+				user_id_t const uid)
 {
-	UINT8 new_buf_id = head_buf_id;
+	buf_id_t new_buf_id = head_buf_id;
 	do {
+#if OPTION_ACL
+		if (buf_masks[new_buf_id] == 0) {
+			ASSERT(buf_uids[new_buf_id] == NULL_USER_ID);
+			allocate_buf(new_buf_id);
+			buf_uids[new_buf_id] = uid;
+			return new_buf_id;
+		}
+		else if (buf_uids[new_buf_id] == uid &&
+				(buf_masks[new_buf_id] & mask) == 0)
+			return new_buf_id;
+#else
 		if ((buf_masks[new_buf_id] & mask) == 0) {
 			if (buf_masks[new_buf_id] == 0)
 				allocate_buf(new_buf_id);
 			return new_buf_id;
 		}
+#endif
 		new_buf_id = next_buf_id(new_buf_id);
 	} while (new_buf_id != head_buf_id);
-	BUG_ON("no free buffer to allocate", 1);
+	ASSERT(0);
 	return NULL_BID;
 }
 
-static UINT32 get_free_lpn_index()
+static UINT32 get_free_lp_index()
 {
-	UINT32 free_lpn_idx;
-	BOOL8  res = find_index_of_lpn(NULL_LPN, &free_lpn_idx);
+	UINT32 free_lp_idx;
+	BOOL8  res = find_index_of_lpn(NULL_LPN, &free_lp_idx);
 	BUG_ON("no available slot for new lpn", res == FALSE);
-	return free_lpn_idx;
+	return free_lp_idx;
 }
 
 /* ========================================================================= *
@@ -228,44 +277,104 @@ void write_buffer_init()
 	for (i = 0; i < NUM_WRITE_BUFFERS; i++) {
 		buf_sizes[i] = 0;
 		buf_managed_ids[i] = NULL_BUF_ID;
+#if OPTION_ACL
+		buf_uids[i] = NULL_USER_ID;
+#endif
 	}
 }
 
-void write_buffer_get(UINT32 const lpn,
-		      UINT32 *buf,
-		      sectors_mask_t *valid_sectors)
+sectors_mask_t write_buffer_pull(UINT32 const lpn,
+				sectors_mask_t const target_sectors,
+#if OPTION_ACL
+				user_id_t const uid,
+#endif
+				UINT32 const to_buf)
 {
-	UINT32 	lpn_idx;
-	if(!find_index_of_lpn(lpn, &lpn_idx)) {
-		*buf = NULL;
-		return;
-	}
+#if OPTION_ACL
+	sectors_mask_t valid_sectors = 0;
+	UINT32 lp_idx;
+	while (next_index_of_lpn(lpn, &lp_idx)) {
+		buf_id_t lp_buf_id	= lp_buf_ids[lp_idx];
+		user_id_t buf_uid	= buf_uids[lp_buf_id];
+		sectors_mask_t lp_valid_sectors = lp_masks[lp_idx];
 
-	*buf = WRITE_BUF(lp_buf_ids[lpn_idx]);
-	*valid_sectors = lp_masks[lpn_idx];
+		sectors_mask_t copied_sectors;
+		UINT32 from_buf;
+		if (buf_uid == uid) {
+			copied_sectors = lp_valid_sectors & target_sectors;
+			from_buf = WRITE_BUF(lp_buf_id);
+		}
+		else {
+			/* the granularity of access control is sub-page */
+			buf_mask_align_to_sp(&lp_valid_sectors);
+			ASSERT((valid_sectors & lp_valid_sectors) == 0);
+			copied_sectors = lp_valid_sectors & target_sectors;
+			/* fill the sectors that cannot be authorized with 0s */
+			from_buf = ALL_ZERO_BUF;
+		}
+		fla_copy_buffer(to_buf, from_buf, copied_sectors);
+		valid_sectors |= copied_sectors;
+	}
+	return valid_sectors;
+#else
+	UINT32 lp_idx;
+	if (!find_index_of_lpn(lpn, &lp_idx)) return 0;
+
+	UINT32 from_buf = WRITE_BUF(lp_buf_ids[lp_idx]);
+	sectors_mask_t valid_sectors = lp_masks[lp_idx];
+	fla_copy_buffer(to_buf, from_buf, valid_sectors);
+	return valid_sectors;
+#endif
 }
 
-void write_buffer_put(UINT32 const lpn,
+void write_buffer_push(UINT32 const lpn,
 		      UINT8  const sector_offset,
 		      UINT8  const num_sectors,
-		      UINT32 const buf)
+#if OPTION_ACL
+		      user_id_t const uid,
+#endif
+		      UINT32 const from_buf)
 {
 	if (num_sectors == 0) return;
-	BUG_ON("buffer is full!", write_buffer_is_full());
-
-	/* uart_print("before put"); */
-	/* dump_state(); */
+	ASSERT(!write_buffer_full());
 
 	sectors_mask_t  lp_new_mask = init_mask(sector_offset, num_sectors);
-	buf_id_t	new_buf_id  = NULL_BID;
+#if OPTION_ACL
+	/* access control works on sub-page granualarity */
+	sectors_mask_t	lp_new_mask_align_to_sp = lp_new_mask;
+	buf_mask_align_to_sp(&lp_new_mask_align_to_sp);
 
-	// DEBUG
-	/* uart_printf("lpn = %u, offset = %u, num_sectors = %u\r\n", lpn, sector_offset, num_sectors); */
-	/* uart_printf("lp_new_mask = ");uart_print_hex_64(lp_new_mask); */
-
-	// Try to merge with the same lpn in the buffer
+	/* remove common part of this page from other users' buffers */
 	UINT32 lp_idx;
+	while (next_index_of_lpn(lpn, &lp_idx)) {
+		buf_id_t lp_buf_id = lp_buf_ids[lp_idx];
+		user_id_t buf_uid = buf_uids[lp_buf_id];
+		if (buf_uid == uid) continue;
+
+		sectors_mask_t	lp_old_mask_other_usr = lp_masks[lp_idx];
+		sectors_mask_t	removal_common_mask =
+					lp_new_mask_align_to_sp &
+					lp_old_mask_other_usr;
+		sectors_mask_t	lp_new_mask_other_usr =
+					lp_old_mask_other_usr &
+					~(removal_common_mask);
+		if (lp_new_mask_other_usr) {
+			lp_masks[lp_idx] = lp_new_mask_other_usr;
+			buf_mask_remove(lp_buf_id, removal_common_mask);
+		}
+		else {
+			remove_lp_by_index(lp_idx);
+		}
+	}
+#endif
+	// Try to merge with the same lpn in the buffer
+	buf_id_t	new_buf_id  = NULL_BID;
+	UINT32 lp_idx;
+#if OPTION_ACL
+	if (find_index_of_lpn_with_uid(lpn, uid, &lp_idx)) {
+#else
 	if (find_index_of_lpn(lpn, &lp_idx)) {
+#endif
 		sectors_mask_t	lp_old_mask  = lp_masks[lp_idx];
 		buf_id_t	old_buf_id   = lp_buf_ids[lp_idx];
 		sectors_mask_t 	old_buf_mask = buf_masks[old_buf_id];
@@ -282,7 +391,11 @@ void write_buffer_put(UINT32 const lpn,
 			// we need to find another buffer that fits both
 			// old & new data
 			sectors_mask_t merged_mask = lp_old_mask | lp_new_mask;
+#if OPTION_ACL
+			new_buf_id = allocate_buffer_for(merged_mask, uid);
+#else
 			new_buf_id = allocate_buffer_for(merged_mask);
+#endif
 
 			// move useful part of old data to new buffer
 			sectors_mask_t old_useful_mask = lp_old_mask & rvs_common_mask;
@@ -292,7 +405,6 @@ void write_buffer_put(UINT32 const lpn,
 
 			// update old buffer
 			buf_mask_remove(old_buf_id, lp_old_mask);
-			if (buf_sizes[old_buf_id] == 0) free_buf(old_buf_id);
 
 			// Update new buffer
 			buf_mask_add(new_buf_id, old_useful_mask);
@@ -303,71 +415,60 @@ void write_buffer_put(UINT32 const lpn,
 	}
 	// New lpn
 	else {
+#if OPTION_ACL
+		new_buf_id 	   = allocate_buffer_for(lp_new_mask, uid);
+#else
 		new_buf_id 	   = allocate_buffer_for(lp_new_mask);
+#endif
 
-		lp_idx	   	   = get_free_lpn_index();
+		lp_idx	   	   = get_free_lp_index();
 		lpns[lp_idx]	   = lpn;
 		lp_masks[lp_idx]   = lp_new_mask;
 		lp_buf_ids[lp_idx] = new_buf_id;
 
 		num_lpns++;
 	}
-
 	// Do insertion
 	fla_copy_buffer(WRITE_BUF(new_buf_id), buf, lp_new_mask);
 	buf_mask_add(new_buf_id, lp_new_mask);
-	/* buf_masks[new_buf_id] |= lp_new_mask; */
-	/* buf_sizes[new_buf_id]  = count_sectors(buf_masks[new_buf_id]); */
-
-	/* DEBUG("write buffer", "buf address = %u", WRITE_BUF(new_buf_id)); */
-	/* uart_printf("lp_new_mask = ");uart_print_hex_64(lp_new_mask); */
-	/* uart_printf("buf_masks[new_buf_id] = ");uart_print_hex_64(buf_masks[new_buf_id]); */
-	/* uart_printf("buf_sizes[new_buf_id] = %u\r\n", buf_sizes[new_buf_id]); */
-
-	/* uart_print("after put"); */
-	/* dump_state(); */
 }
-
-
-#if OPTION_FTL_TEST
-static BOOL8	single_buffer_mode = FALSE;
-void write_buffer_set_mode(BOOL8 const use_single_buffer)
-{
-	single_buffer_mode = use_single_buffer;
-}
-#endif
 
 BOOL8 write_buffer_is_full()
 {
-#if OPTION_FTL_TEST
-	return 	(num_lpns == MAX_NUM_LPNS) ||
-		(single_buffer_mode  && (num_clean_buffers < NUM_WRITE_BUFFERS)) ||
-		(!single_buffer_mode && (num_clean_buffers == 0));
-#else
 	return num_lpns == MAX_NUM_LPNS || num_clean_buffers == 0;
-#endif
 }
 
 void write_buffer_drop(UINT32 const lpn)
 {
-	UINT32 lpn_idx;
-	if(!find_index_of_lpn(lpn, &lpn_idx)) return;
-
-	buf_id_t buf_id = lp_buf_ids[lpn_idx];
-	remove_lpn_by_index(lpn_idx);
-
-	if (buf_sizes[buf_id] == 0) free_buf(buf_id);
+	UINT32 lp_idx;
+#if OPTION_ACL
+	while (next_index_of_lpn(lpn, &lp_idx))
+		remove_lp_by_index(lp_idx);
+#else
+	if(!find_index_of_lpn(lpn, &lp_idx)) return;
+	remove_lp_by_index(lp_idx);
+#endif
 }
 
-void write_buffer_flush(UINT8 *flushed_buf_id, UINT32 sp_lpn[SUB_PAGES_PER_PAGE],
-			sectors_mask_t *valid_sectors)
+void write_buffer_flush(UINT8 *flushed_buf_id,
+			sectors_mask_t *valid_sectors,
+#if OPTION_ACL
+			user_id_t *uid,
+#endif
+			UINT32 sp_lpn[SUB_PAGES_PER_PAGE])
 {
 	/* find a vicitim buffer */
 	buf_id_t buf_id = find_fullest_buffer();
 	BUG_ON("flush any empty/invliad  buffer", buf_sizes[buf_id] == 0 ||
 						  buf_id >= NUM_WRITE_BUFFERS);
-	*valid_sectors 	= 0;
 
+	ASSERT(buf_managed_ids[buf_id] != NULL_BUF_ID);
+	*flushed_buf_id = buf_managed_ids[buf_id];
+#if OPION_ACL
+	*uid = buf_uids[buf_id];
+#endif
+
+	*valid_sectors 	= 0;
 	mem_set_sram(sp_lpn, NULL_LPN, sizeof(UINT32) * SUB_PAGES_PER_PAGE);
 
 	UINT32  lpn_i   = 0;
@@ -393,24 +494,18 @@ void write_buffer_flush(UINT8 *flushed_buf_id, UINT32 sp_lpn[SUB_PAGES_PER_PAGE]
 		}
 
 		// remove the lpn from buffer
-		remove_lpn_by_index(lpn_i);
+		remove_lp_by_index(lpn_i);
 
 		lpn_i++;
 	}
-
-	// Remove buffer
-	BUG_ON("buf mask is not cleared", buf_masks[buf_id] != 0ULL);
-	BUG_ON("buf size is not zero", buf_sizes[buf_id] != 0);
-	*flushed_buf_id = buf_managed_ids[buf_id];
-	ASSERT(*flushed_buf_id != NULL_BUF_ID);
-	buf_managed_ids[buf_id] = NULL_BUF_ID;
-	num_clean_buffers++;
+	ASSERT(buf_masks[buf_id] == 0ULL);
+	ASSERT(buf_sizes[buf_id] == 0);
+	ASSERT(buf_managed_ids[buf_id] == NULL_BUF_ID);
+	ASSERT(buf_uids[buf_id] = NULL_USER_ID);
+	ASSERT(num_clean_buffers > 0);
 
 	if (buf_id == head_buf_id)
 		head_buf_id = next_buf_id(head_buf_id);
-
-	/* uart_print("after flush"); */
-	/* dump_state(); */
 }
 
 // Debug
