@@ -248,7 +248,7 @@ BOOL8 ftl_main(void)
 			.lpn = lpn,
 			.sect_offset = offset,
 			.num_sectors = num_sectors
-#if OPTOIN_ACL
+#if OPTIN_ACL
 			,.uid = acl_skey2uid(sata_cmd.session_key)
 #endif
 		};

@@ -234,7 +234,7 @@ phase(BANK_PHASE) {
 	var(vp).bank	= idle_bank;
 	var(vp).vpn	= gc_allocate_new_vpn(idle_bank, FALSE);
 
-#if OPTOIN_ACL
+#if OPTION_ACL
 	acl_authorize(var(uid), var(vp));
 #endif
 }

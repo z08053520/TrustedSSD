@@ -49,7 +49,7 @@ void free_buf(buf_id_t const buf_id)
 		buffer_free(buf_managed_id);
 		buf_managed_ids[buf_id] = NULL_BUF_ID;
 	}
-#if OPTOIN_ACL
+#if OPTION_ACL
 	buf_uids[buf_id] = NULL_USER_ID;
 #endif
 	num_clean_buffers++;
@@ -508,7 +508,7 @@ void write_buffer_flush(UINT8 *flushed_buf_id,
 	ASSERT(buf_sizes[buf_id] == 0);
 	ASSERT(buf_managed_ids[buf_id] == NULL_BUF_ID);
 #if OPTION_ACL
-	ASSERT(buf_uids[buf_id] = NULL_USER_ID);
+	ASSERT(buf_uids[buf_id] == NULL_USER_ID);
 #endif
 	ASSERT(num_clean_buffers > 0);
 
