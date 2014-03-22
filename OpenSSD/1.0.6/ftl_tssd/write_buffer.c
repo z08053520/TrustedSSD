@@ -45,8 +45,10 @@ void allocate_buf(buf_id_t const buf_id)
 void free_buf(buf_id_t const buf_id)
 {
 	UINT8 buf_managed_id = buf_managed_ids[buf_id];
-	buffer_free(buf_managed_id);
-	buf_managed_ids[buf_id] = NULL_BUF_ID;
+	if (buf_managed_id != NULL_BUF_ID) {
+		buffer_free(buf_managed_id);
+		buf_managed_ids[buf_id] = NULL_BUF_ID;
+	}
 #if OPTOIN_ACL
 	buf_uids[buf_id] = NULL_USER_ID;
 #endif
@@ -144,13 +146,13 @@ static void remove_lp_by_index(UINT32 const lp_idx)
 	buf_id_t bid     	= lp_buf_ids[lp_idx];
 	BUG_ON("invalid bid", bid >= NUM_WRITE_BUFFERS);
 
-	buf_mask_remove(bid, mask);
-
 	lpns[lp_idx]  		= NULL_LPN;
 	lp_masks[lp_idx] 	= 0;
 	lp_buf_ids[lp_idx] 	= NULL_BID;
 
 	num_lpns--;
+
+	buf_mask_remove(bid, mask);
 }
 
 static buf_id_t find_fullest_buffer()
@@ -325,8 +327,9 @@ sectors_mask_t write_buffer_pull(UINT32 const lpn,
 
 	UINT32 from_buf = WRITE_BUF(lp_buf_ids[lp_idx]);
 	sectors_mask_t valid_sectors = lp_masks[lp_idx];
-	fla_copy_buffer(to_buf, from_buf, valid_sectors);
-	return valid_sectors;
+	sectors_mask_t copied_sectors = valid_sectors & target_sectors;
+	fla_copy_buffer(to_buf, from_buf, copied_sectors);
+	return copied_sectors;
 #endif
 }
 
@@ -466,6 +469,7 @@ void write_buffer_flush(UINT8 *flushed_buf_id,
 
 	ASSERT(buf_managed_ids[buf_id] != NULL_BUF_ID);
 	*flushed_buf_id = buf_managed_ids[buf_id];
+	buf_managed_ids[buf_id] = NULL_BUF_ID;
 #if OPION_ACL
 	*uid = buf_uids[buf_id];
 #endif
