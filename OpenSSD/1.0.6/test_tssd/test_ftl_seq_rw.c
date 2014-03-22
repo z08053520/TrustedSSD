@@ -15,8 +15,13 @@
 	#define debug(format, ...)
 #endif
 
+#if OPTION_ACL
+extern BOOL8 eventq_put(UINT32 const lba, UINT32 const num_sectors,
+			UINT32 const session_key, UINT32 const cmd_type);
+#else
 extern BOOL8 eventq_put(UINT32 const lba, UINT32 const num_sectors,
 			UINT32 const cmd_type);
+#endif
 extern BOOL8 ftl_all_sata_cmd_accepted();
 
 /* DRAM buffer to remember every requests first issued and then verified */
@@ -66,7 +71,7 @@ typedef struct {
 		.min_req_size = 1,		\
 		.max_req_size = 128,		\
 		.max_num_reqs = MAX_NUM_REQS,	\
-		.max_wr_bytes = 1048 * MB,	\
+		.max_wr_bytes = 256 * MB,	\
 		.read_percent = 0		\
 	}
 
@@ -84,7 +89,12 @@ void do_flash_read(UINT32 const lba, UINT8 const req_sectors)
 			lba, req_sectors);
 
 	/* Put SATA cmds into queue */
+#if OPTION_ACL
+	UINT32 session_key = 0;
+	while(eventq_put(lba, req_sectors, session_key, READ))
+#else
 	while(eventq_put(lba, req_sectors, READ))
+#endif
 		ftl_main();
 	/* Make sure it is accepted and proccessed */
 	while (!ftl_all_sata_cmd_accepted())
@@ -137,7 +147,13 @@ void do_flash_write(UINT32 const lba, UINT8 const req_sectors)
 	}
 
 	/* Put SATA write cmd */
+#if OPTION_ACL
+	/* TODO: use more complicated session key pattern */
+	UINT32 session_key = 0;
+	while(eventq_put(lba, req_sectors, session_key, WRITE))
+#else
 	while(eventq_put(lba, req_sectors, WRITE))
+#endif
 		ftl_main();
 	/* Make sure it is accepted and proccessed */
 	while (!ftl_all_sata_cmd_accepted())
@@ -217,11 +233,11 @@ void ftl_test()
 	init_req_size_buf(0);
 
 	declare_rw_case(rw_case);
-	rw_case.min_req_size = 8;
-	rw_case.max_req_size = 8;
+	/* rw_case.min_req_size = 8; */
+	/* rw_case.max_req_size = 8; */
 	/* rw_case.max_req_size = 128; */
-	rw_case.min_lba = 655650;
-	rw_case.read_percent = 50;
+	/* rw_case.min_lba = 655650; */
+	rw_case.read_percent = 0;
 
 	do_seq_rw_test(&rw_case);
 

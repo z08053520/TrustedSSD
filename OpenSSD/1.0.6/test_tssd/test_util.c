@@ -39,9 +39,6 @@ static UINT32 _pm_total_bytes;
 extern UINT32 g_flash_read_count, g_flash_write_count;
 extern UINT32 g_pmt_cache_flush_count;
 extern UINT32 g_pmt_cache_load_count;
-#if OPTION_ACL
-extern UINT32 g_sot_cache_miss_count;
-#endif
 #endif
 
 void perf_monitor_reset()
@@ -51,9 +48,6 @@ void perf_monitor_reset()
 	g_flash_read_count = g_flash_write_count = 0;
 	g_pmt_cache_flush_count = 0;
 	g_pmt_cache_load_count = 0;
-#if OPTION_ACL
-	g_sot_cache_miss_count = 0;
-#endif
 #endif
 
 #if OPTION_PROFILING
@@ -87,10 +81,6 @@ void perf_monitor_report()
 			    g_pmt_cache_flush_count);
 		uart_printf("> Total of %u PMT cache load\r\n",
 			    g_pmt_cache_load_count);
-#if OPTION_ACL
-		uart_printf("> Total of %u SOT cache miss count\r\n",
-			    g_sot_cache_miss_count);
-#endif
 	}
 #endif
 

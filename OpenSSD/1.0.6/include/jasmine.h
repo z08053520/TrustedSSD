@@ -65,7 +65,7 @@
  * access control--- of TrustedSSD, which makes the latter unique to all SSD.
  * Use macro OPTION_ACL to enable ACL.
  * */
-#define OPTION_ACL			1
+#define OPTION_ACL			0
 
 #ifdef OPTION_FTL_TEST
 /* About macro OPTION_FTL_VERIFY

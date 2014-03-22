@@ -208,11 +208,9 @@ BOOL8 ftl_main(void)
 			sata_get_next_rw_cmd(&sata_cmd);
 			ASSERT(sata_cmd.sector_count > 0);
 
-			if (sata_cmd.lba % 8 != 0) {
-				uart_print("!!! %s cmd: lba = %u, sector_count = %u",
-					    sata_cmd.cmd_type == READ ? "READ" : "WRITE",
-					    sata_cmd.lba, sata_cmd.sector_count);
-			}
+			/* uart_print("!!! %s cmd: lba = %u, sector_count = %u", */
+			/* 	    sata_cmd.cmd_type == READ ? "READ" : "WRITE", */
+			/* 	    sata_cmd.lba, sata_cmd.sector_count); */
 		}
 
 #if OPTION_FTL_TEST == 0
