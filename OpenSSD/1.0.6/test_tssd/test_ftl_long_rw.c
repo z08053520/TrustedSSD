@@ -214,7 +214,7 @@ next:
 
 void ftl_test()
 {
-	uart_print("Start FTL seq r/w test");
+	uart_print("Start FTL long r/w test");
 
 	declare_rw_case(rw_case);
 	rw_case.min_req_size = 8;
