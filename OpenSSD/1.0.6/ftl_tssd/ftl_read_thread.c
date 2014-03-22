@@ -8,6 +8,9 @@
 #include "signal.h"
 #include "page_lock.h"
 #include "dram.h"
+#if OPTION_ACL
+#include "acl.h"
+#endif
 
 #if OPTION_FTL_VERIFY
 void ftl_verify(UINT32 const lpn, UINT8 const sect_offset,
@@ -34,6 +37,9 @@ typedef struct {
 	BOOL8		is_issued:1;
 	BOOL8		is_done:1;
 	BOOL8		has_holes:1;
+#if OPTION_ACL
+	BOOL8		is_authenticated:1;
+#endif
 	UINT8		managed_buf_id;
 } segment_t;
 
@@ -76,14 +82,14 @@ begin_thread_handler
 phase(BUFFER_PHASE) {
 	var(target_sectors) = init_mask(var(sect_offset), var(num_sectors));
 
-	sectors_mask_t valid_sectors =
+	sectors_mask_t buffered_sectors =
 		write_buffer_pull(var(lpn), var(target_sectors),
 #if OPTION_ACL
 				var(uid),
 #endif
 				sata_rd_buf);
-	if (valid_sectors) {
-		var(target_sectors) &= ~valid_sectors;
+	if (buffered_sectors) {
+		var(target_sectors) &= ~buffered_sectors;
 		if (var(target_sectors) == 0) goto_phase(SATA_PHASE);
 	}
 }
@@ -123,6 +129,9 @@ phase(PMT_LOAD_PHASE) {
 		if (seg_i == num_segments) {
 			seg = &segments[num_segments];
 			segment_init(seg, vp);
+#if OPTION_ACL
+			seg->is_authenticated = acl_authenticate(var(uid), vp);
+#endif
 			num_segments++;
 		}
 		seg->target_sectors |= sp_target_sectors;
@@ -166,6 +175,16 @@ phase(FLASH_READ_PHASE) {
 			seg->is_done = TRUE;
 			continue;
 		}
+
+#if OPTION_ACL
+		/* fill the segment with 0s if authentication fails */
+		if (!seg->is_authenticated) {
+			fla_copy_buffer(sata_rd_buf, ALL_ZERO_BUF,
+					seg->target_sectors);
+			seg->is_done = TRUE;
+			continue;
+		}
+#endif
 
 		/* try to reader buffer */
 		UINT32 read_buf = NULL;

@@ -9,6 +9,9 @@
 #include "page_lock.h"
 #include "dram.h"
 #include "gc.h"
+#if OPTION_ACL
+#include "acl.h"
+#endif
 
 /*
  * SATA
@@ -83,11 +86,11 @@ phase(BUFFER_PHASE) {
 			var(buf) = MANAGED_BUF(managed_buf_id);
 		}
 
-		write_buffer_push(var(lpn), var(sect_offset),
+		write_buffer_push(var(lpn), var(sect_offset), var(num_sectors),
 #if OPTION_ACL
 				push_buf_uid,
 #endif
-				var(num_sectors), sata_wr_buf);
+				sata_wr_buf);
 
 		if (var(buf) == NULL) goto_phase(SATA_PHASE);
 	}
@@ -230,6 +233,10 @@ phase(BANK_PHASE) {
 
 	var(vp).bank	= idle_bank;
 	var(vp).vpn	= gc_allocate_new_vpn(idle_bank, FALSE);
+
+#if OPTOIN_ACL
+	acl_authorize(var(uid), var(vp));
+#endif
 }
 phase(PMT_UPDATE_PHASE) {
 	for_each_subpage(sp_i) {

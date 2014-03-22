@@ -76,6 +76,25 @@
 /* Write buffer use managed buffer */
 
 /* ========================================================================= *
+ * ACL Table
+ * ========================================================================= */
+
+#if OPTION_ACL
+#define ACL_TABLE_ADDR		READ_BUF_END
+#define ACL_TABLE_ENTRIES	(NUM_BANKS * PAGES_PER_BANK)
+#define ACL_TABLE_ENTRIES_PER_PAGE	\
+				(BYTES_PER_PAGE / sizeof(user_id_t))
+#define ACL_TABLE_NUM_PAGES	COUNT_BUCKETS(ACL_TABLE_ENTRIES,\
+					ACL_TABLE_ENTRIES_PER_PAGE)
+#define ACL_TABLE_BYTES		(ACL_TABLE_NUM_PAGES * BYTES_PER_PAGE)
+#define ACL_TABLE_END		(ACL_TABLE_ADDR + ACL_TABLE_BYTES)
+
+#define NON_BUFFER_AREA_END	ACL_TABLE_END
+#else
+#define NON_BUFFER_AREA_END	READ_BUF_END
+#endif
+
+/* ========================================================================= *
  * Other Non-SATA Buffers
  * ========================================================================= */
 
@@ -85,7 +104,7 @@
 #define NUM_TEMP_BUFFERS	1
 #define NUM_THREAD_SWAP_BUFFERS	1
 
-#define COPY_BUF_ADDR          	READ_BUF_END
+#define COPY_BUF_ADDR          	NON_BUFFER_AREA_END
 #define COPY_BUF_BYTES          (NUM_COPY_BUFFERS * BYTES_PER_PAGE)
 #define _COPY_BUF(RBANK)	(COPY_BUF_ADDR + (RBANK) * BYTES_PER_PAGE)
 #define COPY_BUF(BANK)		_COPY_BUF(REAL_BANK(BANK))
@@ -114,9 +133,14 @@
 				 NUM_THREAD_SWAP_BUFFERS + \
 				 NUM_READ_BUFFERS)
 #define NON_SATA_BUF_BYTES	(NUM_NON_SATA_BUFFERS * BYTES_PER_PAGE)
-#define DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + \
+#define _DRAM_BYTES_OTHER	(NON_SATA_BUF_BYTES + \
 				 PC_BYTES + PL_BYTES + \
 				 BAD_BLK_BMP_BYTES + GTD_BYTES)
+#if OPTION_ACL
+#define DRAM_BYTES_OTHER	(_DRAM_BYTES_OTHER + ACL_TABLE_BYTES)
+#else
+#define DRAM_BYTES_OTHER	_DRAM_BYTES_OTHER
+#endif
 
 #define NUM_SATA_RW_BUFFERS	((DRAM_SIZE - DRAM_BYTES_OTHER) / BYTES_PER_PAGE - 1)
 #define NUM_SATA_RD_BUFFERS	(COUNT_BUCKETS(NUM_SATA_RW_BUFFERS / 8, NUM_BANKS) * NUM_BANKS)

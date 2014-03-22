@@ -96,7 +96,7 @@ static void buf_mask_remove(UINT32 const buf_id,
 	buf_masks[buf_id] &= ~lp_mask_aligned;
 	buf_sizes[buf_id] = count_sectors(buf_masks[buf_id]);
 
-	if (buf_sizes[buf_id] == 0) free_buf(old_buf_id);
+	if (buf_sizes[buf_id] == 0) free_buf(buf_id);
 }
 
 #if OPTION_ACL
@@ -213,8 +213,11 @@ static void dump_state()
 	uart_print("");
 }
 
-static UINT8 allocate_buffer_for(sectors_mask_t const mask,
-				user_id_t const uid)
+static UINT8 allocate_buffer_for(sectors_mask_t const mask
+#if OPTION_ACL
+				,user_id_t const uid
+#endif
+				)
 {
 	buf_id_t new_buf_id = head_buf_id;
 	do {
@@ -245,7 +248,7 @@ static UINT32 get_free_lp_index()
 {
 	UINT32 free_lp_idx;
 	BOOL8  res = find_index_of_lpn(NULL_LPN, &free_lp_idx);
-	BUG_ON("no available slot for new lpn", res == FALSE);
+	ASSERT(res == TRUE);
 	return free_lp_idx;
 }
 
@@ -336,8 +339,9 @@ void write_buffer_push(UINT32 const lpn,
 		      UINT32 const from_buf)
 {
 	if (num_sectors == 0) return;
-	ASSERT(!write_buffer_full());
+	ASSERT(!write_buffer_is_full());
 
+	UINT32 lp_idx;
 	sectors_mask_t  lp_new_mask = init_mask(sector_offset, num_sectors);
 #if OPTION_ACL
 	/* access control works on sub-page granualarity */
@@ -345,7 +349,6 @@ void write_buffer_push(UINT32 const lpn,
 	buf_mask_align_to_sp(&lp_new_mask_align_to_sp);
 
 	/* remove common part of this page from other users' buffers */
-	UINT32 lp_idx;
 	while (next_index_of_lpn(lpn, &lp_idx)) {
 		buf_id_t lp_buf_id = lp_buf_ids[lp_idx];
 		user_id_t buf_uid = buf_uids[lp_buf_id];
@@ -369,7 +372,6 @@ void write_buffer_push(UINT32 const lpn,
 #endif
 	// Try to merge with the same lpn in the buffer
 	buf_id_t	new_buf_id  = NULL_BID;
-	UINT32 lp_idx;
 #if OPTION_ACL
 	if (find_index_of_lpn_with_uid(lpn, uid, &lp_idx)) {
 #else
@@ -429,7 +431,7 @@ void write_buffer_push(UINT32 const lpn,
 		num_lpns++;
 	}
 	// Do insertion
-	fla_copy_buffer(WRITE_BUF(new_buf_id), buf, lp_new_mask);
+	fla_copy_buffer(WRITE_BUF(new_buf_id), from_buf, lp_new_mask);
 	buf_mask_add(new_buf_id, lp_new_mask);
 }
 
@@ -459,8 +461,8 @@ void write_buffer_flush(UINT8 *flushed_buf_id,
 {
 	/* find a vicitim buffer */
 	buf_id_t buf_id = find_fullest_buffer();
-	BUG_ON("flush any empty/invliad  buffer", buf_sizes[buf_id] == 0 ||
-						  buf_id >= NUM_WRITE_BUFFERS);
+	ASSERT(buf_sizes[buf_id] > 0);
+	ASSERT(buf_id < NUM_WRITE_BUFFERS);
 
 	ASSERT(buf_managed_ids[buf_id] != NULL_BUF_ID);
 	*flushed_buf_id = buf_managed_ids[buf_id];
@@ -501,7 +503,9 @@ void write_buffer_flush(UINT8 *flushed_buf_id,
 	ASSERT(buf_masks[buf_id] == 0ULL);
 	ASSERT(buf_sizes[buf_id] == 0);
 	ASSERT(buf_managed_ids[buf_id] == NULL_BUF_ID);
+#if OPTION_ACL
 	ASSERT(buf_uids[buf_id] = NULL_USER_ID);
+#endif
 	ASSERT(num_clean_buffers > 0);
 
 	if (buf_id == head_buf_id)
