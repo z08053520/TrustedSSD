@@ -105,26 +105,17 @@ static void buf_mask_remove(UINT32 const buf_id,
 static BOOL8 next_index_of_lpn(UINT32 const lpn, UINT32 *lp_idx)
 {
 	static UINT32 next_lp_idx = 0;
-	while (next_lp_idx < MAX_NUM_LPNS &&
-		lpns[next_lp_idx] != lpn) next_lp_idx++;
+	UINT32 idx_offset = mem_search_equ_sram(&lpns[next_lp_idx],
+				sizeof(UINT32), MAX_NUM_LPNS - next_lp_idx, lpn);
 
-	if (next_lp_idx == MAX_NUM_LPNS) {
+	if (idx_offset >= MAX_NUM_LPNS - next_lp_idx) {
 		next_lp_idx = 0;
 		return FALSE;
 	}
 
+	next_lp_idx += idx_offset;
 	*lp_idx = next_lp_idx++;
 	return TRUE;
-}
-
-static BOOL8 find_index_of_lpn_with_uid( UINT32 const lpn,
-			user_id_t const uid, UINT32 *lp_idx)
-{
-	while (next_index_of_lpn(lpn, lp_idx)) {
-		buf_id_t buf_id = lp_buf_ids[*lp_idx];
-		if (buf_uids[buf_id] == uid) return TRUE;
-	}
-	return FALSE;
 }
 #endif
 
@@ -344,9 +335,10 @@ void write_buffer_push(UINT32 const lpn,
 	if (num_sectors == 0) return;
 	ASSERT(!write_buffer_is_full());
 
-	UINT32 lp_idx;
+	UINT32 lp_idx = MAX_NUM_LPNS;
 	sectors_mask_t  lp_new_mask = init_mask(sector_offset, num_sectors);
 #if OPTION_ACL
+	UINT32 lp_idx_of_this_uid = MAX_NUM_LPNS;
 	/* access control works on sub-page granualarity */
 	sectors_mask_t	lp_new_mask_align_to_sp = lp_new_mask;
 	buf_mask_align_to_sp(&lp_new_mask_align_to_sp);
@@ -355,7 +347,10 @@ void write_buffer_push(UINT32 const lpn,
 	while (next_index_of_lpn(lpn, &lp_idx)) {
 		buf_id_t lp_buf_id = lp_buf_ids[lp_idx];
 		user_id_t buf_uid = buf_uids[lp_buf_id];
-		if (buf_uid == uid) continue;
+		if (buf_uid == uid) {
+			lp_idx_of_this_uid = lp_idx;
+			continue;
+		}
 
 		sectors_mask_t	lp_old_mask_other_usr = lp_masks[lp_idx];
 		sectors_mask_t	removal_common_mask =
@@ -376,7 +371,8 @@ void write_buffer_push(UINT32 const lpn,
 	// Try to merge with the same lpn in the buffer
 	buf_id_t	new_buf_id  = NULL_BID;
 #if OPTION_ACL
-	if (find_index_of_lpn_with_uid(lpn, uid, &lp_idx)) {
+	lp_idx = lp_idx_of_this_uid;
+	if (lp_idx < MAX_NUM_LPNS) {
 #else
 	if (find_index_of_lpn(lpn, &lp_idx)) {
 #endif
