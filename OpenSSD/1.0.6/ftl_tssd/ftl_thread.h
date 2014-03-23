@@ -2,6 +2,7 @@
 #define __FTL_THREAD_H
 
 #include "thread.h"
+#include "sata_manager.h"
 
 typedef struct {
 	UINT32	lpn;

@@ -74,7 +74,7 @@
  * the result of FTL read when verification is possible. This built-in
  * verificaiton mechanism simplifies the implementation of FTL unit test.
  */
-#define OPTION_FTL_VERIFY		0
+#define OPTION_FTL_VERIFY		1
 #endif
 
 
@@ -369,13 +369,13 @@ scan_list_t;
 	/* 	}\ */
 	/* } while(0); */
 
-	/* #define BUG_ON(MESSAGE, COND) do {\ */
-	/* 	if (COND) {\ */
-	/* 		uart_print("bug on");\ */
-	/* 		while(1);\ */
-	/* 	}\ */
-	/* } while(0); */
-	#define BUG_ON(MESSAGE, COND)
+	#define BUG_ON(MESSAGE, COND) do {\
+		if (COND) {\
+			uart_print("bug on");\
+			while(1);\
+		}\
+	} while(0);
+	/* #define BUG_ON(MESSAGE, COND) */
 #else
 	#define LOG(label, ...)
 	#define DEBUG(label, ...)

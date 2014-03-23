@@ -17,14 +17,6 @@ void ftl_verify(UINT32 const lpn, UINT8 const sect_offset,
 		UINT8 const num_sectors, UINT32 const sata_rd_buf);
 #endif
 
-/*
- * SATA
- * */
-
-UINT32	g_num_ftl_read_tasks_submitted = 0;
-UINT32 	g_num_ftl_read_tasks_finished = 0;
-UINT32	g_next_finishing_read_task_seq_id = 0;
-
 #define sata_rd_buf	(SATA_RD_BUF_PTR(var(seq_id) % NUM_SATA_RD_BUFFERS))
 
 /*
@@ -225,26 +217,10 @@ phase(FLASH_READ_PHASE) {
 }
 /* Update SATA buffer pointers */
 phase(SATA_PHASE) {
-	g_num_ftl_read_tasks_finished++;
-
 #if OPTION_FTL_VERIFY
 	ftl_verify(var(lpn), var(sect_offset), var(num_sectors), sata_rd_buf);
 #endif
-
-	if (g_next_finishing_read_task_seq_id == var(seq_id))
-		g_next_finishing_read_task_seq_id++;
-	else if (g_num_ftl_read_tasks_finished == g_num_ftl_read_tasks_submitted)
-		g_next_finishing_read_task_seq_id = g_num_ftl_read_tasks_finished;
-	else
-		end();
-
-	/* safely inform SATA buffer manager to update pointer */
-	UINT32 next_read_buf_id = g_next_finishing_read_task_seq_id
-				% NUM_SATA_RD_BUFFERS;
-	SETREG(BM_STACK_RDSET, next_read_buf_id);
-	SETREG(BM_STACK_RESET, 0x02);
-
-	ASSERT(g_num_ftl_read_tasks_finished <= g_num_ftl_read_tasks_submitted);
+	sata_manager_finish_read_task(var(seq_id));
 }
 end_thread_handler
 
@@ -263,7 +239,7 @@ void ftl_read_thread_init(thread_t *t, const ftl_cmd_t *cmd)
 
 	t->handler_id = registered_handler_id;
 
-	var(seq_id) = g_num_ftl_read_tasks_submitted++;
+	var(seq_id) = sata_manager_accept_read_task();
 	var(lpn) = cmd->lpn;
 	var(sect_offset) = cmd->sect_offset;
 	var(num_sectors) = cmd->num_sectors;

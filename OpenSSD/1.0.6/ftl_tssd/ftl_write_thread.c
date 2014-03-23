@@ -13,14 +13,6 @@
 #include "acl.h"
 #endif
 
-/*
- * SATA
- * */
-
-UINT32	g_num_ftl_write_tasks_submitted = 0;
-UINT32 	g_num_ftl_write_tasks_finished = 0;
-UINT32	g_next_finishing_write_task_seq_id = 0;
-
 #define sata_wr_buf	(SATA_WR_BUF_PTR(var(seq_id) % NUM_SATA_WR_BUFFERS))
 
 /*
@@ -288,20 +280,7 @@ phase(FLASH_WRITE_PHASE) {
 	if (buf_id != NULL_BUF_ID) buffer_free(buf_id);
 }
 phase(SATA_PHASE) {
-	g_num_ftl_write_tasks_finished++;
-
-	if (g_next_finishing_write_task_seq_id == var(seq_id))
-		g_next_finishing_write_task_seq_id++;
-	else if (g_num_ftl_write_tasks_finished == g_num_ftl_write_tasks_submitted)
-		g_next_finishing_write_task_seq_id = g_num_ftl_write_tasks_finished;
-	else
-		end();
-
-	/* safely inform SATA buffer manager to update pointer */
-	UINT32 next_write_buf_id = g_next_finishing_write_task_seq_id
-					% NUM_SATA_WR_BUFFERS;
-	SETREG(BM_STACK_WRSET, next_write_buf_id);
-	SETREG(BM_STACK_RESET, 0x01);
+	sata_manager_finish_write_task(var(seq_id));
 }
 end_thread_handler
 
@@ -320,7 +299,7 @@ void ftl_write_thread_init(thread_t *t, const ftl_cmd_t *cmd)
 
 	t->handler_id = registered_handler_id;
 
-	var(seq_id) = g_num_ftl_write_tasks_submitted++;
+	var(seq_id) = sata_manager_accept_write_task();
 	var(lpn) = cmd->lpn;
 	var(sect_offset) = cmd->sect_offset;
 	var(num_sectors) = cmd->num_sectors;
