@@ -248,9 +248,9 @@ static UINT8 allocate_buffer_for(sectors_mask_t const mask
 
 static UINT32 get_free_lp_index()
 {
-	UINT32 free_lp_idx;
-	BOOL8  res = find_index_of_lpn(NULL_LPN, &free_lp_idx);
-	ASSERT(res == TRUE);
+	UINT32 free_lp_idx = MAX_NUM_LPNS;
+	find_index_of_lpn(NULL_LPN, &free_lp_idx);
+	ASSERT(free_lp_idx < MAX_NUM_LPNS);
 	return free_lp_idx;
 }
 

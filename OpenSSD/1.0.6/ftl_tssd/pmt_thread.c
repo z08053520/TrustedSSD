@@ -170,8 +170,7 @@ pmt_load:;
 		vsp_t	load_vsp = gtd_get_vsp(var(next_pmt_idx));
 		/* if this PMT page has never been written to flash */
 		if (load_vsp.vspn == 0) {
-			BOOL8 res = pmt_cache_put(var(next_pmt_idx));
-			ASSERT(res == 0);
+			pmt_cache_put(var(next_pmt_idx));
 			UINT32 pmt_buf = pmt_cache_get(var(next_pmt_idx));
 			ASSERT(pmt_buf != NULL);
 
@@ -187,8 +186,7 @@ pmt_load:;
 		if (!fla_is_bank_idle(load_bank)) break;
 
 		/* reserve a place for the PMT page in cache */
-		BOOL8 res = pmt_cache_put(var(next_pmt_idx));
-		ASSERT(res == 0);
+		pmt_cache_put(var(next_pmt_idx));
 
 		/* do flash read */
 		UINT8	load_buf_id = buffer_allocate();

@@ -147,15 +147,11 @@ UINT32 	pmt_cache_get(UINT32 const pmt_idx)
 	return PC_SUB_PAGE(page_idx);
 }
 
-BOOL8	pmt_cache_put(UINT32 const pmt_idx)
+void	pmt_cache_put(UINT32 const pmt_idx)
 {
 	ASSERT(pmt_idx < PMT_SUB_PAGES);
-
-	UINT32	old_page_idx = get_page(pmt_idx);
-	ASSERT(old_page_idx == NULL_PAGE_IDX);
-
-	/* if no more free entries, put fails */
-	if (num_free_sub_pages == 0) return 1;
+	ASSERT(get_page(pmt_idx) == NULL_PAGE_IDX);
+	ASSERT(num_free_sub_pages > 0);
 
 	UINT32 free_page_idx = find_free_buf();
 	cached_pmt_idxes[free_page_idx] = pmt_idx;
@@ -165,7 +161,6 @@ BOOL8	pmt_cache_put(UINT32 const pmt_idx)
 	last_page_idx = free_page_idx;
 
 	num_free_sub_pages--;
-	return 0;
 }
 
 BOOL8	pmt_cache_is_loading(UINT32 const pmt_idx)
@@ -271,8 +266,7 @@ BOOL8	pmt_cache_evict()
 						 MU_CMD_SEARCH_MIN_SRAM);
 		ASSERT(lru_page_idx < NUM_PC_SUB_PAGES);
 		ASSERT(cached_pmt_idxes[lru_page_idx] < PMT_SUB_PAGES);
-		UINT32 lru_page_timestamp = cached_pmt_timestamps[lru_page_idx];
-		ASSERT(lru_page_timestamp < NULL_TIMESTAMP);
+		ASSERT(cached_pmt_timestamps[lru_page_idx] < NULL_TIMESTAMP);
 
 		BOOL8 is_dirty = bit_array_test(cached_pmt_is_dirty, lru_page_idx);
 		if (!is_dirty) {

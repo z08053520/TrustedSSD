@@ -20,12 +20,15 @@ user_id_t acl_skey2uid(UINT32 const skey)
 
 BOOL8 acl_authenticate(user_id_t const uid, vp_t const vp)
 {
+	if (vp.vpn == 0) return TRUE;
+
 	user_id_t expected_uid = (user_id_t) read_dram_16(ACL_TABLE_ENTRY(vp));
 	return expected_uid == uid;
 }
 
 void acl_authorize(user_id_t const uid, vp_t const vp)
 {
+	ASSERT(vp.vpn != 0);
 	write_dram_16(ACL_TABLE_ENTRY(vp), uid);
 }
 #endif

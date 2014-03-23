@@ -17,9 +17,6 @@
 
 typedef struct {
 	vp_t		vps[SUB_PAGES_PER_PAGE];
-#if OPTION_ACL
-	user_id_t	uids[SECTORS_PER_PAGE];
-#endif
 } pmt_entry_t;
 
 #define PMT_BYTES_PER_ENTRY		sizeof(pmt_entry_t)

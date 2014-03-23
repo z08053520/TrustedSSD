@@ -17,7 +17,7 @@ UINT32 	pmt_cache_get(UINT32 const pmt_idx);
 /* Put a PMT page into cache and allocate buffer for it
  *	A PMT page is assumed to be being loaded after put into cache.
  * */
-BOOL8	pmt_cache_put(UINT32 const pmt_idx);
+void	pmt_cache_put(UINT32 const pmt_idx);
 
 /* Return whether the PMT page is being loaded */
 BOOL8	pmt_cache_is_loading(UINT32 const pmt_idx);
